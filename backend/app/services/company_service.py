@@ -8,6 +8,7 @@ from ..cache import cached
 from ..errors import ApiError
 from ..parsers.dart_overview import (
     PeriodicReport,
+    build_comparison_tables,
     bsns_year_candidates,
     parse_periodic_reports,
     reprt_code_for,
@@ -69,23 +70,48 @@ async def get_shareholders(corp_code: str, fiscal_month: int) -> dict:
     }
 
 
+async def _statements(corp_code: str, report: PeriodicReport, fiscal_month: int, order: tuple[str, ...]):
+    """보고서 하나의 전체 재무제표. 연결/별도 중 order 순서대로 시도 → (rows, year, fs_div) 또는 None."""
+    for fs_div in order:
+        got = await _fetch_report_api("fnlttSinglAcntAll.json", corp_code, report, fiscal_month, fs_div=fs_div)
+        if got is not None and got[0]:
+            return got[0], got[1], fs_div
+    return None
+
+
 @cached(ttl=6 * 3600)
 async def get_financials(corp_code: str, fiscal_month: int, industry_code: str | None) -> dict:
-    """최직근 결산(사업보고서) 기준 재무. 연결(CFS) 우선, 없으면 별도(OFS)."""
-    reports = [r for r in await get_periodic_reports(corp_code) if r.kind == "사업"]
-    for report in reports[:2]:
-        for fs_div, fs_label in (("CFS", "연결"), ("OFS", "별도")):
-            got = await _fetch_report_api("fnlttSinglAcntAll.json", corp_code, report, fiscal_month, fs_div=fs_div)
-            if got is None or not got[0]:
-                continue
-            rows, year = got
-            summary = summarize_financials(rows, industry_code)
-            summary.update(available=True, fs_div=fs_div, fs_label=fs_label, basis=_basis(report, year, "11011"))
-            return summary
-    return {
-        "available": False,
-        "message": "DART 재무정보 API는 정기보고서 제출 법인만 제공합니다. 감사보고서 탭에서 재무제표 원문(PDF)을 확인하세요.",
-    }
+    """최직근 정기보고서(사업·반기·분기) + 최근 사업보고서 기준 재무 비교. 연결(CFS) 우선, 없으면 별도(OFS)."""
+    reports = await get_periodic_reports(corp_code)
+    annuals = [r for r in reports if r.kind == "사업"]
+    latest = reports[0] if reports else None
+    if latest is None or not annuals:
+        return {
+            "available": False,
+            "message": "DART 재무정보 API는 정기보고서 제출 법인만 제공합니다. 감사보고서 탭에서 재무제표 원문(PDF)을 확인하세요.",
+        }
+    annual = annuals[0]
+
+    latest_got = await _statements(corp_code, latest, fiscal_month, ("CFS", "OFS"))
+    if latest_got is None:
+        return {"available": False, "message": "최근 정기보고서의 재무제표를 받지 못했습니다."}
+    latest_rows, latest_year, fs_div = latest_got
+    if latest.rcept_no == annual.rcept_no:
+        annual_rows, annual_year = latest_rows, latest_year
+    else:
+        other = "OFS" if fs_div == "CFS" else "CFS"
+        got = await _statements(corp_code, annual, fiscal_month, (fs_div, other))
+        annual_rows, annual_year = (got[0], got[1]) if got else (None, None)
+
+    # 기존 필드(최근 결산 기준 요약)도 유지한다.
+    summary = summarize_financials(annual_rows or latest_rows, industry_code)
+    summary.update(available=True, fs_div=fs_div, fs_label="연결" if fs_div == "CFS" else "별도",
+                   basis=_basis(latest, latest_year, reprt_code_for(latest, fiscal_month)))
+    summary["tables"] = build_comparison_tables(
+        latest_rows, latest.kind, latest.period_year, latest.period_month,
+        annual_rows, int(annual_year) if annual_year else None, fiscal_month, industry_code,
+    )
+    return summary
 
 
 def _basis(report: PeriodicReport, bsns_year: str, reprt_code: str) -> dict:

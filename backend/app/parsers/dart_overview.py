@@ -212,3 +212,119 @@ def summarize_financials(rows: list[dict], industry_code: str | None = None) -> 
     }
     currency = next((r.get("currency") for r in rows if r.get("currency")), "KRW")
     return {"revenue_label": rev_lbl, "currency": currency, "balance_sheet": bs, "income_statement": inc}
+
+
+# ───────────────────────── 4) 기간 비교 표 ─────────────────────────
+
+def _account_rows(rows: list[dict], industry_code: str | None) -> dict:
+    is_sj = ("IS", "CIS")
+    rev = _find(rows, is_sj, _REVENUE_IDS, _REVENUE_NAMES)
+    return {
+        "revenue_label": revenue_label(rev.get("account_nm") if rev else None, industry_code),
+        "assets": _find(rows, ("BS",), *_BS["total_assets"]),
+        "liabilities": _find(rows, ("BS",), *_BS["total_liabilities"]),
+        "equity": _find(rows, ("BS",), *_BS["total_equity"]),
+        "revenue": rev,
+        "operating": _find(rows, is_sj, _OPINC_IDS, _OPINC_NAMES),
+        "net": _find(rows, ("IS",), _NI_IDS, _NI_NAMES) or _find(rows, ("CIS",), _NI_IDS, _NI_NAMES),
+    }
+
+
+def _v(row: dict | None, field: str) -> int | None:
+    return parse_amount(row.get(field)) if row else None
+
+
+def _debt_ratio(liab: int | None, equity: int | None) -> float | None:
+    if liab is None or not equity or equity <= 0:
+        return None
+    return round(liab / equity * 100, 1)
+
+
+def cumulative_months(period_month: int, fiscal_month: int) -> int:
+    """결산월 기준 누적 개월 수(12월 결산 6월 → 6, 3월 결산 6월 → 3, 3월 결산 12월 → 9)."""
+    n = (period_month - fiscal_month) % 12
+    return n or 12
+
+
+def _range_label(year: int, end_month: int, months: int) -> str:
+    start = (end_month - months) % 12 + 1
+    return f"{year}.{start:02d}~{end_month:02d}"
+
+
+def build_comparison_tables(
+    latest_rows: list[dict] | None, latest_kind: str, latest_year: int, latest_month: int,
+    annual_rows: list[dict] | None, annual_year: int | None,
+    fiscal_month: int, industry_code: str | None,
+) -> dict:
+    """최직근 보고서(분기·반기·사업) + 최근 사업보고서로 재무 비교표를 만든다.
+
+    - 재무상태: [최직근 기말(분기·반기일 때만)] + 최근 3개 연말
+    - 손익: 분기·반기일 때 [분기 손익, 누적 손익] + 직전 2개 연간 / 사업보고서가 최직근이면 연간 3개
+    금액은 원 단위 정수, 부채비율은 %. 없는 값은 None.
+    """
+    latest = _account_rows(latest_rows, industry_code) if latest_rows else None
+    annual = _account_rows(annual_rows, industry_code) if annual_rows else None
+    is_annual = latest_kind == "사업"
+    rev_label = (latest or annual or {}).get("revenue_label", "매출액")
+
+    # 재무상태표 열
+    bs_cols: list[str] = []
+    bs_sets: list[tuple[int | None, int | None, int | None]] = []   # (자산, 부채, 자본)
+
+    def add_bs(label: str, a: dict | None, field: str) -> None:
+        bs_cols.append(label)
+        bs_sets.append((_v(a and a["assets"], field), _v(a and a["liabilities"], field), _v(a and a["equity"], field)))
+
+    if not is_annual and latest:
+        add_bs(f"{latest_year}.{latest_month:02d}", latest, "thstrm_amount")
+    if annual and annual_year:
+        for i, field in enumerate(("thstrm_amount", "frmtrm_amount", "bfefrmtrm_amount")):
+            add_bs(f"{annual_year - i}.{fiscal_month:02d}", annual, field)
+    elif latest and is_annual:
+        for i, field in enumerate(("thstrm_amount", "frmtrm_amount", "bfefrmtrm_amount")):
+            add_bs(f"{latest_year - i}.{fiscal_month:02d}", latest, field)
+
+    balance = {
+        "columns": bs_cols,
+        "rows": [
+            {"label": "자산총계", "values": [s[0] for s in bs_sets]},
+            {"label": "부채총계", "values": [s[1] for s in bs_sets]},
+            {"label": "자본총계", "values": [s[2] for s in bs_sets]},
+            {"label": "부채비율", "unit": "%", "values": [_debt_ratio(s[1], s[2]) for s in bs_sets]},
+        ],
+    }
+
+    # 손익 열: (라벨, 부제, 계정행 dict, 필드)
+    inc_cols: list[dict] = []
+    inc_vals: list[tuple[int | None, int | None, int | None]] = []   # (매출, 영업이익, 순이익)
+
+    def add_inc(label: str, sub: str | None, a: dict | None, field: str, fallback: str | None = None) -> None:
+        def get(row: dict | None) -> int | None:
+            v = _v(row, field)
+            return v if v is not None or fallback is None else _v(row, fallback)
+        inc_cols.append({"label": label, "sub": sub})
+        inc_vals.append((get(a and a["revenue"]), get(a and a["operating"]), get(a and a["net"])))
+
+    if not is_annual and latest:
+        cum = cumulative_months(latest_month, fiscal_month)
+        add_inc("분기손익", _range_label(latest_year, latest_month, 3), latest, "thstrm_amount")
+        add_inc("누적손익", _range_label(latest_year, latest_month, cum), latest, "thstrm_add_amount", fallback="thstrm_amount")
+        if annual and annual_year:
+            add_inc(f"{annual_year}년 연간", "전년말", annual, "thstrm_amount")
+            add_inc(f"{annual_year - 1}년 연간", "전전년말", annual, "frmtrm_amount")
+    else:
+        src = latest if latest else annual
+        year = latest_year if latest else (annual_year or 0)
+        if src:
+            for i, field in enumerate(("thstrm_amount", "frmtrm_amount", "bfefrmtrm_amount")):
+                add_inc(f"{year - i}년 연간", "최근 결산" if i == 0 else None, src, field)
+
+    income = {
+        "columns": inc_cols,
+        "rows": [
+            {"label": rev_label, "values": [s[0] for s in inc_vals]},
+            {"label": "영업이익", "values": [s[1] for s in inc_vals]},
+            {"label": "당기순이익", "values": [s[2] for s in inc_vals]},
+        ],
+    }
+    return {"unit": "억원", "balance": balance, "income": income}
