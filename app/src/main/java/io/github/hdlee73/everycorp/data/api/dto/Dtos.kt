@@ -336,3 +336,17 @@ data class NewsItemDto(
     @SerialName("published_at") val publishedAt: String? = null,
     val url: String,
 )
+
+// ───────── 당일 분봉 ─────────
+@Serializable
+data class IntradayDto(
+    @SerialName("stock_code") val stockCode: String = "",
+    val name: String = "",
+    val source: String = "",
+    /** 분봉 기준일(장 시작 전·휴장일이면 직전 거래일) */
+    val date: String? = null,
+    val points: List<IntradayPointDto> = emptyList(),
+)
+
+@Serializable
+data class IntradayPointDto(val time: String, val price: Long, val volume: Long = 0)

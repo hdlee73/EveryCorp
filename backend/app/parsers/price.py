@@ -204,3 +204,44 @@ def parse_kiwoom_chart(rows: list[dict]) -> list[dict]:
             "volume": kiwoom_abs_int(r.get("trde_qty")),
         })
     return sorted(out, key=lambda x: x["date"])
+
+
+# ───────────────────────── 당일(분봉) ─────────────────────────
+
+def _abs_int(v) -> int | None:
+    n = _num(str(v).lstrip("+-")) if v is not None else None
+    return n
+
+
+def parse_kiwoom_minutes(rows: list[dict]) -> list[dict]:
+    """키움 ka10080(주식분봉차트) → [{date, time, price, volume}] 오름차순. 시각은 cntr_tm(YYYYMMDDHHMMSS)."""
+    out = []
+    for r in rows:
+        tm = str(r.get("cntr_tm", ""))
+        price = _abs_int(r.get("cur_prc"))
+        if len(tm) < 12 or price is None:
+            continue
+        out.append({"date": f"{tm[:4]}-{tm[4:6]}-{tm[6:8]}", "time": f"{tm[8:10]}:{tm[10:12]}", "price": price,
+                    "volume": _abs_int(r.get("trde_qty")) or 0})
+    return sorted(out, key=lambda x: (x["date"], x["time"]))
+
+
+_FCHART_ITEM = re.compile(r'<item\s+data="(\d{12,14})\|(\d+)\|(\d+)\|(\d+)\|(\d+)\|(\d+)"')
+
+
+def parse_naver_fchart_minutes(text: str) -> list[dict]:
+    """네이버 fchart(sise.nhn?timeframe=minute) XML → [{date, time, price(종가), volume}] 오름차순."""
+    out = []
+    for m in _FCHART_ITEM.finditer(text):
+        tm = m.group(1)
+        out.append({"date": f"{tm[:4]}-{tm[4:6]}-{tm[6:8]}", "time": f"{tm[8:10]}:{tm[10:12]}",
+                    "price": int(m.group(5)), "volume": int(m.group(6))})
+    return sorted(out, key=lambda x: (x["date"], x["time"]))
+
+
+def latest_session(points: list[dict]) -> list[dict]:
+    """가장 최근 거래일의 분봉만(장 시작 전·휴장일에는 직전 거래일)."""
+    if not points:
+        return []
+    day = max(p["date"] for p in points)
+    return [p for p in points if p["date"] == day]

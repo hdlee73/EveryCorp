@@ -167,6 +167,12 @@ async def stock_quote(corp_code: str) -> dict:
     return await price_service.get_quote(corp_code)
 
 
+@router.get("/corps/{corp_code}/stock/intraday")
+async def stock_intraday(corp_code: str) -> dict:
+    _corp_or_404(corp_code)
+    return await price_service.get_intraday(corp_code)
+
+
 @router.get("/corps/{corp_code}/stock/chart")
 async def stock_chart(corp_code: str, days: int = Query(365, ge=30, le=1100)) -> dict:
     _corp_or_404(corp_code)

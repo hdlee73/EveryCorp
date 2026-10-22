@@ -15,6 +15,7 @@ import io.github.hdlee73.everycorp.data.api.dto.DebtSecuritiesDto
 import io.github.hdlee73.everycorp.data.api.dto.DisclosureCounts
 import io.github.hdlee73.everycorp.data.api.dto.DisclosureDto
 import io.github.hdlee73.everycorp.data.api.dto.NewsDto
+import io.github.hdlee73.everycorp.data.api.dto.IntradayDto
 import io.github.hdlee73.everycorp.data.api.dto.OverviewDto
 import io.github.hdlee73.everycorp.data.api.dto.QuoteDto
 import io.github.hdlee73.everycorp.data.pdf.PdfDownloader
@@ -49,6 +50,7 @@ class CompanyViewModel(
     var chart by mutableStateOf<UiState<ChartDto>>(UiState.Idle); private set
     var quote by mutableStateOf<UiState<QuoteDto>>(UiState.Idle); private set
     var news by mutableStateOf<UiState<NewsDto>>(UiState.Idle); private set
+    var intraday by mutableStateOf<UiState<IntradayDto>>(UiState.Idle); private set
 
     val pdfStates = mutableStateMapOf<String, PdfUi>()
 
@@ -93,6 +95,14 @@ class CompanyViewModel(
     fun loadReports() { reports = UiState.Loading; viewModelScope.launch { reports = repo.auditReports(corp.corpCode).toUiState() } }
     fun loadDebt() { debt = UiState.Loading; viewModelScope.launch { debt = repo.debtSecurities(corp.corpCode).toUiState() } }
     fun loadNews() { news = UiState.Loading; viewModelScope.launch { news = repo.news(corp.corpCode).toUiState() } }
+    /** 당일 분봉. 처음엔 로딩 표시, 이후 갱신은 조용히(실패해도 이전 그래프 유지). */
+    suspend fun refreshIntraday() {
+        if (intraday is UiState.Idle) intraday = UiState.Loading
+        repo.intraday(corp.corpCode)
+            .onSuccess { intraday = UiState.Success(it) }
+            .onFailure { if (intraday !is UiState.Success) intraday = UiState.Error(it.message ?: "당일 추이를 불러오지 못했습니다.") }
+    }
+
     fun loadChart() { chart = UiState.Loading; viewModelScope.launch { chart = repo.chart(corp.corpCode).toUiState() } }
 
     /** 현재가 폴링 결과 반영. 실패해도 이전 값은 남겨 화면이 깜박이지 않게 한다. */

@@ -7,6 +7,7 @@ import io.github.hdlee73.everycorp.data.api.dto.CorpSearchResponse
 import io.github.hdlee73.everycorp.data.api.dto.DebtSecuritiesDto
 import io.github.hdlee73.everycorp.data.api.dto.DisclosuresResponse
 import io.github.hdlee73.everycorp.data.api.dto.NewsDto
+import io.github.hdlee73.everycorp.data.api.dto.IntradayDto
 import io.github.hdlee73.everycorp.data.api.dto.OverviewDto
 import io.github.hdlee73.everycorp.data.api.dto.QuoteDto
 import retrofit2.http.GET
@@ -48,6 +49,9 @@ interface EveryCorpApi {
 
     @GET("api/v1/corps/{corpCode}/stock/quote")
     suspend fun quote(@Path("corpCode") corpCode: String): QuoteDto
+
+    @GET("api/v1/corps/{corpCode}/stock/intraday")
+    suspend fun intraday(@Path("corpCode") corpCode: String): IntradayDto
 
     @GET("api/v1/corps/{corpCode}/stock/chart")
     suspend fun chart(
