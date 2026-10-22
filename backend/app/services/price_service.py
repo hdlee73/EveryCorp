@@ -1,6 +1,6 @@
 """탭 4. 주가현황(상장사 전용).
 
-실시간 현재가: KIS Open API(키가 있으면) → 실패/미설정 시 네이버 금융 실시간 폴링.
+실시간 현재가: 네이버 금융 실시간 폴링(키 불필요, 1순위) → KIS Open API(키가 있으면) → KRX 전일 종가.
 1년 일봉: 공공데이터포털 금융위원회_주식시세정보(T+1 지연) → 실패 시 네이버 siseJson.
 현재가는 5초, 일봉은 1시간 캐시한다(앱은 장중 5초 간격 폴링 권장).
 """
@@ -109,18 +109,18 @@ async def get_quote(corp_code: str) -> dict:
 
     async def load() -> dict:
         q, source = None, None
-        if kis_enabled():
+        # 1순위 네이버(키 불필요, FSS Insights와 같은 방식) → 2순위 KIS(키가 있을 때) → 3순위 KRX 전일 종가
+        try:
+            q, source = await _naver_quote(stock_code), "NAVER"
+        except Exception as e:  # noqa: BLE001
+            log.warning("Naver quote failed: %s", e)
+        if q is None and kis_enabled():
             try:
                 q, source = await _kis_quote(stock_code), "KIS"
             except Exception as e:  # noqa: BLE001
-                log.warning("KIS quote failed, fallback to Naver: %s", e)
-        if q is None:
-            try:
-                q, source = await _naver_quote(stock_code), "NAVER"
-            except Exception as e:  # noqa: BLE001
-                if not krx_enabled():
-                    raise
-                log.warning("Naver quote failed, fallback to KRX T-1: %s", e)
+                log.warning("KIS quote failed: %s", e)
+        if q is None and not krx_enabled():
+            raise UpstreamError("시세", "현재가를 가져오지 못했습니다.")
         if q is None:
             q = await previous_close(stock_code, market)
             if q is None:

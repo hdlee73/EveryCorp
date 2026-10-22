@@ -327,7 +327,7 @@
 }
 ```
 - `direction`: `UP`(빨강 ▲) · `DOWN`(파랑 ▼) · `FLAT`(회색 -)
-- `source`: `KIS` | `NAVER`(폴백). 네이버 응답일 때는 `market_status`(`OPEN`/`CLOSE`), `traded_at` 추가, `week52_*` 없음
+- `source`: `NAVER`(기본) | `KIS`(키 설정 시 네이버 실패 대체) | `KRX`(전일 종가, `delayed:true`). 네이버 응답은 `market_status`(`OPEN`/`CLOSE`), `traded_at`가 있고 `week52_*`는 없음(차트의 `range_52w` 사용)
 - 앱은 탭이 화면에 있을 때만 5초 간격 폴링(장 마감 후 60초)
 - 비상장: `404 NOT_LISTED`
 
