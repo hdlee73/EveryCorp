@@ -19,11 +19,15 @@
 > 공공데이터포털은 서비스마다 **활용신청**이 따로 필요합니다(키는 하나). 승인에 수 시간~1일 걸릴 수 있습니다.
 
 ## 2. 앱 서명키 만들기 (한 번만, 분실하면 업데이트 불가 → 안전한 곳에 백업)
-```bash
-keytool -genkeypair -v -keystore everycorp-release.jks -alias everycorp \
-  -keyalg RSA -keysize 2048 -validity 36500
-base64 -w0 everycorp-release.jks > everycorp-release.jks.b64   # macOS: base64 -i ... -o ...
+JDK가 있는 PC에서 **한 줄로** 실행합니다(윈도우 cmd에서는 줄 끝 `\` 이어쓰기가 안 됩니다).
 ```
+keytool -genkeypair -v -keystore everycorp-release.jks -alias everycorp -keyalg RSA -keysize 2048 -validity 36500
+```
+비밀번호는 프롬프트에서 직접 입력합니다. 그다음 Secrets에 넣을 base64 값을 만듭니다.
+
+- **윈도우 PowerShell**: `[Convert]::ToBase64String([IO.File]::ReadAllBytes("everycorp-release.jks")) | Set-Content everycorp-release.jks.b64`
+- **macOS/리눅스**: `base64 -w0 everycorp-release.jks > everycorp-release.jks.b64` (macOS는 `base64 -i everycorp-release.jks -o everycorp-release.jks.b64`)
+
 이 `.jks` 파일은 **절대 레포에 올리지 마세요**(.gitignore에 막아 두었습니다).
 
 ## 3. GitHub Secrets 등록 (레포 → Actions secrets)
