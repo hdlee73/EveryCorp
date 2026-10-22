@@ -9,7 +9,9 @@ import io.github.hdlee73.everycorp.data.api.dto.DebtSecuritiesDto
 import io.github.hdlee73.everycorp.data.api.dto.DisclosuresResponse
 import io.github.hdlee73.everycorp.data.api.dto.NewsDto
 import io.github.hdlee73.everycorp.data.api.dto.OverviewDto
+import io.github.hdlee73.everycorp.data.api.dto.DisclosureDto
 import io.github.hdlee73.everycorp.data.api.dto.QuoteDto
+import io.github.hdlee73.everycorp.data.kind.KindClient
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -20,6 +22,11 @@ enum class DisclosurePeriod(val years: Int, val label: String) {
     Y1(1, "1년"), Y3(3, "3년"), Y5(5, "5년"), Y10(10, "10년");
 
     companion object { val Default = Y1 }
+}
+
+/** 공시 종류 칩. 정기보고서 = 사업·반기·분기보고서. */
+enum class DisclosureCategory(val param: String, val label: String) {
+    All("all", "전체 공시"), Periodic("periodic", "정기보고서")
 }
 
 enum class DisclosureSource(val param: String, val label: String) {
@@ -36,7 +43,7 @@ internal suspend inline fun <T> apiCall(crossinline block: suspend () -> T): Res
         Result.failure(NetworkModule.toApiException(e))
     }
 
-class CorpRepository(private val api: EveryCorpApi) {
+class CorpRepository(private val api: EveryCorpApi, private val kind: KindClient? = null) {
 
     suspend fun search(query: String, listedOnly: Boolean = false): Result<List<CorpItemDto>> {
         val q = query.trim()
@@ -55,9 +62,23 @@ class CorpRepository(private val api: EveryCorpApi) {
         source: DisclosureSource = DisclosureSource.All,
         dedupe: Boolean = false,
         query: String? = null,
+        category: DisclosureCategory = DisclosureCategory.All,
         page: Int = 1,
     ): Result<DisclosuresResponse> =
-        apiCall { api.disclosures(corpCode, period.years, source.param, dedupe, query?.trim()?.ifEmpty { null }, page) }
+        apiCall { api.disclosures(corpCode, period.years, source.param, dedupe, query?.trim()?.ifEmpty { null }, category.param, page) }
+
+    /** KIND 공시는 서버(해외 IP는 KIND가 차단)가 아니라 폰에서 직접 불러온다. 비상장사는 KIND 공시가 없다. */
+    suspend fun kindDisclosures(corp: CorpItemDto, period: DisclosurePeriod): Result<List<DisclosureDto>> {
+        val client = kind ?: return Result.success(emptyList())
+        val stock = corp.stockCode?.takeIf { it.length == 6 } ?: return Result.success(emptyList())
+        return try {
+            Result.success(client.disclosures(corp.corpName, stock, period.years))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Result.failure(java.io.IOException("KIND 공시를 불러오지 못했습니다. (${e.message ?: "네트워크 오류"})"))
+        }
+    }
 
     suspend fun news(corpCode: String): Result<NewsDto> = apiCall { api.news(corpCode) }
 
