@@ -14,6 +14,7 @@ import io.github.hdlee73.everycorp.data.api.dto.CorpItemDto
 import io.github.hdlee73.everycorp.data.api.dto.DebtSecuritiesDto
 import io.github.hdlee73.everycorp.data.api.dto.DisclosureCounts
 import io.github.hdlee73.everycorp.data.api.dto.DisclosureDto
+import io.github.hdlee73.everycorp.data.api.dto.NewsDto
 import io.github.hdlee73.everycorp.data.api.dto.OverviewDto
 import io.github.hdlee73.everycorp.data.api.dto.QuoteDto
 import io.github.hdlee73.everycorp.data.pdf.PdfDownloader
@@ -44,6 +45,7 @@ class CompanyViewModel(
     var debt by mutableStateOf<UiState<DebtSecuritiesDto>>(UiState.Idle); private set
     var chart by mutableStateOf<UiState<ChartDto>>(UiState.Idle); private set
     var quote by mutableStateOf<UiState<QuoteDto>>(UiState.Idle); private set
+    var news by mutableStateOf<UiState<NewsDto>>(UiState.Idle); private set
 
     val pdfStates = mutableStateMapOf<String, PdfUi>()
 
@@ -67,12 +69,14 @@ class CompanyViewModel(
             CompanyTab.Disclosures -> if (disclosureState is UiState.Idle) reloadDisclosures()
             CompanyTab.Stock -> if (chart is UiState.Idle && corp.isListed) loadChart()
             CompanyTab.Debt -> if (debt is UiState.Idle) loadDebt()
+            CompanyTab.News -> if (news is UiState.Idle) loadNews()
         }
     }
 
     fun loadOverview() { overview = UiState.Loading; viewModelScope.launch { overview = repo.overview(corp.corpCode).toUiState() } }
     fun loadReports() { reports = UiState.Loading; viewModelScope.launch { reports = repo.auditReports(corp.corpCode).toUiState() } }
     fun loadDebt() { debt = UiState.Loading; viewModelScope.launch { debt = repo.debtSecurities(corp.corpCode).toUiState() } }
+    fun loadNews() { news = UiState.Loading; viewModelScope.launch { news = repo.news(corp.corpCode).toUiState() } }
     fun loadChart() { chart = UiState.Loading; viewModelScope.launch { chart = repo.chart(corp.corpCode).toUiState() } }
 
     /** 현재가 폴링 결과 반영. 실패해도 이전 값은 남겨 화면이 깜박이지 않게 한다. */

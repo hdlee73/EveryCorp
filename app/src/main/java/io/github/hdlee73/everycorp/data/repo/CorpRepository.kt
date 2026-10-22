@@ -7,6 +7,7 @@ import io.github.hdlee73.everycorp.data.api.dto.ChartDto
 import io.github.hdlee73.everycorp.data.api.dto.CorpItemDto
 import io.github.hdlee73.everycorp.data.api.dto.DebtSecuritiesDto
 import io.github.hdlee73.everycorp.data.api.dto.DisclosuresResponse
+import io.github.hdlee73.everycorp.data.api.dto.NewsDto
 import io.github.hdlee73.everycorp.data.api.dto.OverviewDto
 import io.github.hdlee73.everycorp.data.api.dto.QuoteDto
 import kotlinx.coroutines.CancellationException
@@ -57,6 +58,8 @@ class CorpRepository(private val api: EveryCorpApi) {
         page: Int = 1,
     ): Result<DisclosuresResponse> =
         apiCall { api.disclosures(corpCode, period.years, source.param, dedupe, query?.trim()?.ifEmpty { null }, page) }
+
+    suspend fun news(corpCode: String): Result<NewsDto> = apiCall { api.news(corpCode) }
 
     suspend fun debtSecurities(corpCode: String): Result<DebtSecuritiesDto> = apiCall { api.debtSecurities(corpCode) }
 

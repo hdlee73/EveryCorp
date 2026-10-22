@@ -61,6 +61,16 @@ class NavigationAndFormatTest {
         assertEquals("20.1%", Fmt.percent(20.07))
     }
 
+    @Test fun relativeTimeForNews() {
+        val now = java.time.Instant.parse("2026-10-22T03:00:00Z")
+        assertEquals("방금 전", Fmt.relativeTime("2026-10-22T12:00:00+09:00", now))
+        assertEquals("30분 전", Fmt.relativeTime("2026-10-22T11:30:00+09:00", now))
+        assertEquals("3시간 전", Fmt.relativeTime("2026-10-22T09:00:00+09:00", now))
+        assertEquals("2일 전", Fmt.relativeTime("2026-10-20T12:00:00+09:00", now))
+        assertEquals("2026.09.01", Fmt.relativeTime("2026-09-01T12:00:00+09:00", now))
+        assertEquals(null, Fmt.relativeTime(null, now))
+    }
+
     @Test fun recentListKeepsOrderAndDedupes() {
         val hynix = CorpItemDto("00164779", "SK하이닉스", listing = "LISTED")
         var list = CorpListCodec.pushFront(emptyList(), samsung, 3)

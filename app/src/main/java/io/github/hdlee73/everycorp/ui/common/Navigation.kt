@@ -8,6 +8,7 @@ enum class CompanyTab(val label: String) {
     Disclosures("공시"),
     Stock("주가현황"),
     Debt("채권 등 발행잔액"),
+    News("뉴스"),
 }
 
 sealed interface Dest {
