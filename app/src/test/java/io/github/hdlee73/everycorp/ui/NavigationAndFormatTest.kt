@@ -36,6 +36,13 @@ class NavigationAndFormatTest {
         assertEquals(CompanyTab.Disclosures, (back.top as Dest.Company).current)
     }
 
+    @Test fun goHomeJumpsToSearchInOneStep() {
+        val s = NavState().openCompany(samsung).selectTab(CompanyTab.Stock).openInfo().goHome()
+        assertEquals(Dest.Home, s.top)
+        assertFalse(s.canGoBack)
+        assertEquals(s, s.goHome())
+    }
+
     @Test fun revisitingTabDoesNotRepeatInHistory() {
         val s = NavState().openCompany(samsung)
             .selectTab(CompanyTab.Reports).selectTab(CompanyTab.Stock).selectTab(CompanyTab.Reports)

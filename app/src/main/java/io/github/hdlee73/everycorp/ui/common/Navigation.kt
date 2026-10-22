@@ -4,10 +4,10 @@ import io.github.hdlee73.everycorp.data.api.dto.CorpItemDto
 
 enum class CompanyTab(val label: String) {
     Overview("기업개황"),
-    Reports("감사·검토"),
+    Reports("감사보고서"),
     Disclosures("공시"),
-    Stock("주가"),
-    Debt("채권·단기증권"),
+    Stock("주가현황"),
+    Debt("채권 등 발행잔액"),
 }
 
 sealed interface Dest {
@@ -28,6 +28,9 @@ data class NavState(val stack: List<Dest> = listOf(Dest.Home)) {
     val top: Dest get() = stack.last()
 
     fun openCompany(corp: CorpItemDto): NavState = copy(stack = stack + Dest.Company(corp))
+
+    /** 어느 화면에서든 한 번에 첫 화면(검색)으로. 이미 첫 화면이면 그대로. */
+    fun goHome(): NavState = if (stack.size == 1) this else NavState()
 
     fun openInfo(): NavState = if (top == Dest.Info) this else copy(stack = stack + Dest.Info)
 

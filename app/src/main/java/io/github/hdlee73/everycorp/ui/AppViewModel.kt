@@ -34,6 +34,8 @@ class AppViewModel(private val c: AppContainer) : ViewModel() {
         private set
     var results by mutableStateOf<UiState<List<CorpItemDto>>>(UiState.Idle)
         private set
+    var searchFocusTick by mutableStateOf(0)
+        private set
     var favorites by mutableStateOf(c.prefs.favorites)
         private set
     var recents by mutableStateOf(c.prefs.recents)
@@ -70,6 +72,13 @@ class AppViewModel(private val c: AppContainer) : ViewModel() {
     }
 
     fun openInfo() { nav = nav.openInfo() }
+
+    /** 기업 화면에서 검색 아이콘 한 번으로 첫 화면으로 돌아와 입력창에 커서를 둔다. */
+    fun openSearch() {
+        nav = nav.goHome()
+        onQuery("")
+        searchFocusTick++
+    }
 
     fun selectTab(tab: CompanyTab) { nav = nav.selectTab(tab) }
 

@@ -31,7 +31,7 @@ fun AppInfoScreen(vm: AppViewModel) {
         GradientTopBar(title = "앱 정보", onBack = { vm.back() })
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SectionCard {
-                Text("에브리코프 기업정보 (EveryCorp)", style = MaterialTheme.typography.titleLarge)
+                Text("Every Corp 기업정보", style = MaterialTheme.typography.titleLarge)
                 LabelValue("버전", BuildConfig.VERSION_NAME)
                 LabelValue("만든이", "${BuildConfig.AUTHOR_NAME} (${BuildConfig.AUTHOR_EMAIL})")
                 LabelValue("소스", "github.com/${BuildConfig.GITHUB_REPO}")
