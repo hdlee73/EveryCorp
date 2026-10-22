@@ -151,3 +151,42 @@ async def get_chart(corp_code: str, days: int = 365) -> dict:
         "range_52w": pp.summarize_range(rows),
         "last_date": rows[-1]["date"] if rows else None,
     }
+
+
+# ───────────────────────── 당일 분봉 ─────────────────────────
+
+async def _naver_minutes(stock_code: str) -> list[dict]:
+    r = await get_client().get(
+        "https://fchart.stock.naver.com/sise.nhn",
+        params={"symbol": stock_code, "timeframe": "minute", "count": 600, "requestType": 0},
+    )
+    if r.status_code != 200:
+        raise UpstreamError("NAVER", f"HTTP {r.status_code}")
+    return pp.parse_naver_fchart_minutes(r.text)
+
+
+async def get_intraday(corp_code: str) -> dict:
+    """당일(없으면 직전 거래일) 1분봉 가격·거래량. 키움 → 네이버 순. 30초 캐시."""
+    stock_code, name, _ = await _require_listed(corp_code)
+
+    async def load() -> dict:
+        rows, source = [], ""
+        if kiwoom_enabled():
+            try:
+                rows, source = pp.latest_session(await kiwoom_client.minutes(stock_code)), "KIWOOM"
+            except Exception as e:  # noqa: BLE001
+                log.warning("Kiwoom minutes failed, fallback to Naver: %s", e)
+        if not rows:
+            try:
+                rows, source = pp.latest_session(await _naver_minutes(stock_code)), "NAVER"
+            except Exception as e:  # noqa: BLE001
+                log.warning("Naver minutes failed: %s", e)
+        return {
+            "stock_code": stock_code,
+            "name": name,
+            "source": source,
+            "date": rows[0]["date"] if rows else None,
+            "points": [{"time": r["time"], "price": r["price"], "volume": r["volume"]} for r in rows],
+        }
+
+    return await cache.get_or_load(("intraday", stock_code), 30, load)

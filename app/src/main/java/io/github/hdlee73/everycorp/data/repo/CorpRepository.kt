@@ -7,6 +7,7 @@ import io.github.hdlee73.everycorp.data.api.dto.ChartDto
 import io.github.hdlee73.everycorp.data.api.dto.CorpItemDto
 import io.github.hdlee73.everycorp.data.api.dto.DebtSecuritiesDto
 import io.github.hdlee73.everycorp.data.api.dto.DisclosuresResponse
+import io.github.hdlee73.everycorp.data.api.dto.IntradayDto
 import io.github.hdlee73.everycorp.data.api.dto.OverviewDto
 import io.github.hdlee73.everycorp.data.api.dto.QuoteDto
 import kotlinx.coroutines.CancellationException
@@ -61,6 +62,8 @@ class CorpRepository(private val api: EveryCorpApi) {
     suspend fun debtSecurities(corpCode: String): Result<DebtSecuritiesDto> = apiCall { api.debtSecurities(corpCode) }
 
     suspend fun quote(corpCode: String): Result<QuoteDto> = apiCall { api.quote(corpCode) }
+
+    suspend fun intraday(corpCode: String): Result<IntradayDto> = apiCall { api.intraday(corpCode) }
 
     suspend fun chart(corpCode: String, days: Int = 365): Result<ChartDto> = apiCall { api.chart(corpCode, days) }
 
