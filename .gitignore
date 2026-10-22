@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+backend/data/
+.env
+*.env.local
+
+# Android (Step 3~)
+.gradle/
+build/
+local.properties
+*.jks
+*.keystore
+captures/
+.idea/
+*.iml
