@@ -3,8 +3,8 @@
 뷰어 HTML 구조(참고: FinanceData/OpenDartReader dart_utils.py의 attach_docs·sub_docs가 같은 구조를 파싱함)
 - 본문 목차: 스크립트 안에 `node1['dcmNo'] = "9443961";` 형태로 문서번호가 들어 있다.
   PDF 버튼은 `openPdfDownload('20240312000736', '9443961')` 형태.
-- 첨부서류: `<select id="att">` 의 option value 가
-  `/dsaf001/main.do?rcpNo=...&dcmNo=...` 이고 option 텍스트가 첨부 이름(예: '20240312 감사보고서').
+- 첨부서류: `<select id="att">` 의 option value 가 `rcpNo=...&dcmNo=...`(2026-10 실서버 확인; 예전엔
+  `/dsaf001/main.do?rcpNo=...` 형태도 있었음)이고 option 텍스트가 `2026.08.14&nbsp; 반기검토보고서` 처럼 날짜 + 이름.
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ _PDF_BTN_RE = re.compile(r"""openPdfDownload\(\s*['"](\d+)['"]\s*,\s*['"](\d+)['
 _VIEWDOC_RE = re.compile(r"""viewDoc\(\s*['"](\d+)['"]\s*,\s*['"](\d+)['"]""")
 _AUDIT_RE = re.compile(r"(감사|검토)보고서")
 _EXCLUDE_RE = re.compile(r"감사전|내부회계|감사위원회|감사의\s*감사보고서|감사인\s*선임")
-_DATE_PREFIX_RE = re.compile(r"^\s*\d{8}\s*")
+_DATE_PREFIX_RE = re.compile(r"^\s*(?:\d{8}|\d{4}\.\d{2}\.\d{2})\s*")
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,7 +54,8 @@ def parse_attachments(html: str) -> list[ViewerDoc]:
         value = (opt.get("value") or "").strip()
         if not value or value == "null":
             continue
-        qs = parse_qs(urlparse(value).query)
+        # 실제 값은 "rcpNo=…&dcmNo=…"(경로 없음)이지만 "/dsaf001/main.do?rcpNo=…" 형태도 허용한다.
+        qs = parse_qs(urlparse(value).query or value.lstrip("?"))
         rcp = (qs.get("rcpNo") or qs.get("rcp_no") or [""])[0]
         dcm = (qs.get("dcmNo") or qs.get("dcm_no") or [""])[0]
         if not (rcp and dcm):

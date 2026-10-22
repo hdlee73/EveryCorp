@@ -246,3 +246,20 @@ def test_debt_section_summary():
     assert s["rows"][2]["is_total"]
     # 합계 행이 없으면 행 합
     assert summarize_section("X", "x", rows[:2])["total"] == 1700
+
+
+def test_viewer_attachments_real_server_format():
+    """2026-10 실서버: option value 는 경로 없는 'rcpNo=…&dcmNo=…', 텍스트는 '2026.08.14&nbsp; 반기검토보고서'."""
+    html = (
+        '<select id="att" onchange="changeAtt(this.value)">'
+        '<option value="null">+첨부선택+</option>'
+        '<option value="rcpNo=20260814003699&amp;dcmNo=11538148" > 2026.08.14&nbsp; 반기검토보고서 </option>'
+        '<option value="rcpNo=20260814003699&amp;dcmNo=11538150" > 2026.08.14&nbsp; 반기연결검토보고서 </option>'
+        '<option value="rcpNo=20260814003699&amp;dcmNo=11538149" > 2026.08.14&nbsp; 자기주식보고서 </option>'
+        '</select>'
+    )
+    docs = dv.parse_attachments(html)
+    assert [(d.title, d.dcm_no) for d in docs] == [
+        ("반기검토보고서", "11538148"), ("반기연결검토보고서", "11538150"), ("자기주식보고서", "11538149")]
+    review = [d for d in docs if dv.is_audit_or_review(d.title)]
+    assert [dv.classify(d.title) for d in review] == [("REVIEW", False), ("REVIEW", True)]
