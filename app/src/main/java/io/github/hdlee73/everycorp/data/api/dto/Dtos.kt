@@ -381,15 +381,15 @@ data class ShareholdersDto(
     val message: String? = null,
     val source: String = "",
     val basis: BasisDto? = null,
-    val holders: List<HolderDto> = emptyList(),
-    val total: HolderDto? = null,
+    val holders: List<ShareholderRowDto> = emptyList(),
+    val total: ShareholderRowDto? = null,
     val largest: String? = null,
     val changes: List<HolderChangeDto> = emptyList(),
     @SerialName("viewer_url") val viewerUrl: String? = null,
 )
 
 @Serializable
-data class HolderDto(
+data class ShareholderRowDto(
     val name: String = "",
     val relation: String = "",
     @SerialName("stock_kind") val stockKind: String = "",
