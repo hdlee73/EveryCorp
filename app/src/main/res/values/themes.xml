@@ -1,0 +1,9 @@
+<resources>
+    <style name="Theme.EveryCorp" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowBackground">#F2F7FC</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:statusBarColor">#F2F7FC</item>
+        <item name="android:navigationBarColor">#F2F7FC</item>
+    </style>
+</resources>
