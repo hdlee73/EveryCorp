@@ -133,11 +133,12 @@ async def disclosures(
     source: Literal["all", "dart", "kind"] = "all",
     dedupe: bool = False,
     q: str | None = Query(None, max_length=50),
+    category: Literal["all", "periodic"] = "all",
     page: int = Query(1, ge=1),
     size: int = Query(50, ge=10, le=100),
 ) -> dict:
     _corp_or_404(corp_code)
-    return await disclosures_service.get_disclosures(corp_code, years, source, dedupe, page, size, q)
+    return await disclosures_service.get_disclosures(corp_code, years, source, dedupe, page, size, q, category)
 
 
 # ───────── 탭 5 ─────────
