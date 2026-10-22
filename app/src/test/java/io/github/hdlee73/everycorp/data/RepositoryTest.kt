@@ -20,7 +20,7 @@ class RepositoryTest {
 
     @Before fun setUp() {
         server = MockWebServer().apply { start() }
-        val client = NetworkModule.okHttp(token = "secret-token")
+        val client = NetworkModule.okHttp(token = "secret-token", tokenHost = server.hostName)
         repo = CorpRepository(NetworkModule.api(NetworkModule.retrofit(server.url("/").toString(), client)))
     }
 

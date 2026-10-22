@@ -4,6 +4,7 @@ import io.github.hdlee73.everycorp.BuildConfig
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
 import okhttp3.Interceptor
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import retrofit2.HttpException
@@ -23,17 +24,18 @@ object NetworkModule {
         explicitNulls = false
     }
 
+    /** 앱 서버 주소의 호스트. 이 호스트로 가는 요청에만 앱 토큰을 붙인다(GitHub 등 다른 곳에 새지 않게). */
+    val apiHost: String = BuildConfig.API_BASE_URL.toHttpUrlOrNull()?.host.orEmpty()
+
     /** X-App-Token 은 서버가 켜 둔 경우에만 필요하다. 비밀이 아니라 남용 억제용(ARCHITECTURE.md 6장). */
-    fun appTokenInterceptor(token: String): Interceptor = Interceptor { chain ->
-        val req = chain.request().newBuilder()
-            .header("User-Agent", "EveryCorp/${BuildConfig.VERSION_NAME}")
-            .apply { if (token.isNotBlank()) header("X-App-Token", token) }
-            .build()
-        chain.proceed(req)
+    fun appTokenInterceptor(token: String, tokenHost: String = apiHost): Interceptor = Interceptor { chain ->
+        val builder = chain.request().newBuilder().header("User-Agent", "EveryCorp/${BuildConfig.VERSION_NAME}")
+        if (token.isNotBlank() && chain.request().url.host == tokenHost) builder.header("X-App-Token", token)
+        chain.proceed(builder.build())
     }
 
-    fun okHttp(token: String = BuildConfig.APP_TOKEN): OkHttpClient = OkHttpClient.Builder()
-        .addInterceptor(appTokenInterceptor(token))
+    fun okHttp(token: String = BuildConfig.APP_TOKEN, tokenHost: String = apiHost): OkHttpClient = OkHttpClient.Builder()
+        .addInterceptor(appTokenInterceptor(token, tokenHost))
         .connectTimeout(10, TimeUnit.SECONDS)
         // 서버 첫 요청이 느릴 수 있다(콜드 스타트, DART 크롤링). 감사보고서 목록이 가장 오래 걸린다.
         .readTimeout(60, TimeUnit.SECONDS)

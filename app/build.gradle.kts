@@ -86,6 +86,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("androidx.work:work-runtime-ktx:2.10.0")
+    implementation("androidx.browser:browser:1.8.0")
 
     // 네트워크 (Step 3)
     implementation("com.squareup.retrofit2:retrofit:2.11.0")

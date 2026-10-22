@@ -11,7 +11,7 @@
 | Step 1 | 아키텍처 · REST API 명세 → [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/API_SPEC.md`](docs/API_SPEC.md) | 완료 |
 | Step 2 | FastAPI 백엔드 핵심 로직 → [`backend/`](backend/) | 완료 |
 | Step 3 | Android 데이터 레이어(Retrofit, DTO, Repository, PDF 다운로드, 업데이트) → [`app/`](app/) | 완료 |
-| Step 4 | Android Compose UI(검색 + 4개 탭), 서명·릴리스·자동 업데이트 | 예정 |
+| Step 4 | Android Compose UI(검색 + 5개 탭: 기업개황·감사검토·공시·주가·채권단기증권), 앱 정보, 자동 업데이트 | 완료(CI 확인 중) |
 
 ## 내가 해야 할 일
 [`docs/SETUP_CHECKLIST.md`](docs/SETUP_CHECKLIST.md): API 키 발급, 서명키 생성, GitHub Secrets 등록, 레포 보호 설정.
