@@ -18,6 +18,7 @@ import io.github.hdlee73.everycorp.data.api.dto.NewsDto
 import io.github.hdlee73.everycorp.data.api.dto.IntradayDto
 import io.github.hdlee73.everycorp.data.api.dto.OverviewDto
 import io.github.hdlee73.everycorp.data.api.dto.QuoteDto
+import io.github.hdlee73.everycorp.data.api.dto.ShareholdersDto
 import io.github.hdlee73.everycorp.data.pdf.PdfDownloader
 import io.github.hdlee73.everycorp.data.pdf.PdfEvent
 import io.github.hdlee73.everycorp.data.repo.CorpRepository
@@ -49,6 +50,7 @@ class CompanyViewModel(
     var debt by mutableStateOf<UiState<DebtSecuritiesDto>>(UiState.Idle); private set
     var chart by mutableStateOf<UiState<ChartDto>>(UiState.Idle); private set
     var quote by mutableStateOf<UiState<QuoteDto>>(UiState.Idle); private set
+    var shareholders by mutableStateOf<UiState<ShareholdersDto>>(UiState.Idle); private set
     var news by mutableStateOf<UiState<NewsDto>>(UiState.Idle); private set
     var intraday by mutableStateOf<UiState<IntradayDto>>(UiState.Idle); private set
 
@@ -82,7 +84,7 @@ class CompanyViewModel(
 
     fun ensure(tab: CompanyTab) {
         when (tab) {
-            CompanyTab.Overview -> if (overview is UiState.Idle) loadOverview()
+            CompanyTab.Overview -> { if (overview is UiState.Idle) loadOverview(); if (shareholders is UiState.Idle) loadShareholders() }
             CompanyTab.Reports -> if (reports is UiState.Idle) loadReports()
             CompanyTab.Disclosures -> if (disclosureState is UiState.Idle) reloadDisclosures()
             CompanyTab.Stock -> if (chart is UiState.Idle && corp.isListed) loadChart()
@@ -92,6 +94,7 @@ class CompanyViewModel(
     }
 
     fun loadOverview() { overview = UiState.Loading; viewModelScope.launch { overview = repo.overview(corp.corpCode).toUiState() } }
+    fun loadShareholders() { shareholders = UiState.Loading; viewModelScope.launch { shareholders = repo.shareholders(corp.corpCode).toUiState() } }
     fun loadReports() { reports = UiState.Loading; viewModelScope.launch { reports = repo.auditReports(corp.corpCode).toUiState() } }
     fun loadDebt() { debt = UiState.Loading; viewModelScope.launch { debt = repo.debtSecurities(corp.corpCode).toUiState() } }
     fun loadNews() { news = UiState.Loading; viewModelScope.launch { news = repo.news(corp.corpCode).toUiState() } }

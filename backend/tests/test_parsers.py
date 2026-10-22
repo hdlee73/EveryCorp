@@ -263,3 +263,16 @@ def test_viewer_attachments_real_server_format():
         ("반기검토보고서", "11538148"), ("반기연결검토보고서", "11538150"), ("자기주식보고서", "11538149")]
     review = [d for d in docs if dv.is_audit_or_review(d.title)]
     assert [dv.classify(d.title) for d in review] == [("REVIEW", False), ("REVIEW", True)]
+
+
+def test_audit_opinion_summary():
+    from app.services.reports_service import summarize_opinions
+    rows = [
+        {"bsns_year": "제57기(당기)", "adtor": "삼정회계법인", "adt_opinion": "적정", "emphs_matter": "-"},
+        {"bsns_year": "제56기(전기)", "adtor": "삼정회계법인", "adt_opinion": "적정"},
+        {"bsns_year": "제55기(전전기)", "adtor": "-", "adt_opinion": "-"},
+    ]
+    assert summarize_opinions(rows) == [
+        {"term": "제57기(당기)", "auditor": "삼정회계법인", "opinion": "적정"},
+        {"term": "제56기(전기)", "auditor": "삼정회계법인", "opinion": "적정"},
+    ]

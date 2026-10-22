@@ -114,9 +114,17 @@ data class FinancialsDto(
     @SerialName("latest_basis") val latestBasis: BasisDto? = null,
     /** 기간 비교표(재무상태: 최직근 분기 + 3개 연말, 손익: 분기·누적 + 직전 연간). 금액은 원 단위. */
     val tables: FinTablesDto? = null,
+    /** 최근 5개 연도 매출·영업이익·순이익·부채비율 추이(원 단위, 부채비율은 %). */
+    val trend: TrendDto? = null,
     @SerialName("balance_sheet") val balanceSheet: BalanceSheetDto? = null,
     @SerialName("income_statement") val incomeStatement: IncomeStatementDto? = null,
 )
+
+@Serializable
+data class TrendDto(val unit: String = "원", val years: List<Int> = emptyList(), val series: List<TrendSeriesDto> = emptyList())
+
+@Serializable
+data class TrendSeriesDto(val key: String, val label: String, val values: List<Double?> = emptyList())
 
 @Serializable
 data class FinTablesDto(val unit: String = "억원", val balance: FinTableDto = FinTableDto(), val income: FinTableDto = FinTableDto())
@@ -164,8 +172,20 @@ data class AuditReportsResponse(
     val to: String = "",
     val count: Int = 0,
     val partial: Boolean = false,
+    /** 최근 사업보고서의 감사의견·감사인(당기·전기·전전기). 정기보고서 제출 대상이 아니면 null. */
+    val opinions: AuditOpinionsDto? = null,
     val reports: List<AuditReportDto> = emptyList(),
 )
+
+@Serializable
+data class AuditOpinionsDto(
+    @SerialName("report_name") val reportName: String = "",
+    val items: List<AuditOpinionItemDto> = emptyList(),
+    val source: String = "",
+)
+
+@Serializable
+data class AuditOpinionItemDto(val term: String = "", val auditor: String = "", val opinion: String = "")
 
 @Serializable
 data class AuditReportDto(
@@ -352,3 +372,40 @@ data class IntradayDto(
 
 @Serializable
 data class IntradayPointDto(val time: String, val price: Long, val volume: Long = 0)
+
+
+// ───────── 최대주주 현황·변동 ─────────
+@Serializable
+data class ShareholdersDto(
+    val available: Boolean = false,
+    val message: String? = null,
+    val source: String = "",
+    val basis: BasisDto? = null,
+    val holders: List<ShareholderRowDto> = emptyList(),
+    val total: ShareholderRowDto? = null,
+    val largest: String? = null,
+    val changes: List<HolderChangeDto> = emptyList(),
+    @SerialName("viewer_url") val viewerUrl: String? = null,
+)
+
+@Serializable
+data class ShareholderRowDto(
+    val name: String = "",
+    val relation: String = "",
+    @SerialName("stock_kind") val stockKind: String = "",
+    @SerialName("begin_shares") val beginShares: Long? = null,
+    @SerialName("begin_ratio") val beginRatio: Double? = null,
+    @SerialName("end_shares") val endShares: Long? = null,
+    @SerialName("end_ratio") val endRatio: Double? = null,
+    val note: String = "",
+)
+
+@Serializable
+data class HolderChangeDto(
+    val date: String = "",
+    val name: String = "",
+    val shares: Long? = null,
+    val ratio: Double? = null,
+    val cause: String = "",
+    val note: String = "",
+)

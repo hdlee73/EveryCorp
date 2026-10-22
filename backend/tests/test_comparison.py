@@ -55,3 +55,33 @@ def test_first_quarter_cumulative_falls_back_to_quarter_amount():
     q1 = [dict(r, thstrm_add_amount=None) for r in QUARTER]
     t = build_comparison_tables(q1, "분기", 2026, 3, ANNUAL, 2025, 12, None)
     assert t["income"]["rows"][0]["values"][:2] == [50, 50]
+
+
+def test_trend_five_years_merges_two_reports():
+    from app.parsers.dart_overview import build_trend
+    recent = [
+        _row("BS", "자산총계", "ifrs-full_Assets", "900", "800", "700"),
+        _row("BS", "부채총계", "ifrs-full_Liabilities", "300", "300", "200"),
+        _row("BS", "자본총계", "ifrs-full_Equity", "600", "500", "500"),
+        _row("IS", "매출액", "ifrs-full_Revenue", "400", "350", "300"),
+        _row("IS", "영업이익", "dart_OperatingIncomeLoss", "40", "30", "20"),
+        _row("IS", "당기순이익", "ifrs-full_ProfitLoss", "30", "25", "15"),
+    ]
+    older = [
+        _row("BS", "자산총계", "ifrs-full_Assets", "700", "600", "500"),
+        _row("BS", "부채총계", "ifrs-full_Liabilities", "200", "200", "100"),
+        _row("BS", "자본총계", "ifrs-full_Equity", "500", "400", "400"),
+        _row("IS", "매출액", "ifrs-full_Revenue", "999", "250", "200"),   # 2023 값은 최근 보고서(300)가 우선
+        _row("IS", "영업이익", "dart_OperatingIncomeLoss", "9", "10", "5"),
+        _row("IS", "당기순이익", "ifrs-full_ProfitLoss", "9", "8", "3"),
+    ]
+    t = build_trend(recent, 2025, older, 2023, None)
+    assert t["years"] == [2021, 2022, 2023, 2024, 2025]
+    by = {s["key"]: s["values"] for s in t["series"]}
+    assert by["revenue"] == [200, 250, 300, 350, 400]
+    assert by["debt_ratio"][-1] == 50.0 and by["debt_ratio"][0] == 25.0
+
+
+def test_trend_none_when_single_year_only():
+    from app.parsers.dart_overview import build_trend
+    assert build_trend(None, None, None, None) is None

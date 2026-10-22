@@ -2,6 +2,7 @@ package io.github.hdlee73.everycorp.ui.info
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -10,12 +11,19 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import io.github.hdlee73.everycorp.BuildConfig
+import io.github.hdlee73.everycorp.EveryCorpApp
 import io.github.hdlee73.everycorp.data.update.CheckState
 import io.github.hdlee73.everycorp.ui.AppViewModel
 import io.github.hdlee73.everycorp.ui.common.GradientTopBar
@@ -54,6 +62,20 @@ fun AppInfoScreen(vm: AppViewModel) {
                 Button(onClick = { vm.checkUpdate(manual = true) }, enabled = st.state != CheckState.CHECKING) { Text("업데이트 확인") }
                 if (st.state == CheckState.AVAILABLE) Button(onClick = vm::openUpdateDialog) { Text("지금 업데이트") }
                 st.latest?.releaseUrl?.let { url -> OutlinedButton(onClick = { openInAppBrowser(context, url) }) { Text("릴리스 페이지") } }
+            }
+            SectionCard(title = "알림") {
+                var notifyOn by remember { mutableStateOf(EveryCorpApp.container.prefs.notifyDisclosures) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("관심기업 새 공시 알림", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            "관심기업에 등록한 기업의 새 DART 공시를 30분마다 확인해 알려줍니다.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = notifyOn, onCheckedChange = { notifyOn = it; EveryCorpApp.container.prefs.notifyDisclosures = it })
+                }
             }
             SectionCard(title = "데이터 출처") {
                 Text(

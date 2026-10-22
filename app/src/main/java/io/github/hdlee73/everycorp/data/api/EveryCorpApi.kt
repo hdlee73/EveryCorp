@@ -10,6 +10,7 @@ import io.github.hdlee73.everycorp.data.api.dto.NewsDto
 import io.github.hdlee73.everycorp.data.api.dto.IntradayDto
 import io.github.hdlee73.everycorp.data.api.dto.OverviewDto
 import io.github.hdlee73.everycorp.data.api.dto.QuoteDto
+import io.github.hdlee73.everycorp.data.api.dto.ShareholdersDto
 import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -34,6 +35,9 @@ interface EveryCorpApi {
         @Path("corpCode") corpCode: String,
         @Query("years") years: Int = 3,
     ): AuditReportsResponse
+
+    @GET("api/v1/corps/{corpCode}/shareholders")
+    suspend fun shareholders(@Path("corpCode") corpCode: String): ShareholdersDto
 
     @GET("api/v1/corps/{corpCode}/disclosures")
     suspend fun disclosures(

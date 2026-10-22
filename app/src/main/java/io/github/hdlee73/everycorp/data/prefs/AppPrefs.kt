@@ -35,6 +35,11 @@ class AppPrefs(context: Context) {
         get() = p.getString("last_seen_version", null)
         set(v) = p.edit().putString("last_seen_version", v).apply()
 
+    /** 관심기업 새 공시 알림(기본 켬). */
+    var notifyDisclosures: Boolean
+        get() = p.getBoolean("notify_disclosures", true)
+        set(v) = p.edit().putBoolean("notify_disclosures", v).apply()
+
     var dismissedUpdate: String?
         get() = p.getString("dismissed_update", null)
         set(v) = p.edit().putString("dismissed_update", v).apply()

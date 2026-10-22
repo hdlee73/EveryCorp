@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import io.github.hdlee73.everycorp.data.api.dto.AuditOpinionsDto
 import io.github.hdlee73.everycorp.data.api.dto.AuditReportDto
 import io.github.hdlee73.everycorp.data.pdf.PdfDownloader
 import io.github.hdlee73.everycorp.ui.common.EmptyBox
@@ -30,12 +31,27 @@ import io.github.hdlee73.everycorp.ui.common.openInAppBrowser
 fun ReportsTab(vm: CompanyViewModel) {
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         UiStateContent(vm.reports, onRetry = vm::loadReports, modifier = Modifier.padding(top = 16.dp)) { r ->
-            if (r.reports.isEmpty()) EmptyBox("최근 3년(${Fmt.date(r.from)} ~ ${Fmt.date(r.to)}) 감사·검토보고서가 없습니다.", Modifier.padding(top = 16.dp))
-            else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 16.dp)) {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 16.dp)) {
+                r.opinions?.let { op -> item { OpinionCard(op) } }
+                if (r.reports.isEmpty()) item { EmptyBox("최근 3년(${Fmt.date(r.from)} ~ ${Fmt.date(r.to)}) 감사·검토보고서가 없습니다.") }
                 if (r.partial) item { Text("일부 보고서를 확인하지 못했을 수 있습니다. 새로고침해 주세요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
                 items(r.reports, key = { it.id }) { ReportCard(vm, it) }
             }
         }
+    }
+}
+
+@Composable
+private fun OpinionCard(op: AuditOpinionsDto) {
+    SectionCard(title = "감사의견·감사인") {
+        op.items.forEach { i ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(i.term, Modifier.weight(1.2f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(i.opinion.ifBlank { "-" }, Modifier.weight(0.8f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Text(i.auditor.ifBlank { "-" }, Modifier.weight(1.6f), style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+        Text("${op.reportName} · ${op.source}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

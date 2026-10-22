@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import date, timedelta
 
 from ..cache import cached
@@ -9,6 +10,7 @@ from ..errors import ApiError
 from ..parsers.dart_overview import (
     PeriodicReport,
     build_comparison_tables,
+    build_trend,
     bsns_year_candidates,
     parse_periodic_reports,
     reprt_code_for,
@@ -18,6 +20,8 @@ from ..parsers.dart_overview import (
 from . import dart_client, market_service
 from .corp_index import corp_index
 from .dart_client import DartNoData
+
+log = logging.getLogger(__name__)
 
 CORP_CLS = {"Y": "KOSPI", "K": "KOSDAQ", "N": "KONEX", "E": "OTHER"}
 
@@ -79,6 +83,22 @@ async def _statements(corp_code: str, report: PeriodicReport, fiscal_month: int,
     return None
 
 
+async def _fetch_year_rows(corp_code: str, year: int, fs_div: str) -> list[dict] | None:
+    """해당 사업연도 사업보고서의 전체 재무제표(추이 그래프용). 없으면 None."""
+    for div in (fs_div, "OFS" if fs_div == "CFS" else "CFS"):
+        try:
+            data = await dart_client.get_json("fnlttSinglAcntAll.json", corp_code=corp_code, bsns_year=str(year),
+                                              reprt_code="11011", fs_div=div)
+            if data.get("list"):
+                return data["list"]
+        except DartNoData:
+            continue
+        except Exception as e:  # noqa: BLE001  부가 그래프라 실패해도 개황 본문은 낸다
+            log.warning("trend rows %s failed: %s", year, e)
+            return None
+    return None
+
+
 @cached(ttl=6 * 3600)
 async def get_financials(corp_code: str, fiscal_month: int, industry_code: str | None) -> dict:
     """최직근 정기보고서(사업·반기·분기) + 최근 사업보고서 기준 재무 비교. 연결(CFS) 우선, 없으면 별도(OFS)."""
@@ -109,6 +129,12 @@ async def get_financials(corp_code: str, fiscal_month: int, industry_code: str |
     summary.update(available=True, fs_div=fs_div, fs_label="연결" if fs_div == "CFS" else "별도",
                    basis=_basis(base_report, base_year, reprt_code_for(base_report, fiscal_month)),
                    latest_basis=_basis(latest, latest_year, reprt_code_for(latest, fiscal_month)))
+    older_rows, older_year = None, None
+    if annual_year:
+        got = await _fetch_year_rows(corp_code, int(annual_year) - 2, fs_div)
+        if got:
+            older_rows, older_year = got, int(annual_year) - 2
+    summary["trend"] = build_trend(annual_rows, int(annual_year) if annual_year else None, older_rows, older_year, industry_code)
     summary["tables"] = build_comparison_tables(
         latest_rows, latest.kind, latest.period_year, latest.period_month,
         annual_rows, int(annual_year) if annual_year else None, fiscal_month, industry_code,
