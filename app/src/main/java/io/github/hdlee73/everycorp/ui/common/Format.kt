@@ -31,4 +31,11 @@ object Fmt {
 
     /** 지분율 등 백분율 */
     fun percent(v: Double?): String = if (v == null) "-" else String.format(Locale.US, "%.1f%%", v)
+
+    /** 원 → 억원(반올림, 천 단위 구분). 예: 514531948000000 → "5,145,319" */
+    fun eok(won: Double?): String = if (won == null) "-" else String.format(Locale.US, "%,d", Math.round(won / 100_000_000.0))
+
+    /** 1조 이상이면 "514.5조원", 미만이면 null(억원만 표시). */
+    fun jo(won: Double?): String? =
+        if (won == null || kotlin.math.abs(won) < 1_000_000_000_000.0) null else String.format(Locale.US, "%,.1f조원", won / 1_000_000_000_000.0)
 }
