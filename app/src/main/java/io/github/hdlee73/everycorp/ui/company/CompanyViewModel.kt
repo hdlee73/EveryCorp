@@ -1,6 +1,17 @@
 package io.github.hdlee73.everycorp.ui.company
 
+import android.content.Context
 import android.net.Uri
+import androidx.core.content.FileProvider
+import io.github.hdlee73.everycorp.BuildConfig
+import io.github.hdlee73.everycorp.data.pdf.PdfSupport
+import io.github.hdlee73.everycorp.data.report.SummaryPdfInput
+import io.github.hdlee73.everycorp.data.report.SummaryPdfWriter
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -55,6 +66,40 @@ class CompanyViewModel(
     var intraday by mutableStateOf<UiState<IntradayDto>>(UiState.Idle); private set
 
     val pdfStates = mutableStateMapOf<String, PdfUi>()
+
+    /** 개황·채권·주가현황 요약 PDF 만들기 상태. null 이면 대기. */
+    var summaryPdf by mutableStateOf<PdfUi?>(null); private set
+
+    fun clearSummaryPdf() { summaryPdf = null }
+
+    /** 필요한 데이터를 (아직 없으면) 불러와 A4 PDF 로 만들고 캐시 폴더에 저장한다. */
+    fun exportSummaryPdf(context: Context) {
+        if (summaryPdf is PdfUi.Downloading) return
+        summaryPdf = PdfUi.Downloading(false)
+        viewModelScope.launch {
+            try {
+                val ov = (overview as? UiState.Success)?.data ?: repo.overview(corp.corpCode).getOrNull()
+                val dt = (debt as? UiState.Success)?.data ?: repo.debtSecurities(corp.corpCode).getOrNull()
+                val q = if (corp.isListed) repo.quote(corp.corpCode).getOrNull() else null
+                val ch = if (corp.isListed) ((chart as? UiState.Success)?.data ?: repo.chart(corp.corpCode).getOrNull()) else null
+                val input = SummaryPdfInput(
+                    corpName = corp.corpName, badge = corp.badge, overview = ov, debt = dt, quote = q, chart = ch,
+                    appName = "Every Corp", versionName = BuildConfig.VERSION_NAME,
+                    author = "${BuildConfig.AUTHOR_NAME} (${BuildConfig.AUTHOR_EMAIL})",
+                    generatedAt = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy.MM.dd HH:mm")),
+                )
+                val uri = withContext(Dispatchers.IO) {
+                    val dir = File(context.cacheDir, "reports").apply { mkdirs() }
+                    val file = File(dir, PdfSupport.safeFileName("${corp.corpName}_요약", "summary"))
+                    file.outputStream().use { SummaryPdfWriter().write(input, it) }
+                    FileProvider.getUriForFile(context, "${context.packageName}.files", file)
+                }
+                summaryPdf = PdfUi.Done(uri)
+            } catch (e: Exception) {
+                summaryPdf = PdfUi.Failed(e.message ?: "PDF를 만들지 못했습니다.")
+            }
+        }
+    }
 
     // 공시 목록: DART 는 서버, KIND 는 앱이 직접 불러와 합친다.
     var period by mutableStateOf(DisclosurePeriod.Default); private set
