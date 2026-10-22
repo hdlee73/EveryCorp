@@ -402,3 +402,15 @@ DART 정기보고서의 증권 미상환 잔액(회사채·기업어음증권(CP
 | 현재가·일봉 | 키움 REST API: `POST /oauth2/token`, `POST /api/dostk/stkinfo`(api-id `ka10001`), `POST /api/dostk/chart`(api-id `ka10081`) | [키움 REST API](https://openapi.kiwoom.com/guide/apiguide), 해설: [ka10001](https://algolab.co.kr/blog/kiwoom-rest-api-stock-info-ka10001-2026), [ka10081](https://algolab.co.kr/blog/kiwoom-rest-api-chart-daily-minute-tick-2026). **공식 명세 접속 불가로 해설 자료 기준 → 키 발급 후 확인** |
 | 현재가 폴백 | 네이버 `polling.finance.naver.com` | 비공식 |
 | 일봉 | `apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo` | [공공데이터포털 금융위원회_주식시세정보](https://www.data.go.kr/data/15094808/openapi.do) |
+
+
+## v1.0.3 추가 사항
+
+### `GET /corps/{corp_code}/shareholders`
+최대주주 및 특수관계인 지분 현황(`holders`, `total`)과 최대주주 변동 내역(`changes`). 정기보고서 제출 법인만 제공하며, 그 외에는 `available: false`.
+
+### `GET /corps/{corp_code}/overview`
+`financials.trend`(최근 5개년 매출·영업이익·순이익·부채비율)와 `financials.tables`(기간 비교표)가 추가되었다.
+
+### `GET /corps/{corp_code}/audit-reports`
+응답에 `opinions`(회계연도별 감사의견·감사인 요약)가 추가되었다.
