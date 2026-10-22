@@ -153,3 +153,10 @@ def badge_of(entry: CorpEntry) -> str:
     if entry.is_listed and entry.stock_code not in _market:
         return "상장"   # 시장 정보를 아직 못 받은 경우
     return MARKET_BADGE[market_of(entry)]
+
+
+def badge_from_cls(corp_cls: str, listed: bool, corp_name: str) -> str:
+    """기업개황의 corp_cls(Y/K/N/E)로 만든 배지. 비상장은 이름으로 외감/기타 추정."""
+    if listed and corp_cls in _CLS_TO_MARKET:
+        return MARKET_BADGE[_CLS_TO_MARKET[corp_cls]]
+    return MARKET_BADGE["OTHER" if _OTHER_NAME_RE.search(corp_name) else "EXTERNAL_AUDIT"]

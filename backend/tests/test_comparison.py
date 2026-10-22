@@ -1,9 +1,57 @@
+from app.parsers.dart_overview import build_comparison_tables, cumulative_months
 
 
-def test_periodic_title_filter():
-    from app.services.disclosures_service import is_periodic_title
-    assert is_periodic_title("사업보고서 (2025.12)")
-    assert is_periodic_title("[기재정정]반기보고서 (2026.06)")
-    assert is_periodic_title("분기보고서 (2026.03)")
-    assert not is_periodic_title("주요사항보고서(유상증자결정)")
-    assert not is_periodic_title("감사보고서 (2025.12)")
+def _row(sj, nm, aid, th, fr=None, bf=None, add=None):
+    return {"sj_div": sj, "account_nm": nm, "account_id": aid, "thstrm_amount": th, "frmtrm_amount": fr,
+            "bfefrmtrm_amount": bf, "thstrm_add_amount": add}
+
+
+QUARTER = [
+    _row("BS", "자산총계", "ifrs-full_Assets", "1,000", "900"),
+    _row("BS", "부채총계", "ifrs-full_Liabilities", "400", "300"),
+    _row("BS", "자본총계", "ifrs-full_Equity", "600", "600"),
+    _row("IS", "매출액", "ifrs-full_Revenue", "50", add="100"),
+    _row("IS", "영업이익", "dart_OperatingIncomeLoss", "10", add="20"),
+    _row("IS", "당기순이익", "ifrs-full_ProfitLoss", "8", add="15"),
+]
+ANNUAL = [
+    _row("BS", "자산총계", "ifrs-full_Assets", "900", "800", "700"),
+    _row("BS", "부채총계", "ifrs-full_Liabilities", "300", "300", "200"),
+    _row("BS", "자본총계", "ifrs-full_Equity", "600", "500", "500"),
+    _row("IS", "매출액", "ifrs-full_Revenue", "400", "350", "300"),
+    _row("IS", "영업이익", "dart_OperatingIncomeLoss", "40", "30", "20"),
+    _row("IS", "당기순이익", "ifrs-full_ProfitLoss", "30", "25", "15"),
+]
+
+
+def test_cumulative_months():
+    assert cumulative_months(6, 12) == 6
+    assert cumulative_months(6, 3) == 3
+    assert cumulative_months(12, 3) == 9
+    assert cumulative_months(3, 12) == 3
+
+
+def test_tables_with_half_year_report():
+    t = build_comparison_tables(QUARTER, "반기", 2026, 6, ANNUAL, 2025, 12, None)
+    bal = t["balance"]
+    assert [c["label"] for c in bal["columns"]] == ["2026.06", "2025.12", "2024.12", "2023.12"]
+    assert bal["columns"][0]["sub"] == "반기말"
+    assert bal["rows"][0]["values"] == [1000, 900, 800, 700]
+    assert bal["rows"][3]["values"] == [66.7, 50.0, 60.0, 40.0]      # 부채비율 = 부채/자본
+    inc = t["income"]
+    assert [c["label"] for c in inc["columns"]] == ["분기손익", "누적손익", "2025년 연간", "2024년 연간"]
+    assert inc["columns"][0]["sub"] == "2026.04~06" and inc["columns"][1]["sub"] == "2026.01~06"
+    assert inc["rows"][0]["values"] == [50, 100, 400, 350]
+    assert inc["rows"][2]["values"] == [8, 15, 30, 25]
+
+
+def test_tables_when_latest_is_annual():
+    t = build_comparison_tables(ANNUAL, "사업", 2025, 12, ANNUAL, 2025, 12, None)
+    assert [c["label"] for c in t["balance"]["columns"]] == ["2025.12", "2024.12", "2023.12"]
+    assert [c["label"] for c in t["income"]["columns"]] == ["2025년 연간", "2024년 연간", "2023년 연간"]
+
+
+def test_first_quarter_cumulative_falls_back_to_quarter_amount():
+    q1 = [dict(r, thstrm_add_amount=None) for r in QUARTER]
+    t = build_comparison_tables(q1, "분기", 2026, 3, ANNUAL, 2025, 12, None)
+    assert t["income"]["rows"][0]["values"][:2] == [50, 50]
