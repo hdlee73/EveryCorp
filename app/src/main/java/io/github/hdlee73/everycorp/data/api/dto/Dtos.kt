@@ -287,6 +287,8 @@ data class DebtSecuritiesDto(
     val available: Boolean = false,
     val message: String? = null,
     @SerialName("unit_note") val unitNote: String = "",
+    /** 데이터 출처 문구 */
+    val source: String = "",
     val basis: BasisDto? = null,
     val sections: List<DebtSectionDto> = emptyList(),
     /** 이번 보고서에 잔액 표가 없는 종류(예: 단기사채) */

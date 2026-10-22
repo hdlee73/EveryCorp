@@ -39,6 +39,7 @@ private fun DebtBody(d: DebtSecuritiesDto) {
     } else {
         d.basis?.let { Text("${it.reportName} 기준 (${it.periodEnd})", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         if (d.unitNote.isNotBlank()) Text(d.unitNote, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (d.source.isNotBlank()) Text(d.source, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         d.sections.forEach { SectionBlock(it) }
         if (d.missing.isNotEmpty()) {
             Text("이번 보고서에 잔액 표가 없는 항목: ${d.missing.joinToString(", ")}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
