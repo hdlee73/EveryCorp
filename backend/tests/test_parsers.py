@@ -200,13 +200,6 @@ def test_merge_disclosures_sorted_and_dedupe():
 
 # ───────── 시세 ─────────
 
-def test_kis_quote_down():
-    q = pp.parse_kis_quote({"stck_prpr": "71000", "prdy_vrss": "-500", "prdy_vrss_sign": "5", "prdy_ctrt": "-0.70",
-                            "w52_hgpr": "88800", "w52_lwpr": "49900"})
-    assert q["price"] == 71000 and q["change"] == -500 and q["change_rate"] == -0.70 and q["direction"] == "DOWN"
-    assert q["week52_high"] == 88800
-
-
 def test_naver_new_and_old_format():
     new = pp.parse_naver_realtime({"datas": [{"stockName": "삼성전자", "closePrice": "71,000", "compareToPreviousClosePrice": "1,500",
                                              "compareToPreviousPrice": {"code": "2"}, "fluctuationsRatio": "2.16", "marketStatus": "OPEN"}]})

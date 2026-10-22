@@ -31,7 +31,7 @@ flowchart LR
     Svc --> OPENDART[Open DART API<br/>opendart.fss.or.kr]
     Svc --> DARTWEB[DART 웹 뷰어<br/>dart.fss.or.kr]
     Svc --> KIND[KRX KIND<br/>kind.krx.co.kr]
-    Svc --> KIS[한국투자증권 Open API]
+    Svc --> KIWOOM[키움증권 REST API<br/>고정 IP 필요]
     Svc --> NAVER[네이버 금융 폴링]
     Svc --> DATAGO[공공데이터포털<br/>금융위 주식시세]
     API -->|/app/meta| GH[GitHub Releases<br/>hdlee73/EveryCorp]
@@ -40,7 +40,7 @@ flowchart LR
 ### 왜 서버를 두는가
 | 이유 | 설명 |
 |---|---|
-| **키 보호** | DART·KIS·공공데이터 키를 APK에 넣으면 디컴파일로 유출된다. 키는 서버 환경변수(GitHub Secrets에서 주입)에만 둔다. |
+| **키 보호** | DART·키움·공공데이터 키를 APK에 넣으면 디컴파일로 유출된다. 키는 서버 환경변수(GitHub Secrets에서 주입)에만 둔다. |
 | **corp_code 매핑** | DART `corpCode.xml`은 약 10만 건 zip(수십 MB). 서버가 하루 1번 받아 인덱스로 두고, 앱은 검색 결과만 받는다. |
 | **HTML 파싱** | DART 뷰어 `dcm_no`, KIND 공시 목록은 HTML 파싱이 필요하다. 사이트 구조가 바뀌면 서버만 고치면 되고 앱 업데이트가 필요 없다. |
 | **호출량 절감** | DART 일 20,000건 한도. 캐시로 같은 기업 반복 조회 시 외부 호출을 0회로 만든다. |
@@ -64,7 +64,7 @@ backend/app/
 │   ├── reports_service.py  # 탭2: 감사/검토보고서 rcp_no·dcm_no 수집
 │   ├── kind_client.py      # 탭3: KIND 공시 수집
 │   ├── disclosures_service.py # 탭3: DART+KIND 통합
-│   ├── price_service.py    # 탭4: KIS/네이버 현재가, 공공데이터/네이버 일봉
+│   ├── price_service.py    # 탭4: 키움/네이버 현재가, 키움/공공데이터/네이버 일봉
 │   └── app_meta.py         # 앱 정보·업데이트 정보
 ├── parsers/                # 네트워크 없는 순수 파싱 함수(단위 테스트 대상)
 │   ├── dart_overview.py    # 정기보고서 해석, 최대주주 요약, 영업수익 분기
@@ -100,8 +100,8 @@ backend/app/
 **탭 5 채권·단기증권** — `GET /corps/{corp_code}/debt-securities`: 최신 정기보고서부터 4건을 살피며 DART 미상환 잔액 5종을 병렬 조회, 잔액 표가 있는 첫 보고서를 채택 → 종류별 공모/사모/합계 × 잔여만기 구간.
 
 **탭 4 주가현황** — `GET /corps/{corp_code}/stock/quote`, `/stock/chart`
-- 현재가: 네이버 `polling.finance.naver.com` 폴링(키 불필요, 1순위) → 실패 시 KIS `inquire-price`(TR `FHKST01010100`, 키가 있을 때만) → KRX 전일 종가. 서버 5초 캐시, 앱은 탭이 보일 때만 5초 간격 폴링.
-- 1년 일봉: 공공데이터포털 `GetStockSecuritiesInfoService/getStockPriceInfo`(T+1 영업일 지연) → 실패 시 네이버 `siseJson`. 52주 최고/최저는 일별 **고가/저가** 기준으로 계산(일자 포함).
+- 현재가: **키움 REST API `ka10001`**(키가 있을 때, 1순위; 250거래일 최고/최저·PER/PBR 포함) → 실패·미설정 시 네이버 `polling.finance.naver.com` 폴링(키 불필요) → KRX 전일 종가. 서버 5초 캐시, 앱은 탭이 보일 때만 5초 간격 폴링.
+- 1년 일봉: 키움 `ka10081`(수정주가, `cont-yn`/`next-key` 연속조회) → 실패 시 공공데이터포털 `GetStockSecuritiesInfoService/getStockPriceInfo`(T+1 영업일 지연) → 실패 시 네이버 `siseJson`. 52주 최고/최저는 일별 **고가/저가** 기준으로 계산(일자 포함).
 - 비상장: `404 NOT_LISTED` → 앱은 탭 비활성 + 안내.
 
 ### 2.2 캐시 정책
@@ -125,7 +125,7 @@ backend/app/
 |---|---|---|
 | `DART_API_KEY` | Open DART 인증키 | 서버 |
 | `DATA_GO_KR_KEY` | 공공데이터포털 서비스키(디코딩) | 서버 |
-| `KIS_APP_KEY`, `KIS_APP_SECRET` | 한국투자증권 Open API | 서버 |
+| `KIWOOM_APP_KEY`, `KIWOOM_SECRET_KEY` | 키움증권 REST API 앱키·시크릿키 | 서버 |
 | `APP_TOKEN` | 앱↔서버 간단 인증 헤더 `X-App-Token` | 서버 + 앱 빌드 |
 | `ANDROID_KEYSTORE_BASE64` | **비공개 릴리스 서명키**(base64) | 앱 빌드 |
 | `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` | 서명키 정보 | 앱 빌드 |
@@ -147,8 +147,11 @@ FSS Insights는 공개 시험 키(레포에 커밋된 keystore)로 서명하고 
 - 자동 업데이트(FSS Insights 방식 계승): 앱 시작 시 + WorkManager 12시간 주기로 확인 → 새 버전 알림 → 앱 안에서 APK 내려받기·검증·설치 화면. 서버 `/app/meta`의 `force_update`가 true면 닫을 수 없는 업데이트 팝업. 업데이트 후 첫 실행 시 "새로운 기능" 팝업.
 - `RELEASE_NOTES.md`의 `# EveryCorp vX.Y.Z 변경 내용` 구역이 GitHub 릴리스 본문이 되고 앱이 그 구역만 보여준다.
 
-### 3.4 서버 호스팅(제안 — 확인 필요)
-**권장: Google Cloud Run (서울 리전 asia-northeast3)**. 이유: Docker 그대로 배포, 요청 없을 때 0대로 줄어 무료 범위 안에서 운영 가능, **국내 IP**라 KIND·네이버 등 국내 사이트 접속 차단 위험이 낮음. GitHub Actions에서 Secrets를 Cloud Run 환경변수로 주입한다. 대안은 Fly.io(도쿄)·Render(싱가포르, 무료 플랜은 15분 후 잠듦).
+#### 3.3-1 키움 REST API와 서버 IP (호스팅 조건)
+키움은 앱키 발급 시 **서버의 고정 공인 IPv4**를 등록해야 하고(최대 10개), 토큰을 받은 IP와 요청 IP가 다르면 오류 8010을 낸다. 따라서 백엔드는 **외부로 나가는 IP가 고정된 환경**이어야 한다. IP가 바뀌거나 키움이 막혀도 시세는 네이버로 자동 대체되고 `source` 필드로 알 수 있다. 실전은 `api.kiwoom.com`, 모의투자는 `mockapi.kiwoom.com`(실전 키를 모의에 쓰면 8031).
+
+## 3.4 서버 호스팅(제안 — 확인 필요)
+**키움 고정 IP 요건 때문에 권장 변경: 고정 IP를 줄 수 있는 소형 VM(예: AWS Lightsail 서울의 Static IP, 월 약 5달러 안팎) 1대에 Docker로 배포.** 국내 IP라 KIND·네이버 접속 차단 위험도 낮다. Cloud Run은 기본 외부 IP가 고정이 아니라서 Cloud NAT + 고정 IP를 따로 구성해야 해 비용·복잡도가 커진다. GitHub Actions에서 Secrets를 Cloud Run 환경변수로 주입한다. 대안은 Fly.io(도쿄)·Render(싱가포르, 무료 플랜은 15분 후 잠듦).
 단, 인스턴스가 0대로 줄면 메모리 캐시가 비므로 첫 요청이 느리다(corp_index는 디스크 사본 + 이미지 빌드 시 포함으로 보완 예정).
 
 ---
@@ -183,7 +186,7 @@ app/src/main/java/io/github/hdlee73/everycorp/
 ## 4.1 데이터 소스 확장: KRX Open API · 예탁결제원(공공데이터포털)
 | 소스 | 제공 | 앱 반영 | 상태 |
 |---|---|---|---|
-| **KRX Open API** (openapi.krx.co.kr) | 기준일 하루의 전 종목 일별매매정보(전일 T-1까지, 실시간 아님) | 현재가 폴백 3순위(네이버 → KIS → KRX 전일 종가, 응답에 `delayed:true`) | 백엔드 구현됨. **엔드포인트·헤더는 공식 문서에 접속하지 못해 공개 라이브러리 설명 기준 → 키 승인 후 명세서와 대조 필요** |
+| **KRX Open API** (openapi.krx.co.kr) | 기준일 하루의 전 종목 일별매매정보(전일 T-1까지, 실시간 아님) | 현재가 폴백 3순위(키움 → 네이버 → KRX 전일 종가, 응답에 `delayed:true`) | 백엔드 구현됨. **엔드포인트·헤더는 공식 문서에 접속하지 못해 공개 라이브러리 설명 기준 → 키 승인 후 명세서와 대조 필요** |
 | **KRX로 하지 않는 것** | 1년 일봉 | 기준일 단위 조회라 종목 1년치에 영업일 수(약 250)만큼 호출해야 해서 비효율 → 공공데이터포털 일봉(1순위), 네이버(폴백) 유지 | 결정 |
 | **예탁결제원 · 주식발행 공시정보** (data.go.kr 15150946) | 발행주식총수·자기주식수·유통주식수·누적감소주식수 (실시간 갱신) | 기업개황에 「발행주식수 / 유통주식수 / 시가총액(현재가×발행주식수)」 카드 추가 예정 | 오퍼레이션 경로는 활용신청 후 명세서 확인 필요 → 키 승인 뒤 구현 |
 | **예탁결제원 · 주식권리일정정보** (data.go.kr 15059609) | 배당·무상증자·유상증자·감자 등 권리일/기준일/지급일 | 기업개황 또는 공시 탭에 「권리 일정」 추가 예정 | 공공누리 2유형(**상업적 이용 금지**) → 개인·비상업 앱에서만 사용 |
@@ -217,7 +220,7 @@ app/src/main/java/io/github/hdlee73/everycorp/
 | 항목 | 위험 | 대응 |
 |---|---|---|
 | KIND·DART 웹 HTML | 비공식 구조라 개편 시 파싱 실패 | 파서를 `parsers/`로 분리 + 고정 HTML 단위 테스트, 실패 시 `partial`/`warnings`로 알림 |
-| 네이버 시세 | 비공식 엔드포인트, 약관상 상업적 이용 제한 가능 | KIS를 1순위로, 네이버는 폴백. 개인용/비상업 전제 |
+| 네이버 시세 | 비공식 엔드포인트, 약관상 상업적 이용 제한 가능 | 키움을 1순위로, 네이버는 폴백. 개인용/비상업 전제 |
 | DART PDF | 세션 쿠키·Referer 요구 가능성 | 서버 중계 폴백(`/reports/pdf`) |
 | 공공데이터 일봉 | T+1 지연 | 차트 마지막 점은 현재가로 보강(앱) |
 | DART 호출 한도 | 일 20,000건 | 캐시, 뷰어 동시 요청 제한 |

@@ -16,9 +16,10 @@ class Settings(BaseSettings):
     # --- 외부 API 키 (GitHub Secrets) ---
     dart_api_key: str = ""          # Open DART 인증키 (DART_API_KEY)
     data_go_kr_key: str = ""        # 공공데이터포털 서비스키, 디코딩 키 (DATA_GO_KR_KEY)
-    kis_app_key: str = ""           # 한국투자증권 Open API (KIS_APP_KEY)
-    kis_app_secret: str = ""        # (KIS_APP_SECRET)
-    kis_base_url: str = "https://openapi.koreainvestment.com:9443"
+    kiwoom_app_key: str = ""        # 키움증권 REST API 앱키 (KIWOOM_APP_KEY)
+    kiwoom_secret_key: str = ""     # 키움증권 REST API 시크릿키 (KIWOOM_SECRET_KEY)
+    # 실전 https://api.kiwoom.com / 모의투자 https://mockapi.kiwoom.com (실전 키를 모의 서버에 쓰면 8031)
+    kiwoom_base_url: str = "https://api.kiwoom.com"
 
     krx_auth_key: str = ""          # KRX Open API 인증키 (KRX_AUTH_KEY) — 전일(T-1) 종가 기반
     krx_base_url: str = "https://data-dbg.krx.co.kr/svc/apis"

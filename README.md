@@ -31,4 +31,4 @@ uvicorn app.main:app --reload --port 8000
 API 키는 **GitHub Secrets**에만 저장하고 서버 배포 시 환경변수로 주입합니다. 레포에는 `.env.example`만 있습니다. Secrets 목록과 "공개 레포여도 다른 사람이 업데이트를 배포할 수 없게 하는 방법"은 [`docs/ARCHITECTURE.md` 3장](docs/ARCHITECTURE.md#3-보안--키-관리--배포-사용자-기본-요구사항-반영)에 있습니다.
 
 ## 데이터 출처
-금융감독원 전자공시시스템(DART, Open DART API), 한국거래소 KIND, 한국투자증권 Open API, 네이버 금융, 공공데이터포털(금융위원회_주식시세정보). 투자 판단의 책임은 이용자에게 있습니다.
+금융감독원 전자공시시스템(DART, Open DART API), 한국거래소 KIND, 네이버 금융, 공공데이터포털(금융위원회_주식시세정보). 투자 판단의 책임은 이용자에게 있습니다.

@@ -1,14 +1,13 @@
 """탭 4. 주가현황(상장사 전용).
 
-실시간 현재가: 네이버 금융 실시간 폴링(키 불필요, 1순위) → KIS Open API(키가 있으면) → KRX 전일 종가.
-1년 일봉: 공공데이터포털 금융위원회_주식시세정보(T+1 지연) → 실패 시 네이버 siseJson.
+현재가: 키움 REST API(키가 있을 때, 1순위) → 네이버 금융 실시간 폴링(키 불필요) → KRX 전일 종가.
+1년 일봉: 키움 ka10081 수정주가 일봉(1순위) → 공공데이터포털 금융위 주식시세정보(T+1) → 네이버 siseJson.
+키움이 막히는 경우(고정 IP 불일치 8010, 호출 한도 등)에도 앱이 멈추지 않도록 항상 폴백을 둔다.
 현재가는 5초, 일봉은 1시간 캐시한다(앱은 장중 5초 간격 폴링 권장).
 """
 from __future__ import annotations
 
-import asyncio
 import logging
-import time
 from datetime import date, timedelta
 
 from ..cache import cache, cached
@@ -17,64 +16,11 @@ from ..errors import ApiError, UpstreamError
 from ..http import get_client
 from ..parsers import price as pp
 from .company_service import CORP_CLS, get_company
+from . import kiwoom_client
+from .kiwoom_client import kiwoom_enabled
 from .krx_client import krx_enabled, previous_close
 
 log = logging.getLogger(__name__)
-
-
-# ───────────────────────── KIS ─────────────────────────
-
-class KisToken:
-    """KIS 접근토큰(유효 24시간, 발급은 분당 1회 제한) — 만료 10분 전까지 재사용."""
-
-    def __init__(self) -> None:
-        self.token: str | None = None
-        self.expires_at = 0.0
-        self._lock = asyncio.Lock()
-
-    async def get(self) -> str:
-        async with self._lock:
-            if self.token and time.time() < self.expires_at - 600:
-                return self.token
-            s = get_settings()
-            r = await get_client().post(
-                f"{s.kis_base_url}/oauth2/tokenP",
-                json={"grant_type": "client_credentials", "appkey": s.kis_app_key, "appsecret": s.kis_app_secret},
-            )
-            if r.status_code != 200:
-                raise UpstreamError("KIS", f"토큰 발급 실패 HTTP {r.status_code}")
-            data = r.json()
-            self.token = data["access_token"]
-            self.expires_at = time.time() + int(data.get("expires_in", 86400))
-            return self.token
-
-
-kis_token = KisToken()
-
-
-def kis_enabled() -> bool:
-    s = get_settings()
-    return bool(s.kis_app_key and s.kis_app_secret)
-
-
-async def _kis_quote(stock_code: str) -> dict:
-    s = get_settings()
-    token = await kis_token.get()
-    r = await get_client().get(
-        f"{s.kis_base_url}/uapi/domestic-stock/v1/quotations/inquire-price",
-        params={"FID_COND_MRKT_DIV_CODE": "J", "FID_INPUT_ISCD": stock_code},
-        headers={
-            "authorization": f"Bearer {token}",
-            "appkey": s.kis_app_key,
-            "appsecret": s.kis_app_secret,
-            "tr_id": "FHKST01010100",
-            "custtype": "P",
-        },
-    )
-    data = r.json() if r.status_code == 200 else {}
-    if data.get("rt_cd") != "0":
-        raise UpstreamError("KIS", data.get("msg1", f"HTTP {r.status_code}"))
-    return pp.parse_kis_quote(data["output"])
 
 
 # ───────────────────────── 네이버 ─────────────────────────
@@ -109,16 +55,16 @@ async def get_quote(corp_code: str) -> dict:
 
     async def load() -> dict:
         q, source = None, None
-        # 1순위 네이버(키 불필요, FSS Insights와 같은 방식) → 2순위 KIS(키가 있을 때) → 3순위 KRX 전일 종가
-        try:
-            q, source = await _naver_quote(stock_code), "NAVER"
-        except Exception as e:  # noqa: BLE001
-            log.warning("Naver quote failed: %s", e)
-        if q is None and kis_enabled():
+        if kiwoom_enabled():
             try:
-                q, source = await _kis_quote(stock_code), "KIS"
+                q, source = await kiwoom_client.quote(stock_code), "KIWOOM"
             except Exception as e:  # noqa: BLE001
-                log.warning("KIS quote failed: %s", e)
+                log.warning("Kiwoom quote failed, fallback to Naver: %s", e)
+        if q is None:
+            try:
+                q, source = await _naver_quote(stock_code), "NAVER"
+            except Exception as e:  # noqa: BLE001
+                log.warning("Naver quote failed: %s", e)
         if q is None and not krx_enabled():
             raise UpstreamError("시세", "현재가를 가져오지 못했습니다.")
         if q is None:
@@ -174,6 +120,13 @@ async def _naver_daily(stock_code: str, bgn: date, end: date) -> list[dict]:
 
 @cached(ttl=3600)
 async def _daily(stock_code: str, bgn: date, end: date) -> tuple[list[dict], str]:
+    if kiwoom_enabled():
+        try:
+            rows = await kiwoom_client.daily(stock_code, bgn)
+            if len(rows) >= 20:
+                return rows, "KIWOOM"
+        except Exception as e:  # noqa: BLE001
+            log.warning("Kiwoom daily failed, fallback: %s", e)
     try:
         rows = await _datagokr_daily(stock_code, bgn)
         if len(rows) >= 20:

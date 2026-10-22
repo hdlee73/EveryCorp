@@ -1,6 +1,6 @@
 """시세 응답 파서(순수 함수).
 
-- KIS 국내주식 현재가 시세(inquire-price, TR FHKST01010100) output
+- 키움 REST API(ka10001 현재가, ka10081 일봉)
 - 네이버 금융 실시간 폴링(polling.finance.naver.com) — 신/구 두 형식
 - 공공데이터포털 금융위원회_주식시세정보(getStockPriceInfo) items
 - 네이버 siseJson(일봉) 폴백
@@ -12,9 +12,6 @@ from datetime import datetime
 
 from ..utils.money import parse_amount, parse_ratio
 
-_KIS_SIGN = {"1": "UP", "2": "UP", "3": "FLAT", "4": "DOWN", "5": "DOWN"}
-
-
 def _num(v) -> int | None:
     return parse_amount(str(v)) if v is not None else None
 
@@ -23,26 +20,6 @@ def _direction(change: int | None) -> str:
     if not change:
         return "FLAT"
     return "UP" if change > 0 else "DOWN"
-
-
-def parse_kis_quote(output: dict) -> dict:
-    sign = _KIS_SIGN.get(str(output.get("prdy_vrss_sign", "3")), "FLAT")
-    change = abs(_num(output.get("prdy_vrss")) or 0)
-    rate = abs(parse_ratio(output.get("prdy_ctrt")) or 0.0)
-    if sign == "DOWN":
-        change, rate = -change, -rate
-    return {
-        "price": _num(output.get("stck_prpr")),
-        "change": change,
-        "change_rate": rate,
-        "direction": sign,
-        "open": _num(output.get("stck_oprc")),
-        "high": _num(output.get("stck_hgpr")),
-        "low": _num(output.get("stck_lwpr")),
-        "volume": _num(output.get("acml_vol")),
-        "week52_high": _num(output.get("w52_hgpr")),
-        "week52_low": _num(output.get("w52_lwpr")),
-    }
 
 
 def parse_naver_realtime(data: dict) -> dict | None:
@@ -151,3 +128,79 @@ def summarize_range(rows: list[dict]) -> dict:
 
 def now_iso() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+# ───────── 키움 REST API ─────────
+# 키움은 모든 값을 문자열로 주고, 가격에도 등락 방향 부호(+/-)를 붙여 보낸다(예: "-70000" = 70,000원, 하락 상태).
+_KIWOOM_SIG = {"1": "UP", "2": "UP", "3": "FLAT", "4": "DOWN", "5": "DOWN"}
+
+
+def kiwoom_abs_int(v) -> int | None:
+    s = str(v if v is not None else "").strip().replace(",", "")
+    if not s:
+        return None
+    try:
+        return abs(int(float(s)))
+    except ValueError:
+        return None
+
+
+def kiwoom_float(v) -> float | None:
+    s = str(v if v is not None else "").strip().replace(",", "")
+    if not s:
+        return None
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
+def parse_kiwoom_quote(d: dict) -> dict:
+    """ka10001(주식기본정보요청) 응답 → 공통 시세 형식."""
+    sig = _KIWOOM_SIG.get(str(d.get("pre_sig", "")).strip())
+    change = kiwoom_float(d.get("pred_pre")) or 0.0
+    rate = kiwoom_float(d.get("flu_rt")) or 0.0
+    change_abs, rate_abs = abs(int(change)), abs(rate)
+    if sig is None:  # 대비기호가 없으면 값의 부호로 판단
+        sig = "UP" if change > 0 else "DOWN" if change < 0 else "FLAT"
+    if sig == "DOWN":
+        change_abs, rate_abs = -change_abs, -rate_abs
+    elif sig == "FLAT":
+        change_abs, rate_abs = 0, 0.0
+    return {
+        "name": d.get("stk_nm"),
+        "price": kiwoom_abs_int(d.get("cur_prc")),
+        "change": change_abs,
+        "change_rate": round(rate_abs, 2),
+        "direction": sig,
+        "open": kiwoom_abs_int(d.get("open_pric")),
+        "high": kiwoom_abs_int(d.get("high_pric")),
+        "low": kiwoom_abs_int(d.get("low_pric")),
+        "volume": kiwoom_abs_int(d.get("trde_qty")),
+        # 250거래일 최고/최저 ≈ 52주
+        "week52_high": kiwoom_abs_int(d.get("250hgst")),
+        "week52_low": kiwoom_abs_int(d.get("250lwst")),
+        "per": kiwoom_float(d.get("per")),
+        "pbr": kiwoom_float(d.get("pbr")),
+        "eps": kiwoom_float(d.get("eps")),
+        "bps": kiwoom_float(d.get("bps")),
+        "roe": kiwoom_float(d.get("roe")),
+    }
+
+
+def parse_kiwoom_chart(rows: list[dict]) -> list[dict]:
+    """ka10081(주식일봉차트조회요청) 의 stk_dt_pole_chart_qry → 오름차순 일봉."""
+    out = []
+    for r in rows:
+        d = str(r.get("dt", ""))
+        if len(d) != 8:
+            continue
+        out.append({
+            "date": f"{d[:4]}-{d[4:6]}-{d[6:]}",
+            "open": kiwoom_abs_int(r.get("open_pric")),
+            "high": kiwoom_abs_int(r.get("high_pric")),
+            "low": kiwoom_abs_int(r.get("low_pric")),
+            "close": kiwoom_abs_int(r.get("cur_prc")),
+            "volume": kiwoom_abs_int(r.get("trde_qty")),
+        })
+    return sorted(out, key=lambda x: x["date"])

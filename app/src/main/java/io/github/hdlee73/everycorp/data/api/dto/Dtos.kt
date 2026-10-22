@@ -221,7 +221,13 @@ data class QuoteDto(
     val volume: Long? = null,
     @SerialName("week52_high") val week52High: Long? = null,
     @SerialName("week52_low") val week52Low: Long? = null,
-    /** KIS | NAVER | KRX */
+    /** 투자지표(키움 응답일 때만) */
+    val per: Double? = null,
+    val pbr: Double? = null,
+    val eps: Double? = null,
+    val bps: Double? = null,
+    val roe: Double? = null,
+    /** KIWOOM | NAVER | KRX */
     val source: String = "",
     val delayed: Boolean = false,
     @SerialName("market_status") val marketStatus: String? = null,

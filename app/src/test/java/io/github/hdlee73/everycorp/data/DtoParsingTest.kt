@@ -85,7 +85,7 @@ class DtoParsingTest {
 
     @Test fun quoteAndChart() {
         val q = json.decodeFromString<QuoteDto>(
-            """{"stock_code":"005930","name":"삼성전자","price":71000,"change":-500,"change_rate":-0.7,"direction":"DOWN","week52_high":88800,"source":"KIS","fetched_at":"x"}""",
+            """{"stock_code":"005930","name":"삼성전자","price":71000,"change":-500,"change_rate":-0.7,"direction":"DOWN","week52_high":88800,"source":"KIWOOM","fetched_at":"x"}""",
         )
         assertEquals("DOWN", q.direction)
         assertEquals(-500L, q.change)

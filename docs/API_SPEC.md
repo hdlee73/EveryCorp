@@ -322,12 +322,17 @@
   "volume": 12345678,
   "week52_high": 88800,
   "week52_low": 49900,
-  "source": "KIS",
+  "per": 12.5,
+  "pbr": 1.1,
+  "eps": 5677.0,
+  "bps": 64000.0,
+  "roe": 9.0,
+  "source": "KIWOOM",
   "fetched_at": "2026-10-22T10:15:03+09:00"
 }
 ```
 - `direction`: `UP`(빨강 ▲) · `DOWN`(파랑 ▼) · `FLAT`(회색 -)
-- `source`: `NAVER`(기본) | `KIS`(키 설정 시 네이버 실패 대체) | `KRX`(전일 종가, `delayed:true`). 네이버 응답은 `market_status`(`OPEN`/`CLOSE`), `traded_at`가 있고 `week52_*`는 없음(차트의 `range_52w` 사용)
+- `source`: `KIWOOM`(키움 REST, 1순위) | `NAVER`(키움 실패·미설정 시) | `KRX`(전일 종가, `delayed:true`). `week52_*`는 키움의 250거래일 최고/최저. `per/pbr/eps/bps/roe`는 키움 응답일 때만. 네이버 응답은 `market_status`, `traded_at`가 있고 `week52_*`가 없음(차트의 `range_52w` 사용)
 - 앱은 탭이 화면에 있을 때만 5초 간격 폴링(장 마감 후 60초)
 - 비상장: `404 NOT_LISTED`
 
@@ -338,7 +343,7 @@
   "name": "삼성전자",
   "from": "2025-10-22",
   "to": "2026-10-22",
-  "source": "DATA_GO_KR",
+  "source": "KIWOOM",
   "points": [
     { "date": "2025-10-22", "close": 58900, "high": 59400, "low": 58500, "volume": 15234567 },
     { "date": "2026-10-21", "close": 71500, "high": 72000, "low": 70900, "volume": 11234567 }
@@ -347,7 +352,7 @@
   "last_date": "2026-10-21"
 }
 ```
-- `source`: `DATA_GO_KR`(공공데이터포털, 전 영업일까지) | `NAVER`(폴백)
+- `source`: `KIWOOM`(ka10081 수정주가 일봉, 1순위) | `DATA_GO_KR`(공공데이터포털, 전 영업일까지) | `NAVER`(폴백)
 - 52주 최고/최저는 일별 **장중 고가/저가** 기준. 앱은 현재가가 이 범위를 넘으면 현재가로 갱신해 표시한다.
 
 ---
@@ -394,5 +399,6 @@ DART 정기보고서의 증권 미상환 잔액(회사채·기업어음증권(CP
 | 첨부·dcmNo 파싱 | `dart.fss.or.kr/dsaf001/main.do` `<select id="att">`, `node1['dcmNo']` | [OpenDartReader `dart_utils.py`](https://github.com/FinanceData/OpenDartReader) (attach_docs/sub_docs가 같은 구조 사용) |
 | KIND 공시 | `POST kind.krx.co.kr/disclosure/details.do` | KIND 상세검색 화면(비공식) |
 | 채권·단기증권 잔액 | `cprndNrdmpBlce.json`(회사채), `entrprsBilScritsNrdmpBlce.json`(CP), `srtpdPsndbtNrdmpBlce.json`(단기사채), `newCaplScritsNrdmpBlce.json`, `cndlCaplScritsNrdmpBlce.json` (모두 `corp_code`,`bsns_year`,`reprt_code`) | [DART 개발가이드 DS002](https://opendart.fss.or.kr/guide/main.do?apiGrpCd=DS002), 파라미터는 [OpenDART MCP 도구 설명](https://glama.ai/mcp/servers/gyeongmin100/Open-Dart-Plugin/tools/get_commercial_paper) 참고. **엔드포인트 이름·구간 컬럼명은 기억과 공개 자료 기준이라 실제 키로 확인 필요** |
-| 현재가 | KIS `/uapi/domestic-stock/v1/quotations/inquire-price` (TR `FHKST01010100`) | [KIS Developers](https://apiportal.koreainvestment.com/apiservice) |
+| 현재가·일봉 | 키움 REST API: `POST /oauth2/token`, `POST /api/dostk/stkinfo`(api-id `ka10001`), `POST /api/dostk/chart`(api-id `ka10081`) | [키움 REST API](https://openapi.kiwoom.com/guide/apiguide), 해설: [ka10001](https://algolab.co.kr/blog/kiwoom-rest-api-stock-info-ka10001-2026), [ka10081](https://algolab.co.kr/blog/kiwoom-rest-api-chart-daily-minute-tick-2026). **공식 명세 접속 불가로 해설 자료 기준 → 키 발급 후 확인** |
+| 현재가 폴백 | 네이버 `polling.finance.naver.com` | 비공식 |
 | 일봉 | `apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo` | [공공데이터포털 금융위원회_주식시세정보](https://www.data.go.kr/data/15094808/openapi.do) |
