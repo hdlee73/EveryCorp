@@ -48,13 +48,13 @@ fun DisclosuresTab(vm: CompanyViewModel) {
     Column(Modifier.fillMaxSize()) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DisclosurePeriod.entries.forEach { p -> FilterChip(selected = vm.period == p, onClick = { vm.setPeriod(p) }, label = { Text(p.label) }) }
+                DisclosurePeriod.entries.forEach { p -> FilterChip(selected = vm.period == p, onClick = { vm.changePeriod(p) }, label = { Text(p.label) }) }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DisclosureSource.entries.forEach { s -> FilterChip(selected = vm.source == s, onClick = { vm.setSource(s) }, label = { Text(s.label) }) }
+                DisclosureSource.entries.forEach { s -> FilterChip(selected = vm.source == s, onClick = { vm.changeSource(s) }, label = { Text(s.label) }) }
             }
             OutlinedTextField(
-                value = vm.search, onValueChange = vm::setSearch, modifier = Modifier.fillMaxWidth(),
+                value = vm.search, onValueChange = vm::changeSearch, modifier = Modifier.fillMaxWidth(),
                 placeholder = { Text("공시 제목 검색") }, singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { vm.submitSearch() }),

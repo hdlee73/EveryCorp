@@ -84,9 +84,9 @@ class CompanyViewModel(
     fun quoteFlow() = repo.quotePolling(corp.corpCode)
 
     // ───── 공시 ─────
-    fun setPeriod(p: DisclosurePeriod) { if (p != period) { period = p; reloadDisclosures() } }
-    fun setSource(s: DisclosureSource) { if (s != source) { source = s; reloadDisclosures() } }
-    fun setSearch(q: String) { search = q }
+    fun changePeriod(p: DisclosurePeriod) { if (p != period) { period = p; reloadDisclosures() } }
+    fun changeSource(s: DisclosureSource) { if (s != source) { source = s; reloadDisclosures() } }
+    fun changeSearch(q: String) { search = q }
     fun submitSearch() = reloadDisclosures()
 
     fun reloadDisclosures() {
