@@ -54,6 +54,15 @@ class NavigationAndFormatTest {
         assertEquals("20.1%", Fmt.percent(20.07))
     }
 
+    @Test fun amountsInEokAndJo() {
+        assertEquals("5,145,319", Fmt.eok(514_531_948_000_000.0))
+        assertEquals("514.5조원", Fmt.jo(514_531_948_000_000.0))
+        assertEquals("1,235", Fmt.eok(123_456_789_000.0))
+        assertEquals(null, Fmt.jo(999_999_999_999.0))
+        assertEquals("-2,500", Fmt.eok(-250_000_000_000.0))
+        assertEquals("-", Fmt.eok(null))
+    }
+
     @Test fun recentListKeepsOrderAndDedupes() {
         val hynix = CorpItemDto("00164779", "SK하이닉스", listing = "LISTED")
         var list = CorpListCodec.pushFront(emptyList(), samsung, 3)

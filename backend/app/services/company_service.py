@@ -105,8 +105,10 @@ async def get_financials(corp_code: str, fiscal_month: int, industry_code: str |
 
     # 기존 필드(최근 결산 기준 요약)도 유지한다.
     summary = summarize_financials(annual_rows or latest_rows, industry_code)
+    base_report, base_year = (annual, annual_year) if annual_rows else (latest, latest_year)
     summary.update(available=True, fs_div=fs_div, fs_label="연결" if fs_div == "CFS" else "별도",
-                   basis=_basis(latest, latest_year, reprt_code_for(latest, fiscal_month)))
+                   basis=_basis(base_report, base_year, reprt_code_for(base_report, fiscal_month)),
+                   latest_basis=_basis(latest, latest_year, reprt_code_for(latest, fiscal_month)))
     summary["tables"] = build_comparison_tables(
         latest_rows, latest.kind, latest.period_year, latest.period_month,
         annual_rows, int(annual_year) if annual_year else None, fiscal_month, industry_code,
@@ -148,6 +150,7 @@ async def get_overview(corp_code: str) -> dict:
         "stock_code": (company.get("stock_code") or "").strip() or None,
         "listing": "LISTED" if listed else "UNLISTED",
         "market": CORP_CLS.get(company.get("corp_cls", ""), "OTHER"),
+        "badge": market_service.badge_from_cls(company.get("corp_cls", ""), listed, company.get("corp_name") or ""),
         "ceo_name": company.get("ceo_nm"),
         "industry_code": industry,
         "established": company.get("est_dt"),

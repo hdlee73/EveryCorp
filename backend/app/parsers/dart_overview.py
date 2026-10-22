@@ -268,15 +268,15 @@ def build_comparison_tables(
     rev_label = (latest or annual or {}).get("revenue_label", "매출액")
 
     # 재무상태표 열
-    bs_cols: list[str] = []
+    bs_cols: list[dict] = []
     bs_sets: list[tuple[int | None, int | None, int | None]] = []   # (자산, 부채, 자본)
 
-    def add_bs(label: str, a: dict | None, field: str) -> None:
-        bs_cols.append(label)
+    def add_bs(label: str, a: dict | None, field: str, sub: str | None = None) -> None:
+        bs_cols.append({"label": label, "sub": sub})
         bs_sets.append((_v(a and a["assets"], field), _v(a and a["liabilities"], field), _v(a and a["equity"], field)))
 
     if not is_annual and latest:
-        add_bs(f"{latest_year}.{latest_month:02d}", latest, "thstrm_amount")
+        add_bs(f"{latest_year}.{latest_month:02d}", latest, "thstrm_amount", f"{latest_kind}말")
     if annual and annual_year:
         for i, field in enumerate(("thstrm_amount", "frmtrm_amount", "bfefrmtrm_amount")):
             add_bs(f"{annual_year - i}.{fiscal_month:02d}", annual, field)

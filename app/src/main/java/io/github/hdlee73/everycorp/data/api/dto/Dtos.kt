@@ -110,9 +110,25 @@ data class FinancialsDto(
     @SerialName("revenue_label") val revenueLabel: String = "매출액",
     val currency: String = "KRW",
     val basis: BasisDto? = null,
+    @SerialName("latest_basis") val latestBasis: BasisDto? = null,
+    /** 기간 비교표(재무상태: 최직근 분기 + 3개 연말, 손익: 분기·누적 + 직전 연간). 금액은 원 단위. */
+    val tables: FinTablesDto? = null,
     @SerialName("balance_sheet") val balanceSheet: BalanceSheetDto? = null,
     @SerialName("income_statement") val incomeStatement: IncomeStatementDto? = null,
 )
+
+@Serializable
+data class FinTablesDto(val unit: String = "억원", val balance: FinTableDto = FinTableDto(), val income: FinTableDto = FinTableDto())
+
+@Serializable
+data class FinTableDto(val columns: List<FinColumnDto> = emptyList(), val rows: List<FinRowDto> = emptyList())
+
+@Serializable
+data class FinColumnDto(val label: String = "", val sub: String? = null)
+
+/** [unit]이 "%"이면 비율, 아니면 원 단위 금액. */
+@Serializable
+data class FinRowDto(val label: String = "", val unit: String? = null, val values: List<Double?> = emptyList())
 
 @Serializable
 data class BalanceSheetDto(
