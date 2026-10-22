@@ -256,3 +256,40 @@ data class Range52wDto(
     val low: Long? = null,
     @SerialName("low_date") val lowDate: String? = null,
 )
+
+// ───────── 탭 5: 채권·단기증권 ─────────
+@Serializable
+data class DebtSecuritiesDto(
+    @SerialName("corp_code") val corpCode: String = "",
+    val available: Boolean = false,
+    val message: String? = null,
+    @SerialName("unit_note") val unitNote: String = "",
+    val basis: BasisDto? = null,
+    val sections: List<DebtSectionDto> = emptyList(),
+    /** 이번 보고서에 잔액 표가 없는 종류(예: 단기사채) */
+    val missing: List<String> = emptyList(),
+    @SerialName("viewer_url") val viewerUrl: String? = null,
+)
+
+@Serializable
+data class DebtSectionDto(
+    /** CORP_BOND | COMMERCIAL_PAPER | SHORT_TERM_BOND | HYBRID_CAPITAL | CONTINGENT_CAPITAL */
+    val key: String,
+    val title: String,
+    val total: Long? = null,
+    @SerialName("total_display") val totalDisplay: String? = null,
+    val rows: List<DebtRowDto> = emptyList(),
+)
+
+@Serializable
+data class DebtRowDto(
+    val label: String,
+    @SerialName("is_total") val isTotal: Boolean = false,
+    val total: Long? = null,
+    @SerialName("issue_limit") val issueLimit: Long? = null,
+    @SerialName("remaining_limit") val remainingLimit: Long? = null,
+    val buckets: List<DebtBucketDto> = emptyList(),
+)
+
+@Serializable
+data class DebtBucketDto(val key: String, val label: String, val amount: Long? = null)

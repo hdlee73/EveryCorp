@@ -4,6 +4,7 @@ import io.github.hdlee73.everycorp.data.api.dto.AppMetaDto
 import io.github.hdlee73.everycorp.data.api.dto.AuditReportsResponse
 import io.github.hdlee73.everycorp.data.api.dto.ChartDto
 import io.github.hdlee73.everycorp.data.api.dto.CorpSearchResponse
+import io.github.hdlee73.everycorp.data.api.dto.DebtSecuritiesDto
 import io.github.hdlee73.everycorp.data.api.dto.DisclosuresResponse
 import io.github.hdlee73.everycorp.data.api.dto.OverviewDto
 import io.github.hdlee73.everycorp.data.api.dto.QuoteDto
@@ -51,4 +52,7 @@ interface EveryCorpApi {
         @Path("corpCode") corpCode: String,
         @Query("days") days: Int = 365,
     ): ChartDto
+
+    @GET("api/v1/corps/{corpCode}/debt-securities")
+    suspend fun debtSecurities(@Path("corpCode") corpCode: String): DebtSecuritiesDto
 }

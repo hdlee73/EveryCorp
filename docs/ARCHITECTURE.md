@@ -97,6 +97,8 @@ backend/app/
 - `dedupe=true`면 같은 날짜·같은 제목(괄호·접두어 무시)의 KIND 항목을 숨긴다(기본 false: 요구사항대로 둘 다 표시).
 - 원문 URL: DART 모바일 뷰어 `m.dart.fss.or.kr/html_mdart/MD1007.html?rcpNo=`, KIND `kind.krx.co.kr/common/disclsviewer.do?method=search&acptno=`.
 
+**탭 5 채권·단기증권** — `GET /corps/{corp_code}/debt-securities`: 최신 정기보고서부터 4건을 살피며 DART 미상환 잔액 5종을 병렬 조회, 잔액 표가 있는 첫 보고서를 채택 → 종류별 공모/사모/합계 × 잔여만기 구간.
+
 **탭 4 주가현황** — `GET /corps/{corp_code}/stock/quote`, `/stock/chart`
 - 현재가: KIS `inquire-price`(TR `FHKST01010100`, 토큰 24h 재사용) → 키 없음/실패 시 네이버 `polling.finance.naver.com` 폴링. 서버 5초 캐시, 앱은 탭이 보일 때만 5초 간격 폴링.
 - 1년 일봉: 공공데이터포털 `GetStockSecuritiesInfoService/getStockPriceInfo`(T+1 영업일 지연) → 실패 시 네이버 `siseJson`. 52주 최고/최저는 일별 **고가/저가** 기준으로 계산(일자 포함).
@@ -166,8 +168,8 @@ app/src/main/java/io/github/hdlee73/everycorp/
 ├── ui/
 │   ├── theme/Theme.kt              # FSS Insights 색·글꼴·모서리 계승
 │   ├── search/SearchBar.kt         # 자동완성 + [상장]/[외감] 뱃지
-│   ├── company/CompanyScreen.kt    # 4개 탭(HorizontalPager + TabRow)
-│   ├── tabs/OverviewTab.kt · ReportsTab.kt · DisclosuresTab.kt · StockTab.kt
+│   ├── company/CompanyScreen.kt    # 5개 탭(HorizontalPager + 스크롤 TabRow)
+│   ├── tabs/OverviewTab.kt · ReportsTab.kt · DisclosuresTab.kt · StockTab.kt · DebtTab.kt
 │   └── info/AppInfoScreen.kt       # 앱 정보·업데이트
 └── nav/AppNavHost.kt               # Navigation Compose
 ```
@@ -185,6 +187,15 @@ app/src/main/java/io/github/hdlee73/everycorp/
 | **KRX로 하지 않는 것** | 1년 일봉 | 기준일 단위 조회라 종목 1년치에 영업일 수(약 250)만큼 호출해야 해서 비효율 → 공공데이터포털 일봉(1순위), 네이버(폴백) 유지 | 결정 |
 | **예탁결제원 · 주식발행 공시정보** (data.go.kr 15150946) | 발행주식총수·자기주식수·유통주식수·누적감소주식수 (실시간 갱신) | 기업개황에 「발행주식수 / 유통주식수 / 시가총액(현재가×발행주식수)」 카드 추가 예정 | 오퍼레이션 경로는 활용신청 후 명세서 확인 필요 → 키 승인 뒤 구현 |
 | **예탁결제원 · 주식권리일정정보** (data.go.kr 15059609) | 배당·무상증자·유상증자·감자 등 권리일/기준일/지급일 | 기업개황 또는 공시 탭에 「권리 일정」 추가 예정 | 공공누리 2유형(**상업적 이용 금지**) → 개인·비상업 앱에서만 사용 |
+
+### 5번째 탭 「채권·단기증권」
+기업 검색 후 회사채·CP·단기사채(STB) 등 발행 잔액을 본다. 탭 구조는 `기업개황 / 감사·검토 / 공시 / 주가 / 채권·단기증권` 5개이며, 비상장 외감법인도 정기보고서 제출 대상이면 조회된다(주가 탭만 비활성).
+| 소스 | 내용 | 상태 |
+|---|---|---|
+| **Open DART 미상환 잔액 5종** | 회사채·기업어음증권·단기사채·신종자본증권·조건부자본증권, 잔여만기 구간별(예: 30일 이하, 1년 초과 2년 이하) | 구현됨(`GET /corps/{corp_code}/debt-securities`). 보고서 기준일 시점 값 |
+| **예탁결제원 채권기본정보**(data.go.kr 15059592) | 종목별 채권잔액·발행금액·발행/만기일·표면이율, 조회 키 `crno`(법인등록번호, DART `company.json`의 `jurir_no`로 연결) | 활용신청·명세 확인 후 `holdings`로 추가 |
+| **예탁결제원 채권발행정보**(15043421) | 발행자별 발행 종목, 종류별 발행·만기 현황, 원리금 | 위와 동일 |
+단기증권(CP·STB)은 공공데이터포털의 예탁결제원 API 목록에서 별도 서비스를 찾지 못했다. 현재는 DART 정기보고서 기준만 제공하며, 일 단위 잔액이 필요하면 예탁결제원 SEIBro 등 다른 경로를 검토해야 한다. 예탁결제원 데이터는 공공누리 2유형(**상업적 이용 금지**)이다.
 
 네이버 폴백은 FSS Insights와 같은 방식이라 KRX가 못 주는 **장중 실시간**과 **일봉**을 담당합니다.
 

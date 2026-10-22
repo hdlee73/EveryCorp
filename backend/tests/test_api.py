@@ -106,3 +106,19 @@ def test_health_and_meta_public():
     assert meta["author"] == {"name": "이현덕", "email": "hdlee73@gmail.com"}
     assert meta["update_available"] is True and meta["force_update"] is False
     assert meta["latest"]["notes"] == "- 공시 필터 추가"
+
+
+@respx.mock
+def test_debt_securities_endpoint(client):
+    respx.get(f"{DART}/company.json").mock(return_value=httpx.Response(200, json={"status": "000", "corp_name": "삼성전자", "stock_code": "005930", "corp_cls": "Y", "acc_mt": "12"}))
+    respx.get(f"{DART}/list.json").mock(return_value=httpx.Response(200, json={"status": "000", "total_page": 1, "list": [
+        {"report_nm": "사업보고서 (2025.12)", "rcept_no": "20260310000100", "rcept_dt": "20260310"}]}))
+    respx.get(f"{DART}/cprndNrdmpBlce.json").mock(return_value=httpx.Response(200, json={"status": "000", "list": [
+        {"remndr_exprtn1": "합계", "remndr_exprtn2": "-", "yy1_below": "10", "sm": "10"}]}))
+    for ep in ("entrprsBilScritsNrdmpBlce", "srtpdPsndbtNrdmpBlce", "newCaplScritsNrdmpBlce", "cndlCaplScritsNrdmpBlce"):
+        respx.get(f"{DART}/{ep}.json").mock(return_value=httpx.Response(200, json={"status": "013", "message": "조회된 데이타가 없습니다."}))
+    body = client.get("/api/v1/corps/00126380/debt-securities").json()
+    assert body["available"] is True
+    assert [s["key"] for s in body["sections"]] == ["CORP_BOND"]
+    assert "기업어음증권" in body["missing"] and "단기사채" in body["missing"]
+    assert body["basis"]["reprt_code"] == "11011"

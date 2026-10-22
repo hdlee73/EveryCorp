@@ -236,3 +236,20 @@ def test_krx_snapshot_parse():
     q = parse_snapshot(data, "005930")
     assert q["price"] == 71000 and q["direction"] == "DOWN" and q["base_date"] == "20261021"
     assert parse_snapshot(data, "000660") is None
+
+
+def test_debt_section_summary():
+    from app.parsers.dart_debt import summarize_section
+    rows = [
+        {"rcept_no": "1", "remndr_exprtn1": "공모", "remndr_exprtn2": "-", "yy1_below": "1,000", "yy1_excess_yy2_below": "500", "sm": "1,500", "isu_lmt": "-", "remndr_lmt": "-"},
+        {"rcept_no": "1", "remndr_exprtn1": "사모", "remndr_exprtn2": "-", "yy1_below": "200", "yy1_excess_yy2_below": "-", "sm": "200"},
+        {"rcept_no": "1", "remndr_exprtn1": "합계", "remndr_exprtn2": "-", "yy1_below": "1,200", "yy1_excess_yy2_below": "500", "sm": "1,700"},
+    ]
+    s = summarize_section("CORP_BOND", "회사채", rows)
+    assert s["total"] == 1700 and s["total_display"] == "1,700"
+    assert [r["label"] for r in s["rows"]] == ["공모", "사모", "합계"]
+    assert s["rows"][0]["buckets"][0] == {"key": "yy1_below", "label": "1년 이하", "amount": 1000}
+    assert s["rows"][1]["buckets"][1]["amount"] is None
+    assert s["rows"][2]["is_total"]
+    # 합계 행이 없으면 행 합
+    assert summarize_section("X", "x", rows[:2])["total"] == 1700

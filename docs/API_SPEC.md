@@ -352,6 +352,37 @@
 
 ---
 
+## 5-1. 탭 5 — 채권·단기증권 (미상환 잔액)
+
+### `GET /corps/{corp_code}/debt-securities`
+DART 정기보고서의 증권 미상환 잔액(회사채·기업어음증권(CP)·단기사채·신종자본증권·조건부자본증권)을 잔여만기 구간별로 보여준다. 최신 정기보고서부터 최대 4건을 살펴 잔액 표가 있는 가장 최근 보고서를 사용한다.
+```json
+{
+  "corp_code": "00126380",
+  "available": true,
+  "unit_note": "공시 원문 단위(통상 백만원) 그대로의 숫자입니다. 정확한 단위는 DART 원문에서 확인하세요.",
+  "basis": { "report_name": "사업보고서 (2025.12)", "rcept_no": "20260310000100", "bsns_year": "2025", "reprt_code": "11011", "period_end": "2025-12" },
+  "sections": [
+    {
+      "key": "CORP_BOND",
+      "title": "회사채",
+      "total": 1700,
+      "total_display": "1,700",
+      "rows": [
+        { "label": "공모", "is_total": false, "total": 1500, "issue_limit": null, "remaining_limit": null,
+          "buckets": [ { "key": "yy1_below", "label": "1년 이하", "amount": 1000 }, { "key": "yy1_excess_yy2_below", "label": "1년 초과 2년 이하", "amount": 500 } ] },
+        { "label": "합계", "is_total": true, "total": 1700, "issue_limit": null, "remaining_limit": null, "buckets": [] }
+      ]
+    }
+  ],
+  "missing": ["기업어음증권", "단기사채", "신종자본증권", "조건부자본증권"],
+  "viewer_url": "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20260310000100"
+}
+```
+- `key`: `CORP_BOND` · `COMMERCIAL_PAPER`(CP) · `SHORT_TERM_BOND`(단기사채, STB) · `HYBRID_CAPITAL` · `CONTINGENT_CAPITAL`
+- 잔액은 **보고서 기준일 시점**이다(일 단위 실시간 잔액 아님). 발행 이력이 없으면 `available:false` + `message`.
+- 한국예탁결제원의 종목별 일 단위 잔액(공공데이터포털 채권기본정보·채권발행정보)은 활용신청 후 명세를 확인해 `holdings` 필드로 추가할 예정.
+
 ## 6. 원천 API 근거
 | 기능 | 원천 | 문서 |
 |---|---|---|
@@ -362,5 +393,6 @@
 | 재무제표 | `fnlttSinglAcntAll.json` (`fs_div` CFS/OFS) | [DS003 단일회사 전체 재무제표](https://opendart.fss.or.kr/guide/main.do?apiGrpCd=DS003) |
 | 첨부·dcmNo 파싱 | `dart.fss.or.kr/dsaf001/main.do` `<select id="att">`, `node1['dcmNo']` | [OpenDartReader `dart_utils.py`](https://github.com/FinanceData/OpenDartReader) (attach_docs/sub_docs가 같은 구조 사용) |
 | KIND 공시 | `POST kind.krx.co.kr/disclosure/details.do` | KIND 상세검색 화면(비공식) |
+| 채권·단기증권 잔액 | `cprndNrdmpBlce.json`(회사채), `entrprsBilScritsNrdmpBlce.json`(CP), `srtpdPsndbtNrdmpBlce.json`(단기사채), `newCaplScritsNrdmpBlce.json`, `cndlCaplScritsNrdmpBlce.json` (모두 `corp_code`,`bsns_year`,`reprt_code`) | [DART 개발가이드 DS002](https://opendart.fss.or.kr/guide/main.do?apiGrpCd=DS002), 파라미터는 [OpenDART MCP 도구 설명](https://glama.ai/mcp/servers/gyeongmin100/Open-Dart-Plugin/tools/get_commercial_paper) 참고. **엔드포인트 이름·구간 컬럼명은 기억과 공개 자료 기준이라 실제 키로 확인 필요** |
 | 현재가 | KIS `/uapi/domestic-stock/v1/quotations/inquire-price` (TR `FHKST01010100`) | [KIS Developers](https://apiportal.koreainvestment.com/apiservice) |
 | 일봉 | `apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo` | [공공데이터포털 금융위원회_주식시세정보](https://www.data.go.kr/data/15094808/openapi.do) |

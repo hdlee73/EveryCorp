@@ -4,6 +4,7 @@ import io.github.hdlee73.everycorp.data.api.NetworkModule
 import io.github.hdlee73.everycorp.data.api.dto.AuditReportsResponse
 import io.github.hdlee73.everycorp.data.api.dto.ChartDto
 import io.github.hdlee73.everycorp.data.api.dto.CorpSearchResponse
+import io.github.hdlee73.everycorp.data.api.dto.DebtSecuritiesDto
 import io.github.hdlee73.everycorp.data.api.dto.DisclosuresResponse
 import io.github.hdlee73.everycorp.data.api.dto.OverviewDto
 import io.github.hdlee73.everycorp.data.api.dto.QuoteDto
@@ -95,5 +96,19 @@ class DtoParsingTest {
         )
         assertEquals(88800L, c.range52w.high)
         assertEquals(1, c.points.size)
+    }
+
+    @Test fun debtSecurities() {
+        val d = json.decodeFromString<DebtSecuritiesDto>(
+            """{"corp_code":"00126380","available":true,"unit_note":"n","basis":{"report_name":"사업보고서 (2025.12)","reprt_code":"11011"},
+              "sections":[{"key":"CORP_BOND","title":"회사채","total":1700,"total_display":"1,700","rows":[
+                {"label":"합계","is_total":true,"total":1700,"issue_limit":null,"buckets":[{"key":"yy1_below","label":"1년 이하","amount":1200},{"key":"x","label":"x","amount":null}]}]}],
+              "missing":["단기사채"],"viewer_url":"https://dart.fss.or.kr/dsaf001/main.do?rcpNo=1"}""",
+        )
+        assertTrue(d.available)
+        assertEquals("회사채", d.sections.single().title)
+        assertEquals(1200L, d.sections[0].rows[0].buckets[0].amount)
+        assertNull(d.sections[0].rows[0].buckets[1].amount)
+        assertEquals(listOf("단기사채"), d.missing)
     }
 }
