@@ -64,6 +64,7 @@ data class OverviewDto(
     @SerialName("stock_code") val stockCode: String? = null,
     val listing: String = "UNLISTED",
     val market: String = "OTHER",
+    val badge: String = "",
     @SerialName("ceo_name") val ceoName: String? = null,
     @SerialName("industry_code") val industryCode: String? = null,
     val established: String? = null,

@@ -21,7 +21,7 @@ import io.github.hdlee73.everycorp.ui.common.UiStateContent
 @Composable
 fun OverviewTab(vm: CompanyViewModel) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        UiStateContent(vm.overview, onRetry = vm::loadOverview) { o -> OverviewBody(o, vm.corp.badge) }
+        UiStateContent(vm.overview, onRetry = vm::loadOverview) { o -> OverviewBody(o, o.badge.ifBlank { vm.corp.badge }) }
     }
 }
 
