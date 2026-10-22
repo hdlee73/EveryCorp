@@ -11,7 +11,7 @@ from ..config import get_settings
 from ..errors import ApiError, UpstreamError
 from ..http import get_client
 from ..parsers import dart_viewer as dv
-from ..services import app_meta, company_service, debt_service, disclosures_service, market_service, price_service, reports_service
+from ..services import app_meta, company_service, debt_service, disclosures_service, market_service, news_service, price_service, reports_service
 from ..services.corp_index import corp_index
 
 
@@ -149,6 +149,14 @@ async def disclosures(
 async def debt_securities(corp_code: str) -> dict:
     _corp_or_404(corp_code)
     return await debt_service.get_debt_securities(corp_code)
+
+
+# ───────── 뉴스 ─────────
+
+@router.get("/corps/{corp_code}/news")
+async def news(corp_code: str, limit: int = Query(30, ge=5, le=50)) -> dict:
+    _corp_or_404(corp_code)
+    return await news_service.get_news(corp_code, limit)
 
 
 # ───────── 탭 4 ─────────

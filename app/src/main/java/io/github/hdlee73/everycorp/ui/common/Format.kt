@@ -32,6 +32,19 @@ object Fmt {
     /** 지분율 등 백분율 */
     fun percent(v: Double?): String = if (v == null) "-" else String.format(Locale.US, "%.1f%%", v)
 
+    /** ISO-8601(+09:00 등) 시각 → "방금 전 / 5분 전 / 3시간 전 / 2일 전 / 2026.10.01". 해석 못 하면 null. */
+    fun relativeTime(iso: String?, now: java.time.Instant = java.time.Instant.now()): String? {
+        val t = runCatching { java.time.OffsetDateTime.parse(iso).toInstant() }.getOrNull() ?: return null
+        val min = java.time.Duration.between(t, now).toMinutes()
+        return when {
+            min < 1 -> "방금 전"
+            min < 60 -> "${min}분 전"
+            min < 60 * 24 -> "${min / 60}시간 전"
+            min < 60 * 24 * 7 -> "${min / (60 * 24)}일 전"
+            else -> date(iso!!.substring(0, 10))
+        }
+    }
+
     /** 원 → 억원(반올림, 천 단위 구분). 예: 514531948000000 → "5,145,319" */
     fun eok(won: Double?): String = if (won == null) "-" else String.format(Locale.US, "%,d", Math.round(won / 100_000_000.0))
 

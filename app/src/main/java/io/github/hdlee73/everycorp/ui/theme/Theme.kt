@@ -71,6 +71,7 @@ object HeroPalettes {
     val Indigo = HeroPalette(Color(0xFF7C9DFF), Color(0xFF4338CA), Color(0xFF34407A), Color(0xFF2B2B73))
     val Violet = HeroPalette(Color(0xFFB08CFF), Color(0xFF6D3FD6), Color(0xFF47367A), Color(0xFF3A2670))
     val Amber = HeroPalette(Color(0xFFFFC857), Color(0xFFE07B1F), Color(0xFF6E5420), Color(0xFF6A3E14))
+    val Rose = HeroPalette(Color(0xFFFF8FA8), Color(0xFFD6336C), Color(0xFF7A3548), Color(0xFF6E2244))
     val Slate = HeroPalette(Color(0xFF8FA6C4), Color(0xFF475A7A), Color(0xFF3A465A), Color(0xFF2B3446))
 }
 

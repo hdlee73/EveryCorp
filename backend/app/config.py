@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     # 실전 https://api.kiwoom.com / 모의투자 https://mockapi.kiwoom.com (실전 키를 모의 서버에 쓰면 8031)
     kiwoom_base_url: str = "https://api.kiwoom.com"
 
+    # 뉴스: 네이버 검색 API(개발자센터). 없으면 구글 뉴스 RSS로 대체한다.
+    naver_client_id: str = ""       # NAVER_CLIENT_ID
+    naver_client_secret: str = ""   # NAVER_CLIENT_SECRET
+
     krx_auth_key: str = ""          # KRX Open API 인증키 (KRX_AUTH_KEY) — 전일(T-1) 종가 기반
     krx_base_url: str = "https://data-dbg.krx.co.kr/svc/apis"
 

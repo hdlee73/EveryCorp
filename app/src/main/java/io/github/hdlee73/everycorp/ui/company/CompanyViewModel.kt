@@ -14,6 +14,7 @@ import io.github.hdlee73.everycorp.data.api.dto.CorpItemDto
 import io.github.hdlee73.everycorp.data.api.dto.DebtSecuritiesDto
 import io.github.hdlee73.everycorp.data.api.dto.DisclosureCounts
 import io.github.hdlee73.everycorp.data.api.dto.DisclosureDto
+import io.github.hdlee73.everycorp.data.api.dto.NewsDto
 import io.github.hdlee73.everycorp.data.api.dto.IntradayDto
 import io.github.hdlee73.everycorp.data.api.dto.OverviewDto
 import io.github.hdlee73.everycorp.data.api.dto.QuoteDto
@@ -48,6 +49,7 @@ class CompanyViewModel(
     var debt by mutableStateOf<UiState<DebtSecuritiesDto>>(UiState.Idle); private set
     var chart by mutableStateOf<UiState<ChartDto>>(UiState.Idle); private set
     var quote by mutableStateOf<UiState<QuoteDto>>(UiState.Idle); private set
+    var news by mutableStateOf<UiState<NewsDto>>(UiState.Idle); private set
     var intraday by mutableStateOf<UiState<IntradayDto>>(UiState.Idle); private set
 
     val pdfStates = mutableStateMapOf<String, PdfUi>()
@@ -85,12 +87,14 @@ class CompanyViewModel(
             CompanyTab.Disclosures -> if (disclosureState is UiState.Idle) reloadDisclosures()
             CompanyTab.Stock -> if (chart is UiState.Idle && corp.isListed) loadChart()
             CompanyTab.Debt -> if (debt is UiState.Idle) loadDebt()
+            CompanyTab.News -> if (news is UiState.Idle) loadNews()
         }
     }
 
     fun loadOverview() { overview = UiState.Loading; viewModelScope.launch { overview = repo.overview(corp.corpCode).toUiState() } }
     fun loadReports() { reports = UiState.Loading; viewModelScope.launch { reports = repo.auditReports(corp.corpCode).toUiState() } }
     fun loadDebt() { debt = UiState.Loading; viewModelScope.launch { debt = repo.debtSecurities(corp.corpCode).toUiState() } }
+    fun loadNews() { news = UiState.Loading; viewModelScope.launch { news = repo.news(corp.corpCode).toUiState() } }
     /** 당일 분봉. 처음엔 로딩 표시, 이후 갱신은 조용히(실패해도 이전 그래프 유지). */
     suspend fun refreshIntraday() {
         if (intraday is UiState.Idle) intraday = UiState.Loading

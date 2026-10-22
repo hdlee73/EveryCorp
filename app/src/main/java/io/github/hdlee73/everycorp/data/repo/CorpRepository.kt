@@ -7,6 +7,7 @@ import io.github.hdlee73.everycorp.data.api.dto.ChartDto
 import io.github.hdlee73.everycorp.data.api.dto.CorpItemDto
 import io.github.hdlee73.everycorp.data.api.dto.DebtSecuritiesDto
 import io.github.hdlee73.everycorp.data.api.dto.DisclosuresResponse
+import io.github.hdlee73.everycorp.data.api.dto.NewsDto
 import io.github.hdlee73.everycorp.data.api.dto.IntradayDto
 import io.github.hdlee73.everycorp.data.api.dto.OverviewDto
 import io.github.hdlee73.everycorp.data.api.dto.DisclosureDto
@@ -79,6 +80,8 @@ class CorpRepository(private val api: EveryCorpApi, private val kind: KindClient
             Result.failure(java.io.IOException("KIND 공시를 불러오지 못했습니다. (${e.message ?: "네트워크 오류"})"))
         }
     }
+
+    suspend fun news(corpCode: String): Result<NewsDto> = apiCall { api.news(corpCode) }
 
     suspend fun debtSecurities(corpCode: String): Result<DebtSecuritiesDto> = apiCall { api.debtSecurities(corpCode) }
 

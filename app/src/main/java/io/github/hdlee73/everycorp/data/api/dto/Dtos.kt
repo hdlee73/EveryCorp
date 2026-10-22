@@ -317,6 +317,26 @@ data class DebtRowDto(
 @Serializable
 data class DebtBucketDto(val key: String, val label: String, val amount: Long? = null)
 
+// ───────── 뉴스 ─────────
+@Serializable
+data class NewsDto(
+    @SerialName("corp_code") val corpCode: String = "",
+    val query: String = "",
+    /** NAVER | GOOGLE */
+    val source: String = "",
+    val count: Int = 0,
+    val items: List<NewsItemDto> = emptyList(),
+)
+
+@Serializable
+data class NewsItemDto(
+    val title: String,
+    val summary: String = "",
+    val publisher: String = "",
+    @SerialName("published_at") val publishedAt: String? = null,
+    val url: String,
+)
+
 // ───────── 당일 분봉 ─────────
 @Serializable
 data class IntradayDto(

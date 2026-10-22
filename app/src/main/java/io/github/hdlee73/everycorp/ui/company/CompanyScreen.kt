@@ -33,6 +33,7 @@ fun CompanyTab.palette() = when (this) {
     CompanyTab.Disclosures -> HeroPalettes.Indigo
     CompanyTab.Stock -> HeroPalettes.Teal
     CompanyTab.Debt -> HeroPalettes.Amber
+    CompanyTab.News -> HeroPalettes.Rose
 }
 
 @Composable
@@ -72,6 +73,7 @@ fun CompanyScreen(app: AppViewModel, dest: Dest.Company) {
                 CompanyTab.Disclosures -> DisclosuresTab(vm)
                 CompanyTab.Stock -> StockTab(vm)
                 CompanyTab.Debt -> DebtTab(vm)
+                CompanyTab.News -> NewsTab(vm)
             }
         }
     }
