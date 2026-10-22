@@ -17,6 +17,7 @@ from bs4 import BeautifulSoup
 
 from ..config import get_settings
 from ..http import get_client
+from . import dart_client
 from .corp_index import CorpEntry
 
 log = logging.getLogger(__name__)
@@ -84,6 +85,33 @@ async def refresh_from_kind() -> int:
     except OSError:
         log.warning("market map save failed")
     return len(data)
+
+
+def _save() -> None:
+    try:
+        with open(_path(), "w", encoding="utf-8") as f:
+            json.dump({"saved_at": _loaded_at, "market": _market}, f, ensure_ascii=False)
+    except OSError:
+        log.warning("market map save failed")
+
+
+async def ensure_markets(entries: list[CorpEntry]) -> None:
+    """KIND 목록에 없는(또는 KIND가 서버 IP를 막은) 상장사는 DART 기업개황의 corp_cls(Y/K/N)로 채우고 저장한다."""
+    missing = [e for e in entries if e.is_listed and e.stock_code not in _market]
+    if not missing:
+        return
+    sem = asyncio.Semaphore(5)
+
+    async def one(e: CorpEntry) -> None:
+        async with sem:
+            try:
+                data = await dart_client.get_json("company.json", corp_code=e.corp_code)
+            except Exception:  # noqa: BLE001
+                return
+            remember(e.stock_code, data.get("corp_cls", ""))
+
+    await asyncio.gather(*(one(e) for e in missing))
+    _save()
 
 
 def load_from_disk() -> None:

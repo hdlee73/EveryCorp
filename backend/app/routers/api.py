@@ -52,6 +52,7 @@ async def search_corps(
     listed_only: bool = False,
 ) -> dict:
     hits = corp_index.search(q, limit=limit, listed_only=listed_only)
+    await market_service.ensure_markets(hits)
     return {
         "query": q,
         "count": len(hits),
