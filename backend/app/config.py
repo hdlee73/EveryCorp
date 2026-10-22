@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     min_supported_version: str = "1.0.0"   # 이보다 낮은 앱은 강제 업데이트
     github_token: str = ""                 # (선택) GitHub API 호출 한도 완화용
 
+    # KIND(kind.krx.co.kr)는 해외·클라우드 데이터센터 IP를 403으로 막는다. 한국 IP 서버라면 true로 켜면 서버에서 수집한다.
+    # 기본(false)에서는 앱이 폰(한국 IP)에서 KIND를 직접 불러온다.
+    kind_from_server: bool = False
+
     # --- 동작 ---
     corp_index_path: str = "data/corp_index.json"
     http_timeout: float = 15.0

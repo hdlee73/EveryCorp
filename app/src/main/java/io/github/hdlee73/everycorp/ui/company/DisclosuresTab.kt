@@ -1,6 +1,8 @@
 package io.github.hdlee73.everycorp.ui.company
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -28,6 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import io.github.hdlee73.everycorp.data.api.dto.DisclosureDto
+import io.github.hdlee73.everycorp.data.repo.DisclosureCategory
 import io.github.hdlee73.everycorp.data.repo.DisclosurePeriod
 import io.github.hdlee73.everycorp.data.repo.DisclosureSource
 import io.github.hdlee73.everycorp.ui.common.EmptyBox
@@ -37,7 +40,7 @@ import io.github.hdlee73.everycorp.ui.common.SectionCard
 import io.github.hdlee73.everycorp.ui.common.SourceBadge
 import io.github.hdlee73.everycorp.ui.common.UiState
 import io.github.hdlee73.everycorp.ui.common.UiStateContent
-import io.github.hdlee73.everycorp.ui.common.openInAppBrowser
+import io.github.hdlee73.everycorp.ui.common.openDisclosure
 
 @Composable
 fun DisclosuresTab(vm: CompanyViewModel) {
@@ -50,7 +53,8 @@ fun DisclosuresTab(vm: CompanyViewModel) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DisclosurePeriod.entries.forEach { p -> FilterChip(selected = vm.period == p, onClick = { vm.changePeriod(p) }, label = { Text(p.label) }) }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                DisclosureCategory.entries.forEach { c -> FilterChip(selected = vm.category == c, onClick = { vm.changeCategory(c) }, label = { Text(c.label) }) }
                 DisclosureSource.entries.forEach { s -> FilterChip(selected = vm.source == s, onClick = { vm.changeSource(s) }, label = { Text(s.label) }) }
             }
             OutlinedTextField(
@@ -80,7 +84,7 @@ fun DisclosuresTab(vm: CompanyViewModel) {
 @Composable
 private fun DisclosureRow(d: DisclosureDto) {
     val context = LocalContext.current
-    SectionCard(Modifier.clickable { openInAppBrowser(context, d.mobileUrl.ifBlank { d.url }) }) {
+    SectionCard(Modifier.clickable { openDisclosure(context, d) }) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SourceBadge(d.source)
             Text(Fmt.date(d.date) + (d.time?.let { " $it" } ?: ""), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
