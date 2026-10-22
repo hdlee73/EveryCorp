@@ -128,3 +128,10 @@ async def daily(stock_code: str, bgn: date, max_pages: int = 8) -> list[dict]:
         await asyncio.sleep(0.3)
     uniq = {r["date"]: r for r in rows if r["date"] >= bgn.isoformat()}
     return sorted(uniq.values(), key=lambda r: r["date"])
+
+
+async def minutes(stock_code: str) -> list[dict]:
+    """1분봉(가장 최근 한 페이지). 응답은 최신순이라 파서가 오름차순으로 정렬한다."""
+    data, _ = await _post("/api/dostk/chart", "ka10080", {"stk_cd": stock_code, "tic_scope": "1", "upd_stkpc_tp": "1"})
+    _check(data, "분봉 조회")
+    return pp.parse_kiwoom_minutes(data.get("stk_min_pole_chart_qry") or [])
