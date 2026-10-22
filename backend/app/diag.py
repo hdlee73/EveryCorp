@@ -74,6 +74,13 @@ async def diag_reports(corp_code: str) -> None:
                     print("    첨부:", d.title, d.rcp_no, d.dcm_no)
                 if 'id="att"' not in html:
                     print("  뷰어 앞부분:", snippet(html, 300))
+                else:
+                    i = html.find('id="att"')
+                    print("  select#att 원문:", snippet(html[max(0, i - 40):i + 900], 900))
+                hits = [m.start() for m in re.finditer("감사|검토", html)]
+                print("  '감사|검토' 출현", len(hits), "곳")
+                for pos in hits[:6]:
+                    print("    ...", snippet(html[max(0, pos - 80):pos + 160], 240))
             except Exception as e:  # noqa: BLE001
                 print("  뷰어 실패:", type(e).__name__, e)
 
