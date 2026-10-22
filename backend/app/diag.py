@@ -13,7 +13,9 @@ from datetime import date, timedelta
 from .http import get_client
 from .parsers import dart_viewer as dv
 from .parsers import kind as kp
+from .config import get_settings
 from .services import dart_client, kind_client
+from .services.company_service import get_company
 
 
 def head(title: str) -> None:
@@ -85,12 +87,44 @@ async def diag_reports(corp_code: str) -> None:
                 print("  뷰어 실패:", type(e).__name__, e)
 
 
+# 공공데이터포털(금융위원회/예탁결제원) 채권 API. 엔드포인트 경로는 명세에서 확인하지 못해 후보를 모두 시도한다.
+BOND_CANDIDATES = [
+    "https://apis.data.go.kr/1160100/service/GetBondBasiInfoService/getBondBasiInfo",
+    "https://apis.data.go.kr/1160100/service/GetBondIssuInfoService/getBondIssuInfo",
+]
+
+
+async def diag_bonds(corp_code: str) -> None:
+    head("채권 발행·잔액 (공공데이터포털)")
+    key = get_settings().data_go_kr_key
+    if not key:
+        print("DATA_GO_KR_KEY 없음(.env에 추가 필요)")
+    try:
+        company = await get_company(corp_code)
+        crno = (company.get("jurir_no") or "").replace("-", "")
+        print("법인등록번호(DART):", crno[:6] + "*******" if crno else "없음")
+    except Exception as e:  # noqa: BLE001
+        print("기업개황 실패:", type(e).__name__, e)
+        return
+    if not (key and crno):
+        return
+    for url in BOND_CANDIDATES:
+        try:
+            r = await get_client().get(url, params={"serviceKey": key, "resultType": "json", "numOfRows": 3,
+                                                      "pageNo": 1, "crno": crno})
+            print(url.rsplit("/", 2)[-2] + "/" + url.rsplit("/", 1)[-1], "->", r.status_code, "len", len(r.text))
+            print("   ", snippet(r.text.replace(key, "***"), 700))
+        except Exception as e:  # noqa: BLE001
+            print(url, "실패:", type(e).__name__, e)
+
+
 async def main() -> None:
     corp_code = sys.argv[1] if len(sys.argv) > 1 else "00126380"
     stock = sys.argv[2] if len(sys.argv) > 2 else "005930"
     name = "삼성전자" if corp_code == "00126380" else ""
     await diag_kind(name, stock)
     await diag_reports(corp_code)
+    await diag_bonds(corp_code)
     head("끝")
 
 

@@ -17,6 +17,7 @@ from .dart_client import DartNoData
 log = logging.getLogger(__name__)
 
 # DART 공시 기준 금액 단위는 보고서에 따라 다를 수 있어 원문 확인 문구를 함께 내려준다.
+SOURCE_NOTE = "출처: Open DART 증권 미상환 잔액(정기보고서 기준, 보고서 기준일 시점). 공공데이터포털(예탁결제원) 종목별 잔액은 연동 준비 중입니다."
 UNIT_NOTE = "공시 원문 단위(통상 백만원) 그대로의 숫자입니다. 정확한 단위는 DART 원문에서 확인하세요."
 
 
@@ -54,6 +55,7 @@ async def get_debt_securities(corp_code: str) -> dict:
                     "corp_code": corp_code,
                     "available": True,
                     "unit_note": UNIT_NOTE,
+                    "source": SOURCE_NOTE,
                     "basis": _basis(report, year, code),
                     "sections": sections,
                     "missing": [t for k, t, _ in SECTIONS if k not in {s["key"] for s in sections}],
@@ -64,6 +66,7 @@ async def get_debt_securities(corp_code: str) -> dict:
         "available": False,
         "message": "정기보고서에 공시된 채권·단기증권 미상환 잔액이 없습니다(정기보고서 제출 대상이 아니거나 발행 내역이 없는 경우).",
         "unit_note": UNIT_NOTE,
+        "source": SOURCE_NOTE,
         "sections": [],
         "missing": [t for _, t, _ in SECTIONS],
     }
