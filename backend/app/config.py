@@ -35,9 +35,10 @@ class Settings(BaseSettings):
     # --- 동작 ---
     corp_index_path: str = "data/corp_index.json"
     http_timeout: float = 15.0
+    # 데스크톱 UA: DART는 모바일 UA에게 모바일 뷰어(첨부 목록·PDF 버튼이 없는 페이지)를 돌려준다.
     user_agent: str = (
-        "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0 Mobile Safari/537.36"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
     )
 
 
