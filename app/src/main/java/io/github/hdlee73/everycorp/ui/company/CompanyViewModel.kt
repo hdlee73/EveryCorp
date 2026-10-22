@@ -19,12 +19,15 @@ import io.github.hdlee73.everycorp.data.api.dto.QuoteDto
 import io.github.hdlee73.everycorp.data.pdf.PdfDownloader
 import io.github.hdlee73.everycorp.data.pdf.PdfEvent
 import io.github.hdlee73.everycorp.data.repo.CorpRepository
+import io.github.hdlee73.everycorp.data.kind.DisclosureMerge
+import io.github.hdlee73.everycorp.data.repo.DisclosureCategory
 import io.github.hdlee73.everycorp.data.repo.DisclosurePeriod
 import io.github.hdlee73.everycorp.data.repo.DisclosureSource
 import io.github.hdlee73.everycorp.ui.common.CompanyTab
 import io.github.hdlee73.everycorp.ui.common.UiState
 import io.github.hdlee73.everycorp.ui.common.toUiState
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 
 sealed interface PdfUi {
@@ -47,18 +50,31 @@ class CompanyViewModel(
 
     val pdfStates = mutableStateMapOf<String, PdfUi>()
 
-    // 공시 목록
+    // 공시 목록: DART 는 서버, KIND 는 앱이 직접 불러와 합친다.
     var period by mutableStateOf(DisclosurePeriod.Default); private set
     var source by mutableStateOf(DisclosureSource.All); private set
+    var category by mutableStateOf(DisclosureCategory.All); private set
     var search by mutableStateOf(""); private set
-    var items by mutableStateOf<List<DisclosureDto>>(emptyList()); private set
-    var counts by mutableStateOf(DisclosureCounts()); private set
+    var dartItems by mutableStateOf<List<DisclosureDto>>(emptyList()); private set
+    private var kindAll by mutableStateOf<List<DisclosureDto>>(emptyList())
+    private var kindLoadedPeriod: DisclosurePeriod? = null
+    var dartCount by mutableStateOf(0); private set
     var warnings by mutableStateOf<List<String>>(emptyList()); private set
     var hasNext by mutableStateOf(false); private set
     var disclosureState by mutableStateOf<UiState<Unit>>(UiState.Idle); private set
     var loadingMore by mutableStateOf(false); private set
     private var page = 1
     private var disclosureJob: Job? = null
+
+    private val showDart get() = source != DisclosureSource.Kind
+    private val showKind get() = source != DisclosureSource.Dart && corp.isListed
+
+    private val kindItems: List<DisclosureDto>
+        get() = if (showKind) DisclosureMerge.filterKind(kindAll, search, category == DisclosureCategory.Periodic) else emptyList()
+
+    /** 화면에 보이는 공시(DART + KIND, 최신순). */
+    val items: List<DisclosureDto> get() = DisclosureMerge.merge(if (showDart) dartItems else emptyList(), kindItems)
+    val counts: DisclosureCounts get() = DisclosureCounts(dart = dartCount, kind = kindItems.size, total = dartCount + kindItems.size)
 
     fun ensure(tab: CompanyTab) {
         when (tab) {
@@ -86,6 +102,7 @@ class CompanyViewModel(
     // ───── 공시 ─────
     fun changePeriod(p: DisclosurePeriod) { if (p != period) { period = p; reloadDisclosures() } }
     fun changeSource(s: DisclosureSource) { if (s != source) { source = s; reloadDisclosures() } }
+    fun changeCategory(c: DisclosureCategory) { if (c != category) { category = c; reloadDisclosures() } }
     fun changeSearch(q: String) { search = q }
     fun submitSearch() = reloadDisclosures()
 
@@ -94,21 +111,31 @@ class CompanyViewModel(
         page = 1
         disclosureState = UiState.Loading
         disclosureJob = viewModelScope.launch {
-            repo.disclosures(corp.corpCode, period, source, query = search, page = 1)
-                .onSuccess { r ->
-                    items = r.items; counts = r.counts; warnings = r.warnings; hasNext = r.hasNext
-                    disclosureState = UiState.Success(Unit)
-                }
-                .onFailure { disclosureState = UiState.Error(it.message ?: "공시를 불러오지 못했습니다.") }
+            val dart = if (showDart) async { repo.disclosures(corp.corpCode, period, DisclosureSource.Dart, query = search, category = category, page = 1) } else null
+            val kindNeeded = showKind && kindLoadedPeriod != period
+            val kind = if (kindNeeded) async { repo.kindDisclosures(corp, period) } else null
+
+            val warn = mutableListOf<String>()
+            val dartResult = dart?.await()
+            dartResult?.onSuccess { r -> dartItems = r.items; dartCount = r.counts.dart; hasNext = r.hasNext; warn += r.warnings.filterNot { it.contains("KIND") } }
+            if (dart == null) { dartItems = emptyList(); dartCount = 0; hasNext = false }
+            kind?.await()?.onSuccess { kindAll = it; kindLoadedPeriod = period }
+                ?.onFailure { kindAll = emptyList(); kindLoadedPeriod = null; warn += (it.message ?: "KIND 공시를 불러오지 못했습니다.") }
+            warnings = warn
+            disclosureState = when {
+                dartResult != null && dartResult.isFailure && (!showKind || kindAll.isEmpty()) ->
+                    UiState.Error(dartResult.exceptionOrNull()?.message ?: "공시를 불러오지 못했습니다.")
+                else -> UiState.Success(Unit)
+            }
         }
     }
 
     fun loadMore() {
-        if (!hasNext || loadingMore) return
+        if (!hasNext || loadingMore || !showDart) return
         loadingMore = true
         viewModelScope.launch {
-            repo.disclosures(corp.corpCode, period, source, query = search, page = page + 1)
-                .onSuccess { r -> page += 1; items = items + r.items; hasNext = r.hasNext }
+            repo.disclosures(corp.corpCode, period, DisclosureSource.Dart, query = search, category = category, page = page + 1)
+                .onSuccess { r -> page += 1; dartItems = dartItems + r.items; hasNext = r.hasNext }
             loadingMore = false
         }
     }
