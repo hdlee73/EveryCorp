@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 13+ 테마 아이콘용 단색 버전 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#000000" android:pathData="M28,52h12a2,2 0 0,1 2,2v26h-16v-26a2,2 0 0,1 2,-2zM46,38h14a2,2 0 0,1 2,2v42h-18v-42a2,2 0 0,1 2,-2zM66,46h10a2,2 0 0,1 2,2v34h-14v-34a2,2 0 0,1 2,-2z" />
+    <path android:strokeColor="#000000" android:strokeWidth="5" android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M30,34L50,22L62,28L80,16M70,15H81V26" />
+</vector>

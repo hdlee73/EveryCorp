@@ -13,7 +13,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+import io.github.hdlee73.everycorp.ui.theme.HeroPalettes
+import io.github.hdlee73.everycorp.ui.theme.LocalHeroPalette
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -51,9 +57,14 @@ private fun Root() {
     // 뒤로가기 버튼·제스처: 직전 화면/탭으로 이동. 더 갈 곳이 없을 때만 앱 종료(핸들러 비활성).
     BackHandler(enabled = vm.nav.canGoBack) { vm.back() }
 
+    // 머리말이 진한 그라데이션이므로 상태 표시줄 아이콘은 항상 밝게.
+    val view = LocalView.current
+    SideEffect {
+        (view.context as? android.app.Activity)?.window?.let { WindowCompat.getInsetsController(it, view).isAppearanceLightStatusBars = false }
+    }
     when (val d = vm.nav.top) {
-        Dest.Home -> SearchScreen(vm)
-        Dest.Info -> AppInfoScreen(vm)
+        Dest.Home -> CompositionLocalProvider(LocalHeroPalette provides HeroPalettes.Sky) { SearchScreen(vm) }
+        Dest.Info -> CompositionLocalProvider(LocalHeroPalette provides HeroPalettes.Slate) { AppInfoScreen(vm) }
         is Dest.Company -> CompanyScreen(vm, d)
     }
     UpdateDialogs(vm)

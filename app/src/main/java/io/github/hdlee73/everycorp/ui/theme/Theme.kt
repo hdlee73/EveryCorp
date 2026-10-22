@@ -8,6 +8,7 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -60,6 +61,30 @@ private val AppShapes = Shapes(
     extraSmall = RoundedCornerShape(6.dp), small = RoundedCornerShape(10.dp), medium = RoundedCornerShape(14.dp),
     large = RoundedCornerShape(20.dp), extraLarge = RoundedCornerShape(28.dp),
 )
+
+/** 화면별 머리말 색(밝은 테마 시작·끝, 어두운 테마 시작·끝). FSS Insights 와 같은 팔레트. */
+class HeroPalette(val start: Color, val end: Color, val darkStart: Color, val darkEnd: Color)
+
+object HeroPalettes {
+    val Sky = HeroPalette(Color(0xFF4FB4FB), Color(0xFF2563EB), Color(0xFF24457A), Color(0xFF1A2F63))
+    val Teal = HeroPalette(Color(0xFF3EDAC0), Color(0xFF2F7BEA), Color(0xFF1F5A55), Color(0xFF1D3F6E))
+    val Indigo = HeroPalette(Color(0xFF7C9DFF), Color(0xFF4338CA), Color(0xFF34407A), Color(0xFF2B2B73))
+    val Violet = HeroPalette(Color(0xFFB08CFF), Color(0xFF6D3FD6), Color(0xFF47367A), Color(0xFF3A2670))
+    val Amber = HeroPalette(Color(0xFFFFC857), Color(0xFFE07B1F), Color(0xFF6E5420), Color(0xFF6A3E14))
+    val Slate = HeroPalette(Color(0xFF8FA6C4), Color(0xFF475A7A), Color(0xFF3A465A), Color(0xFF2B3446))
+}
+
+/** 지금 보이는 화면의 머리말 색. */
+val LocalHeroPalette = compositionLocalOf { HeroPalettes.Sky }
+
+object AppColors {
+    val accentLight = Color(0xFFE2622B)
+    val accentDark = Color(0xFFFF9A72)
+    val onHero: Color = Color.White
+    val heroStart: Color @Composable get() = LocalHeroPalette.current.let { if (isSystemInDarkTheme()) it.darkStart else it.start }
+    val heroEnd: Color @Composable get() = LocalHeroPalette.current.let { if (isSystemInDarkTheme()) it.darkEnd else it.end }
+    val accent: Color @Composable get() = if (isSystemInDarkTheme()) accentDark else accentLight
+}
 
 /** 국내 관례: 상승 빨강 ▲, 하락 파랑 ▼. */
 object StockColors {

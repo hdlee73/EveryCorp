@@ -4,19 +4,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -24,20 +18,17 @@ import androidx.compose.ui.unit.dp
 import io.github.hdlee73.everycorp.BuildConfig
 import io.github.hdlee73.everycorp.data.update.CheckState
 import io.github.hdlee73.everycorp.ui.AppViewModel
+import io.github.hdlee73.everycorp.ui.common.GradientTopBar
 import io.github.hdlee73.everycorp.ui.common.LabelValue
 import io.github.hdlee73.everycorp.ui.common.SectionCard
 import io.github.hdlee73.everycorp.ui.common.openInAppBrowser
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppInfoScreen(vm: AppViewModel) {
     val context = LocalContext.current
     val st = vm.updateStatus
-    Column(Modifier.fillMaxSize().systemBarsPadding()) {
-        TopAppBar(
-            title = { Text("앱 정보") },
-            navigationIcon = { IconButton(onClick = { vm.back() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로") } },
-        )
+    Column(Modifier.fillMaxSize().navigationBarsPadding()) {
+        GradientTopBar(title = "앱 정보", onBack = { vm.back() })
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SectionCard {
                 Text("에브리코프 기업정보 (EveryCorp)", style = MaterialTheme.typography.titleLarge)
