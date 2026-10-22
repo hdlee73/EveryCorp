@@ -12,7 +12,7 @@ from .config import APP_NAME
 from .errors import ApiError, api_error_handler
 from .http import close_client
 from .routers.api import public, router
-from .services import corp_index
+from .services import corp_index, market_service
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -21,8 +21,10 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 async def lifespan(_: FastAPI):
     await corp_index.ensure_loaded()
     task = asyncio.create_task(corp_index.refresh_loop())
+    market_task = asyncio.create_task(market_service.refresh_loop())
     yield
     task.cancel()
+    market_task.cancel()
     await close_client()
 
 

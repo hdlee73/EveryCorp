@@ -4,7 +4,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -55,6 +57,7 @@ fun CompanyScreen(app: AppViewModel, dest: Dest.Company) {
                 onBack = { app.back() },
                 badge = corp.badge.ifBlank { if (corp.isListed) "상장" else "외감" },
                 trailing = {
+                    IconButton(onClick = app::openSearch) { Icon(Icons.Filled.Search, contentDescription = "기업 검색") }
                     val fav = app.isFavorite(corp)
                     IconButton(onClick = { app.toggleFavorite(corp) }) {
                         Icon(if (fav) Icons.Filled.Star else Icons.Filled.StarBorder, contentDescription = if (fav) "관심기업 해제" else "관심기업 추가")

@@ -56,6 +56,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.input.ImeAction
 import io.github.hdlee73.everycorp.ui.theme.AppColors
@@ -98,8 +99,15 @@ fun LabelValue(label: String, value: String?, modifier: Modifier = Modifier, emp
 
 @Composable
 fun Badge(text: String, listed: Boolean, modifier: Modifier = Modifier) {
-    val (bg, fg) = if (listed) MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.primary
-    else MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+    val (bg, fg) = when (text) {
+        "유가증권", "상장" -> Color(0xFFDCEBFC) to Color(0xFF1A5FB4)
+        "코스닥" -> Color(0xFFDDF3E6) to Color(0xFF1B7A43)
+        "코넥스" -> Color(0xFFEBE3FA) to Color(0xFF6A3FC0)
+        "외감" -> Color(0xFFFCEFD5) to Color(0xFF9A5B00)
+        "기타" -> Color(0xFFE8EAED) to Color(0xFF4F5661)
+        else -> if (listed) MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.primary
+        else MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+    }
     Box(modifier.background(bg, RoundedCornerShape(5.dp)).padding(horizontal = 7.dp, vertical = 2.dp)) {
         Text(text, style = MaterialTheme.typography.labelSmall, color = fg, fontWeight = FontWeight.Bold)
     }
@@ -230,7 +238,7 @@ fun UnderlineTabs(labels: List<String>, selectedIndex: Int, onSelect: (Int) -> U
 
 /** 둥근 흰색 검색창. */
 @Composable
-fun SearchPill(value: String, onValueChange: (String) -> Unit, placeholder: String, modifier: Modifier = Modifier, onSearch: () -> Unit = {}) {
+fun SearchPill(value: String, onValueChange: (String) -> Unit, placeholder: String, modifier: Modifier = Modifier, focusRequester: androidx.compose.ui.focus.FocusRequester? = null, onSearch: () -> Unit = {}) {
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(14.dp),
@@ -240,7 +248,7 @@ fun SearchPill(value: String, onValueChange: (String) -> Unit, placeholder: Stri
     ) {
         BasicTextField(
             value = value, onValueChange = onValueChange,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp).padding(start = 14.dp, end = 4.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp).padding(start = 14.dp, end = 4.dp).then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier),
             singleLine = true,
             textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
