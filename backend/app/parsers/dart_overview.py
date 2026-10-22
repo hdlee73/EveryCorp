@@ -1,0 +1,214 @@
+"""기업개황 탭 가공 로직(순수 함수, 네트워크 없음 → 단위 테스트 대상).
+
+1) 정기보고서 이름 → (사업연도, 보고서코드) 해석
+2) 최대주주현황(hyslrSttus) → "최대주주 OOO 외 특수관계인 N명 (합산 지분율 XX.X%)"
+3) 전체 재무제표(fnlttSinglAcntAll) → 자산/부채/자본, 매출액(또는 영업수익)/영업이익/당기순이익
+"""
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+
+from ..utils.money import format_krw, parse_amount, parse_ratio
+
+# ───────────────────────── 1) 정기보고서 해석 ─────────────────────────
+
+_PERIODIC_RE = re.compile(r"(사업|반기|분기)보고서\s*\((\d{4})\.(\d{2})\)")
+
+
+@dataclass(frozen=True, slots=True)
+class PeriodicReport:
+    kind: str           # 사업 | 반기 | 분기
+    period_year: int    # 보고 기간 종료 연도
+    period_month: int   # 보고 기간 종료 월
+    rcept_no: str
+    rcept_dt: str
+    report_nm: str
+
+    @property
+    def period_key(self) -> int:
+        return self.period_year * 100 + self.period_month
+
+
+def parse_periodic_reports(items: list[dict]) -> list[PeriodicReport]:
+    """list.json(pblntf_ty=A) 결과에서 사업/반기/분기보고서만 뽑아 최신 기간 순으로.
+
+    같은 기간의 정정보고서가 여러 건이면 가장 최근 접수건만 남긴다.
+    """
+    best: dict[tuple[str, int], PeriodicReport] = {}
+    for it in items:
+        m = _PERIODIC_RE.search(it.get("report_nm", ""))
+        if not m:
+            continue
+        r = PeriodicReport(m.group(1), int(m.group(2)), int(m.group(3)), it["rcept_no"], it.get("rcept_dt", ""), it["report_nm"].strip())
+        key = (r.kind, r.period_key)
+        if key not in best or r.rcept_no > best[key].rcept_no:
+            best[key] = r
+    return sorted(best.values(), key=lambda r: (r.period_key, r.rcept_no), reverse=True)
+
+
+def reprt_code_for(report: PeriodicReport, fiscal_month: int = 12) -> str:
+    """보고서 종류·기간 → DART reprt_code. 분기는 결산월 기준 1분기/3분기를 구분한다."""
+    if report.kind == "사업":
+        return "11011"
+    if report.kind == "반기":
+        return "11012"
+    q1_month = (fiscal_month % 12) + 3  # 12월 결산 → 3월, 3월 결산 → 6월
+    q1_month = q1_month - 12 if q1_month > 12 else q1_month
+    return "11013" if report.period_month == q1_month else "11014"
+
+
+def bsns_year_candidates(report: PeriodicReport, fiscal_month: int = 12) -> list[str]:
+    """DART bsns_year 후보. 12월 결산은 기간 종료 연도, 그 외 결산월은 두 해 모두 시도한다."""
+    y = report.period_year
+    if fiscal_month == 12:
+        return [str(y)]
+    return [str(y), str(y - 1)]
+
+
+# ───────────────────────── 2) 최대주주 ─────────────────────────
+
+_TOTAL_NAMES = {"계", "합계", "총계", "소계"}
+
+
+def _is_common(stock_knd: str) -> bool:
+    k = (stock_knd or "").replace(" ", "")
+    return k == "" or "보통" in k or k == "-"
+
+
+def summarize_shareholders(rows: list[dict]) -> dict:
+    """hyslrSttus.json의 list → 표시용 요약.
+
+    규칙
+    - 보통주 기준(보통주 행이 없으면 전체 행).
+    - 최대주주: relate가 '본인'/'최대주주'인 행, 없으면 기말 지분율 최대 행.
+    - 특수관계인 수: 합계 행·최대주주 본인을 제외한 서로 다른 이름 수.
+    - 합산 지분율: 보통주 '계' 행의 기말 지분율, 없으면 개별 행 합.
+    """
+    common = [r for r in rows if _is_common(r.get("stock_knd", ""))] or rows
+    totals = [r for r in common if (r.get("nm") or "").strip() in _TOTAL_NAMES]
+    holders = [r for r in common if (r.get("nm") or "").strip() not in _TOTAL_NAMES and (r.get("nm") or "").strip()]
+    if not holders:
+        return {"available": False, "display": "최대주주 정보가 없습니다.", "holders": []}
+
+    def ratio(r: dict) -> float:
+        return parse_ratio(r.get("trmend_posesn_stock_qota_rt")) or 0.0
+
+    largest = next(
+        (r for r in holders if any(k in (r.get("relate") or "") for k in ("본인", "최대주주"))),
+        None,
+    ) or max(holders, key=ratio)
+    largest_name = largest["nm"].strip()
+    related_names = {r["nm"].strip() for r in holders} - {largest_name}
+
+    total_ratio = parse_ratio(totals[0].get("trmend_posesn_stock_qota_rt")) if totals else None
+    if total_ratio is None:
+        total_ratio = round(sum(ratio(r) for r in holders), 2)
+
+    n = len(related_names)
+    display = (
+        f"최대주주 {largest_name} 외 특수관계인 {n}명 (합산 지분율 {total_ratio:.1f}%)"
+        if n
+        else f"최대주주 {largest_name} (지분율 {total_ratio:.1f}%)"
+    )
+    return {
+        "available": True,
+        "name": largest_name,
+        "related_count": n,
+        "total_ratio": total_ratio,
+        "display": display,
+        "holders": [
+            {
+                "name": r["nm"].strip(),
+                "relation": (r.get("relate") or "").strip() or None,
+                "shares": parse_amount(r.get("trmend_posesn_stock_co")),
+                "ratio": parse_ratio(r.get("trmend_posesn_stock_qota_rt")),
+            }
+            for r in sorted(holders, key=ratio, reverse=True)
+        ],
+    }
+
+
+# ───────────────────────── 3) 재무 ─────────────────────────
+
+# account_id(XBRL 표준) 우선, 없으면 계정명으로 찾는다.
+_BS = {
+    "total_assets": (("ifrs-full_Assets",), ("자산총계",)),
+    "total_liabilities": (("ifrs-full_Liabilities",), ("부채총계",)),
+    "total_equity": (("ifrs-full_Equity",), ("자본총계",)),
+}
+_REVENUE_IDS = ("ifrs-full_Revenue", "ifrs_Revenue")
+_REVENUE_NAMES = ("매출액", "수익(매출액)", "매출", "영업수익", "순영업수익", "영업수익(매출액)", "매출및지분법손익")
+_OPINC_IDS = ("dart_OperatingIncomeLoss", "ifrs-full_ProfitLossFromOperatingActivities")
+_OPINC_NAMES = ("영업이익", "영업이익(손실)", "영업손익", "영업손실")
+_NI_IDS = ("ifrs-full_ProfitLoss",)
+_NI_NAMES = ("당기순이익", "당기순이익(손실)", "당기순손익", "당기순손실", "연결당기순이익", "연결당기순이익(손실)")
+
+_LABEL_DEFAULT = {
+    "total_assets": "자산총계",
+    "total_liabilities": "부채총계",
+    "total_equity": "자본총계",
+    "revenue": "매출액",
+    "operating_income": "영업이익",
+    "net_income": "당기순이익",
+}
+
+
+def _clean_nm(nm: str) -> str:
+    return re.sub(r"\s+", "", nm or "")
+
+
+def _find(rows: list[dict], sj: tuple[str, ...], ids: tuple[str, ...], names: tuple[str, ...]) -> dict | None:
+    cand = [r for r in rows if r.get("sj_div") in sj]
+    for r in cand:
+        if r.get("account_id") in ids:
+            return r
+    clean = {_clean_nm(n) for n in names}
+    for r in cand:
+        if _clean_nm(r.get("account_nm", "")) in clean:
+            return r
+    return None
+
+
+def revenue_label(account_nm: str | None, industry_code: str | None = None) -> str:
+    """매출 계정 라벨. 계정명에 '영업수익'이 있으면 '영업수익'(금융업·지주사 등), 아니면 '매출액'."""
+    nm = _clean_nm(account_nm or "")
+    if "영업수익" in nm:
+        return "영업수익"
+    # 매출 계정을 못 찾았는데 금융·보험업(KSIC 64~66)이면 영업수익으로 표기
+    if not nm and (industry_code or "")[:2] in ("64", "65", "66"):
+        return "영업수익"
+    return "매출액"
+
+
+def _item(key: str, row: dict | None, label: str | None = None) -> dict:
+    if row is None:
+        return {"label": label or _LABEL_DEFAULT[key], "account_nm": None, "amount": None, "display": None,
+                "prev_amount": None, "prev2_amount": None}
+    amt = parse_amount(row.get("thstrm_amount"))
+    return {
+        "label": label or _LABEL_DEFAULT[key],
+        "account_nm": (row.get("account_nm") or "").strip(),
+        "amount": amt,
+        "display": format_krw(amt),
+        "prev_amount": parse_amount(row.get("frmtrm_amount")),
+        "prev2_amount": parse_amount(row.get("bfefrmtrm_amount")),
+    }
+
+
+def summarize_financials(rows: list[dict], industry_code: str | None = None) -> dict:
+    """fnlttSinglAcntAll.json의 list → 재무/손익 요약."""
+    bs = {k: _item(k, _find(rows, ("BS",), ids, names)) for k, (ids, names) in _BS.items()}
+
+    is_sj = ("IS", "CIS")
+    rev_row = _find(rows, is_sj, _REVENUE_IDS, _REVENUE_NAMES)
+    op_row = _find(rows, is_sj, _OPINC_IDS, _OPINC_NAMES)
+    ni_row = _find(rows, ("IS",), _NI_IDS, _NI_NAMES) or _find(rows, ("CIS",), _NI_IDS, _NI_NAMES)
+    rev_lbl = revenue_label(rev_row.get("account_nm") if rev_row else None, industry_code)
+    inc = {
+        "revenue": _item("revenue", rev_row, rev_lbl),
+        "operating_income": _item("operating_income", op_row),
+        "net_income": _item("net_income", ni_row),
+    }
+    currency = next((r.get("currency") for r in rows if r.get("currency")), "KRW")
+    return {"revenue_label": rev_lbl, "currency": currency, "balance_sheet": bs, "income_statement": inc}
