@@ -7,6 +7,7 @@ import re
 from datetime import date, timedelta
 
 from ..cache import cached
+from ..config import get_settings
 from ..parsers import dart_viewer as dv
 from ..parsers import kind as kp
 from . import dart_client, kind_client
@@ -71,7 +72,7 @@ async def _collect(corp_code: str, years: int) -> dict:
     dart_task = dart_client.list_disclosures(corp_code, bgn.strftime("%Y%m%d"), end.strftime("%Y%m%d"), max_pages=100)
     kind_task = (
         kind_client.fetch_kind_disclosures(company.get("stock_name") or company.get("corp_name", ""), stock_code, bgn, end)
-        if stock_code else asyncio.sleep(0, result=[])
+        if stock_code and get_settings().kind_from_server else asyncio.sleep(0, result=[])
     )
     dart_raw, kind_raw = await asyncio.gather(dart_task, kind_task, return_exceptions=True)
     warnings = []
@@ -92,11 +93,22 @@ async def _collect(corp_code: str, years: int) -> dict:
     }
 
 
-async def get_disclosures(corp_code: str, years: int, source: str, dedupe: bool, page: int, size: int, q: str | None) -> dict:
+_PERIODIC_TITLE_RE = re.compile(r"^(\[[^\]]+\]\s*)*(사업|반기|분기)보고서")
+
+
+def is_periodic_title(title: str) -> bool:
+    """정기보고서(사업·반기·분기보고서, [기재정정] 등 접두어 허용)."""
+    return bool(_PERIODIC_TITLE_RE.match(title.strip()))
+
+
+async def get_disclosures(corp_code: str, years: int, source: str, dedupe: bool, page: int, size: int, q: str | None,
+                          category: str = "all") -> dict:
     data = await _collect(corp_code, years)
     dart = data["dart"] if source in ("all", "dart") else []
     kind = data["kind"] if source in ("all", "kind") else []
     items = merge_disclosures(dart, kind, dedupe)
+    if category == "periodic":
+        items = [x for x in items if is_periodic_title(x["title"])]
     if q:
         ql = q.strip().lower()
         items = [x for x in items if ql in x["title"].lower()]
@@ -109,11 +121,13 @@ async def get_disclosures(corp_code: str, years: int, source: str, dedupe: bool,
         "years": years,
         "source": source,
         "kind_supported": data["kind_supported"],
+        "kind_from_server": get_settings().kind_from_server,
         "counts": {
             "dart": sum(1 for x in items if x["source"] == "DART"),
             "kind": sum(1 for x in items if x["source"] == "KIND"),
             "total": total,
         },
+        "category": category,
         "page": page,
         "size": size,
         "has_next": start + size < total,

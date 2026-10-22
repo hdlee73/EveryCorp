@@ -32,12 +32,17 @@ class Settings(BaseSettings):
     min_supported_version: str = "1.0.0"   # 이보다 낮은 앱은 강제 업데이트
     github_token: str = ""                 # (선택) GitHub API 호출 한도 완화용
 
+    # KIND(kind.krx.co.kr)는 해외·클라우드 데이터센터 IP를 403으로 막는다. 한국 IP 서버라면 true로 켜면 서버에서 수집한다.
+    # 기본(false)에서는 앱이 폰(한국 IP)에서 KIND를 직접 불러온다.
+    kind_from_server: bool = False
+
     # --- 동작 ---
     corp_index_path: str = "data/corp_index.json"
     http_timeout: float = 15.0
+    # 데스크톱 UA: DART는 모바일 UA에게 모바일 뷰어(첨부 목록·PDF 버튼이 없는 페이지)를 돌려준다.
     user_agent: str = (
-        "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0 Mobile Safari/537.36"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
     )
 
 

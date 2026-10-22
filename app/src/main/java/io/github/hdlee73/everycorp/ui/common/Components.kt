@@ -154,6 +154,20 @@ fun openInAppBrowser(context: Context, url: String) {
     runCatching { CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(context, Uri.parse(url)) }
 }
 
+/**
+ * 공시 원문 열기. 그 링크를 처리하는 전용 앱(예: DART 앱)이 있으면 그 앱으로, 없으면 앱 안 브라우저로 연다.
+ * 브라우저로 새지 않도록 Android 11+ 의 REQUIRE_NON_BROWSER 로 먼저 시도한다.
+ */
+fun openDisclosure(context: Context, d: io.github.hdlee73.everycorp.data.api.dto.DisclosureDto) {
+    val url = d.url.ifBlank { d.mobileUrl }
+    if (android.os.Build.VERSION.SDK_INT >= 30) {
+        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(url))
+            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_REQUIRE_NON_BROWSER)
+        if (runCatching { context.startActivity(intent) }.isSuccess) return
+    }
+    openInAppBrowser(context, url)
+}
+
 /** UiState 를 공통 방식(로딩/오류/성공)으로 그린다. */
 @Composable
 fun <T> UiStateContent(state: UiState<T>, onRetry: (() -> Unit)?, modifier: Modifier = Modifier, content: @Composable (T) -> Unit) {

@@ -40,6 +40,7 @@ interface EveryCorpApi {
         @Query("source") source: String = "all",
         @Query("dedupe") dedupe: Boolean = false,
         @Query("q") query: String? = null,
+        @Query("category") category: String = "all",
         @Query("page") page: Int = 1,
         @Query("size") size: Int = 50,
     ): DisclosuresResponse
