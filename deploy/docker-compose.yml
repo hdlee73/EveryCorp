@@ -1,0 +1,29 @@
+# Oracle Cloud Always Free VM 한 대에서 API 서버 + 자동 HTTPS(Caddy)를 띄운다.
+# 사용: deploy/ 폴더에 .env(키 값)와 DOMAIN 을 준비하고  docker compose up -d --build
+services:
+  api:
+    build: ../backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "8080"
+    volumes:
+      - corp-data:/srv/data   # corpCode 색인 캐시 보관
+    expose:
+      - "8080"
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on:
+      - api
+volumes:
+  corp-data:
+  caddy-data:

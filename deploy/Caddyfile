@@ -1,0 +1,4 @@
+# DOMAIN 환경변수(예: everycorp-hd.duckdns.org)로 Let's Encrypt 인증서를 자동 발급·갱신한다.
+{$DOMAIN} {
+	reverse_proxy api:8080
+}

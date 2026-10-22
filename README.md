@@ -15,6 +15,7 @@
 
 ## 내가 해야 할 일
 [`docs/SETUP_CHECKLIST.md`](docs/SETUP_CHECKLIST.md): API 키 발급, 서명키 생성, GitHub Secrets 등록, 레포 보호 설정.
+서버 배포(Oracle Always Free): [`docs/ORACLE_DEPLOY.md`](docs/ORACLE_DEPLOY.md)
 
 ## 백엔드 실행 (로컬)
 ```bash
