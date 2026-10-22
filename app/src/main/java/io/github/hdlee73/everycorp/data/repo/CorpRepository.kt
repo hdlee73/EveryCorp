@@ -12,6 +12,7 @@ import io.github.hdlee73.everycorp.data.api.dto.IntradayDto
 import io.github.hdlee73.everycorp.data.api.dto.OverviewDto
 import io.github.hdlee73.everycorp.data.api.dto.DisclosureDto
 import io.github.hdlee73.everycorp.data.api.dto.QuoteDto
+import io.github.hdlee73.everycorp.data.api.dto.ShareholdersDto
 import io.github.hdlee73.everycorp.data.kind.KindClient
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -53,6 +54,8 @@ class CorpRepository(private val api: EveryCorpApi, private val kind: KindClient
     }
 
     suspend fun overview(corpCode: String): Result<OverviewDto> = apiCall { api.overview(corpCode) }
+
+    suspend fun shareholders(corpCode: String): Result<ShareholdersDto> = apiCall { api.shareholders(corpCode) }
 
     suspend fun auditReports(corpCode: String, years: Int = 3): Result<AuditReportsResponse> =
         apiCall { api.auditReports(corpCode, years) }

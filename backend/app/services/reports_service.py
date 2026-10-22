@@ -17,6 +17,7 @@ from ..errors import UpstreamError
 from ..http import get_client
 from ..parsers import dart_viewer as dv
 from . import dart_client
+from .company_service import _fetch_report_api, get_company, get_periodic_reports
 from .corp_index import corp_index
 
 log = logging.getLogger(__name__)
@@ -114,6 +115,38 @@ def merge_reports(items: list[dict]) -> list[dict]:
     return sorted(best.values(), key=lambda x: (x["period"], x["rcept_dt"], not x["consolidated"]), reverse=True)
 
 
+def summarize_opinions(rows: list[dict]) -> list[dict]:
+    """회계감사인의 명칭 및 감사의견(accnutAdtorNmNdAdtOpinion) → 기수별 감사의견·감사인만."""
+    out = []
+    for r in rows:
+        term = (r.get("bsns_year") or "").strip()
+        auditor = (r.get("adtor") or "").strip()
+        opinion = (r.get("adt_opinion") or "").strip()
+        if not (term and (auditor or opinion)) or (auditor in ("", "-") and opinion in ("", "-")):
+            continue
+        out.append({"term": term, "auditor": "" if auditor == "-" else auditor, "opinion": "" if opinion == "-" else opinion})
+    return out
+
+
+async def get_audit_opinions(corp_code: str) -> dict | None:
+    """최근 사업보고서의 감사의견·감사인(당기·전기·전전기). 정기보고서 제출 대상이 아니면 None."""
+    try:
+        company = await get_company(corp_code)
+        fiscal_month = int(company.get("acc_mt") or 12)
+        annuals = [r for r in await get_periodic_reports(corp_code) if r.kind == "사업"]
+        for report in annuals[:2]:
+            got = await _fetch_report_api("accnutAdtorNmNdAdtOpinion.json", corp_code, report, fiscal_month)
+            if got is None:
+                continue
+            items = summarize_opinions(got[0])
+            if items:
+                return {"report_name": report.report_nm, "rcept_no": report.rcept_no, "items": items,
+                        "source": "출처: Open DART 회계감사인의 명칭 및 감사의견(사업보고서)"}
+    except Exception as e:  # noqa: BLE001  요약은 부가 정보라 실패해도 보고서 목록은 내려준다
+        log.warning("audit opinion failed: %s", e)
+    return None
+
+
 @cached(ttl=6 * 3600)
 async def get_audit_reports(corp_code: str, years: int = 3) -> dict:
     entry = corp_index.get(corp_code)
@@ -122,9 +155,10 @@ async def get_audit_reports(corp_code: str, years: int = 3) -> dict:
     bgn = end - timedelta(days=365 * years + 1)
     bgn_s, end_s = bgn.strftime("%Y%m%d"), end.strftime("%Y%m%d")
 
-    f_items, a_items = await asyncio.gather(
+    f_items, a_items, opinions = await asyncio.gather(
         dart_client.list_disclosures(corp_code, bgn_s, end_s, pblntf_ty="F", max_pages=5),
         dart_client.list_disclosures(corp_code, bgn_s, end_s, pblntf_ty="A", max_pages=5),
+        get_audit_opinions(corp_code),
     )
     tasks = [_standalone(corp_name, it) for it in f_items] + [_attachments(corp_name, it) for it in a_items]
     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -144,5 +178,6 @@ async def get_audit_reports(corp_code: str, years: int = 3) -> dict:
         "to": end.isoformat(),
         "count": len(reports),
         "partial": failed > 0,
+        "opinions": opinions,
         "reports": reports,
     }

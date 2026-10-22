@@ -328,3 +328,46 @@ def build_comparison_tables(
         ],
     }
     return {"unit": "억원", "balance": balance, "income": income}
+
+
+# ───────────────────────── 5) 최근 5개년 추이 ─────────────────────────
+
+def _year_values(rows: list[dict], year: int, industry_code: str | None) -> dict[int, dict]:
+    """사업보고서 전체 재무제표 한 건 → {연도: {revenue, operating, net, assets, liabilities, equity}} (당기·전기·전전기)."""
+    acc = _account_rows(rows, industry_code)
+    out: dict[int, dict] = {}
+    for offset, field in ((0, "thstrm_amount"), (1, "frmtrm_amount"), (2, "bfefrmtrm_amount")):
+        out[year - offset] = {
+            "revenue": _v(acc["revenue"], field), "operating": _v(acc["operating"], field), "net": _v(acc["net"], field),
+            "assets": _v(acc["assets"], field), "liabilities": _v(acc["liabilities"], field), "equity": _v(acc["equity"], field),
+        }
+    return out
+
+
+def build_trend(recent_rows: list[dict] | None, recent_year: int | None,
+                older_rows: list[dict] | None, older_year: int | None,
+                industry_code: str | None = None) -> dict | None:
+    """사업보고서 2건(최근, 2년 전)으로 최대 5개 연도의 매출·영업이익·순이익·부채비율 시계열.
+
+    같은 연도가 겹치면 최근 보고서 값을 쓴다(정정 반영). 값이 하나도 없는 연도는 뺀다.
+    """
+    merged: dict[int, dict] = {}
+    label = "매출액"
+    for rows, year in ((older_rows, older_year), (recent_rows, recent_year)):  # 최근 값이 나중에 덮어씀
+        if rows and year:
+            merged.update({y: v for y, v in _year_values(rows, year, industry_code).items()})
+            label = _account_rows(rows, industry_code)["revenue_label"]
+    years = sorted(y for y, v in merged.items() if any(x is not None for x in v.values()))
+    if len(years) < 2:
+        return None
+    def series(key: str, name: str, fn) -> dict:
+        return {"key": key, "label": name, "values": [fn(merged[y]) for y in years]}
+    return {
+        "unit": "원", "years": years,
+        "series": [
+            series("revenue", label, lambda v: v["revenue"]),
+            series("operating_income", "영업이익", lambda v: v["operating"]),
+            series("net_income", "당기순이익", lambda v: v["net"]),
+            series("debt_ratio", "부채비율(%)", lambda v: _debt_ratio(v["liabilities"], v["equity"])),
+        ],
+    }

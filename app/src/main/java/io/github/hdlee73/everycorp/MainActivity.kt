@@ -25,6 +25,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.hdlee73.everycorp.data.update.UpdateWorker
+import io.github.hdlee73.everycorp.data.watch.DisclosureWatchWorker
 import io.github.hdlee73.everycorp.ui.AppViewModel
 import io.github.hdlee73.everycorp.ui.UpdateDialogs
 import io.github.hdlee73.everycorp.ui.common.Dest
@@ -38,6 +39,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         UpdateWorker.schedule(this)
+        DisclosureWatchWorker.schedule(this)
         setContent {
             EveryCorpTheme {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { Root() }
