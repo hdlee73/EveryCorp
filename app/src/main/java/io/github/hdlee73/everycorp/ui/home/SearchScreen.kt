@@ -53,7 +53,7 @@ fun SearchScreen(vm: AppViewModel) {
     Column(Modifier.fillMaxSize().navigationBarsPadding()) {
         Spacer(Modifier.fillMaxWidth().background(AppColors.heroStart).windowInsetsTopHeight(WindowInsets.statusBars))
         LargeTitle(
-            title = "에브리코프",
+            title = "Every Corp",
             subtitle = "기업개황 · 감사보고서 · 공시 · 주가 · 채권을 한곳에서",
             trailing = { IconButton(onClick = vm::openInfo) { Icon(Icons.Filled.Info, contentDescription = "앱 정보") } },
         )
