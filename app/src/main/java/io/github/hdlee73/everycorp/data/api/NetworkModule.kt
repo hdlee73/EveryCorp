@@ -50,6 +50,16 @@ object NetworkModule {
 
     fun api(retrofit: Retrofit = retrofit()): EveryCorpApi = retrofit.create(EveryCorpApi::class.java)
 
+    /** 연결 실패 안내. 개발용 기본 주소(10.0.2.2)면 "서버 주소 미설정"임을 알려 원인을 바로 알 수 있게 한다. */
+    fun networkMessage(baseUrl: String): String {
+        val host = baseUrl.toHttpUrlOrNull()?.host.orEmpty()
+        return if (host == "10.0.2.2" || host == "localhost" || host.isEmpty()) {
+            "서버 주소가 설정되지 않은 앱입니다. 서버(API_BASE_URL)를 배포하고 앱을 다시 빌드해야 검색·조회가 됩니다."
+        } else {
+            "서버($host)에 연결하지 못했습니다. 인터넷 연결을 확인하거나, 서버가 켜져 있는지 확인해 주세요."
+        }
+    }
+
     /** 예외를 [ApiException] 으로 통일(한글 안내 메시지 포함). */
     fun toApiException(t: Throwable): ApiException = when (t) {
         is ApiException -> t
@@ -63,7 +73,7 @@ object NetworkModule {
                 httpStatus = t.code(),
             )
         }
-        is IOException -> ApiException("NETWORK", "서버에 연결하지 못했습니다. 네트워크를 확인해 주세요.")
+        is IOException -> ApiException("NETWORK", networkMessage(BuildConfig.API_BASE_URL))
         else -> ApiException("UNKNOWN", t.message ?: "알 수 없는 오류가 발생했습니다.")
     }
 }

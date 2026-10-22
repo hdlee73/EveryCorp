@@ -63,4 +63,11 @@ class NavigationAndFormatTest {
         assertEquals(list, CorpListCodec.decode(CorpListCodec.encode(list)))
         assertTrue(CorpListCodec.decode("not json").isEmpty())
     }
+
+    @Test fun networkMessageExplainsUnconfiguredServer() {
+        val dev = io.github.hdlee73.everycorp.data.api.NetworkModule.networkMessage("http://10.0.2.2:8000")
+        assertTrue(dev.contains("설정되지 않은"))
+        val prod = io.github.hdlee73.everycorp.data.api.NetworkModule.networkMessage("https://api.example.org")
+        assertTrue(prod.contains("api.example.org"))
+    }
 }
