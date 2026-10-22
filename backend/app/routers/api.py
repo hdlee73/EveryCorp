@@ -11,7 +11,7 @@ from ..config import get_settings
 from ..errors import ApiError, UpstreamError
 from ..http import get_client
 from ..parsers import dart_viewer as dv
-from ..services import app_meta, company_service, debt_service, disclosures_service, price_service, reports_service
+from ..services import app_meta, company_service, debt_service, disclosures_service, market_service, price_service, reports_service
 from ..services.corp_index import corp_index
 
 
@@ -52,6 +52,7 @@ async def search_corps(
     listed_only: bool = False,
 ) -> dict:
     hits = corp_index.search(q, limit=limit, listed_only=listed_only)
+    await market_service.ensure_markets(hits)
     return {
         "query": q,
         "count": len(hits),
@@ -62,7 +63,8 @@ async def search_corps(
                 "corp_name_eng": e.corp_name_eng or None,
                 "stock_code": e.stock_code or None,
                 "listing": "LISTED" if e.is_listed else "UNLISTED",
-                "badge": "상장" if e.is_listed else "외감",
+                "market": market_service.market_of(e),
+                "badge": market_service.badge_of(e),
             }
             for e in hits
         ],

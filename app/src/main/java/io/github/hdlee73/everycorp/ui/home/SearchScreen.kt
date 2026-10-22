@@ -26,6 +26,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -43,10 +46,10 @@ import io.github.hdlee73.everycorp.ui.common.SectionLabel
 import io.github.hdlee73.everycorp.ui.common.UiStateContent
 import io.github.hdlee73.everycorp.ui.theme.AppColors
 
-private val QuickKeywords = listOf("삼성전자", "SK하이닉스", "현대자동차", "네이버", "카카오", "LG에너지솔루션")
-
 @Composable
 fun SearchScreen(vm: AppViewModel) {
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(vm.searchFocusTick) { if (vm.searchFocusTick > 0) runCatching { focus.requestFocus() } }
     Column(Modifier.fillMaxSize().navigationBarsPadding()) {
         Spacer(Modifier.fillMaxWidth().background(AppColors.heroStart).windowInsetsTopHeight(WindowInsets.statusBars))
         LargeTitle(
@@ -57,11 +60,14 @@ fun SearchScreen(vm: AppViewModel) {
         SearchPill(
             value = vm.query, onValueChange = vm::onQuery, placeholder = "기업명 또는 초성 (예: 삼성전자, ㅅㅅㅈㅈ)",
             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp),
+            focusRequester = focus,
         )
-        Row(
+        // 바로가기는 사용자가 ★로 저장한 관심기업만 보여 준다(없으면 칩 줄 자체를 숨긴다).
+        if (vm.favorites.isNotEmpty()) Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) { QuickKeywords.forEach { k -> PillChip(k, onClick = { vm.onQuery(k) }) } }
+        ) { vm.favorites.forEach { c -> PillChip("★ " + c.corpName, onClick = { vm.openCompany(c) }) } }
+        else Spacer(Modifier.padding(top = 6.dp))
         if (vm.query.isBlank()) HomeLists(vm) else SearchResults(vm)
     }
 }
@@ -80,11 +86,7 @@ private fun SearchResults(vm: AppViewModel) {
 private fun HomeLists(vm: AppViewModel) {
     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp)) {
         if (vm.favorites.isEmpty() && vm.recents.isEmpty()) {
-            item { EmptyBox("기업명을 검색해 보세요. 상장사와 비상장 외감법인 모두 검색됩니다. 자주 보는 기업은 ★로 저장할 수 있습니다.") }
-        }
-        if (vm.favorites.isNotEmpty()) {
-            item { SectionLabel("관심기업") }
-            items(vm.favorites, key = { "f" + it.corpCode }) { CorpRow(it) { vm.openCompany(it) } }
+            item { EmptyBox("기업명을 검색해 보세요. 상장사와 비상장 외감법인 모두 검색됩니다. 자주 보는 기업은 ★로 저장하면 이 화면 위쪽에 바로가기로 나타납니다.") }
         }
         if (vm.recents.isNotEmpty()) {
             item { SectionLabel("최근 본 기업") { TextButton(onClick = vm::clearRecents) { Text("지우기") } } }

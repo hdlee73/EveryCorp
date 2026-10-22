@@ -15,7 +15,7 @@ from ..parsers.dart_overview import (
     summarize_financials,
     summarize_shareholders,
 )
-from . import dart_client
+from . import dart_client, market_service
 from .corp_index import corp_index
 from .dart_client import DartNoData
 
@@ -130,6 +130,7 @@ async def get_overview(corp_code: str) -> dict:
     entry = corp_index.get(corp_code)
     company = await get_company(corp_code)
     fiscal_month = int(company.get("acc_mt") or 12)
+    market_service.remember((company.get("stock_code") or "").strip(), company.get("corp_cls", ""))
     industry = company.get("induty_code")
     listed = bool((company.get("stock_code") or "").strip()) and company.get("corp_cls") in ("Y", "K", "N")
 
