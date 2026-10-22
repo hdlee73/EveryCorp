@@ -1,6 +1,13 @@
 package io.github.hdlee73.everycorp.ui.company
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
+import io.github.hdlee73.everycorp.data.api.dto.TrendDto
+import io.github.hdlee73.everycorp.ui.theme.StockColors
+import java.util.Locale
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,6 +42,7 @@ fun OverviewTab(vm: CompanyViewModel) {
 
 @Composable
 private fun OverviewBody(o: OverviewDto, badge: String, holders: UiState<ShareholdersDto>) {
+    o.financials.trend?.let { KpiRow(it) }
     SectionCard(title = "기업 개요") {
         KeyValueTable(
             listOf(
@@ -117,5 +125,52 @@ private fun HoldersCard(h: ShareholdersDto) {
             }
         }
         Text(h.source, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** 최근 결산 핵심 지표 4개를 한눈에. 전년 대비 증감(%p)을 함께 보여준다. */
+@Composable
+private fun KpiRow(t: TrendDto) {
+    val last = t.years.lastIndex
+    if (last < 0) return
+    val tiles = listOf("revenue", "operating_income", "net_income", "debt_ratio").mapNotNull { key ->
+        val s = t.series.firstOrNull { it.key == key } ?: return@mapNotNull null
+        val now = s.values.getOrNull(last) ?: return@mapNotNull null
+        val prev = s.values.getOrNull(last - 1)
+        Triple(s, now, prev)
+    }
+    if (tiles.isEmpty()) return
+    Text("${t.years[last]}년 결산 핵심 지표", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    tiles.chunked(2).forEach { rowTiles ->
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            rowTiles.forEach { (s, now, prev) ->
+                val isRatio = s.key == "debt_ratio"
+                val value = if (isRatio) Fmt.percent(now) else (Fmt.jo(now) ?: "${Fmt.eok(now)}억원")
+                val delta = when {
+                    prev == null -> null
+                    isRatio -> String.format(Locale.US, "%+.1f%%p", now - prev)
+                    prev != 0.0 -> String.format(Locale.US, "%+.1f%%", (now - prev) / kotlin.math.abs(prev) * 100)
+                    else -> null
+                }
+                val tone = when {
+                    prev == null || now == prev -> StockColors.flat
+                    now > prev -> StockColors.up
+                    else -> StockColors.down
+                }
+                Surface(
+                    Modifier.weight(1f),
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                ) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(s.label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Text(delta?.let { "전년 대비 $it" } ?: "전년 비교 없음", style = MaterialTheme.typography.labelSmall, color = tone)
+                    }
+                }
+            }
+            if (rowTiles.size == 1) Spacer(Modifier.weight(1f))
+        }
     }
 }
