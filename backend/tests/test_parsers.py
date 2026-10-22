@@ -226,3 +226,13 @@ def test_daily_parsers_and_range():
     sise = pp.parse_naver_sise_json("[['날짜', '시가', '고가', '저가', '종가', '거래량', '외국인소진율'],\n"
                                     '["20261020", 70500, 71500, 70000, 71000, 1234, 50.1],\n]')
     assert sise == [{"date": "2026-10-20", "open": 70500, "high": 71500, "low": 70000, "close": 71000, "volume": 1234}]
+
+
+def test_krx_snapshot_parse():
+    from app.services.krx_client import parse_snapshot
+    data = {"OutBlock_1": [
+        {"BAS_DD": "20261021", "ISU_CD": "KR7005930003", "ISU_NM": "삼성전자", "TDD_CLSPRC": "71,000", "CMPPREVDD_PRC": "-500",
+         "FLUC_RT": "-0.70", "TDD_OPNPRC": "71,500", "TDD_HGPRC": "71,800", "TDD_LWPRC": "70,800", "ACC_TRDVOL": "123"}]}
+    q = parse_snapshot(data, "005930")
+    assert q["price"] == 71000 and q["direction"] == "DOWN" and q["base_date"] == "20261021"
+    assert parse_snapshot(data, "000660") is None

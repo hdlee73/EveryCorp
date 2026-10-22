@@ -16,7 +16,8 @@ from ..config import get_settings
 from ..errors import ApiError, UpstreamError
 from ..http import get_client
 from ..parsers import price as pp
-from .company_service import get_company
+from .company_service import CORP_CLS, get_company
+from .krx_client import krx_enabled, previous_close
 
 log = logging.getLogger(__name__)
 
@@ -95,16 +96,16 @@ async def _naver_quote(stock_code: str) -> dict:
     return q
 
 
-async def _require_listed(corp_code: str) -> tuple[str, str]:
+async def _require_listed(corp_code: str) -> tuple[str, str, str]:
     company = await get_company(corp_code)
     stock_code = (company.get("stock_code") or "").strip()
     if not stock_code or company.get("corp_cls") not in ("Y", "K", "N"):
         raise ApiError(404, "NOT_LISTED", "비상장 법인은 주가 정보를 제공하지 않습니다.")
-    return stock_code, company.get("stock_name") or company.get("corp_name", "")
+    return stock_code, company.get("stock_name") or company.get("corp_name", ""), CORP_CLS[company["corp_cls"]]
 
 
 async def get_quote(corp_code: str) -> dict:
-    stock_code, name = await _require_listed(corp_code)
+    stock_code, name, market = await _require_listed(corp_code)
 
     async def load() -> dict:
         q, source = None, None
@@ -114,7 +115,18 @@ async def get_quote(corp_code: str) -> dict:
             except Exception as e:  # noqa: BLE001
                 log.warning("KIS quote failed, fallback to Naver: %s", e)
         if q is None:
-            q, source = await _naver_quote(stock_code), "NAVER"
+            try:
+                q, source = await _naver_quote(stock_code), "NAVER"
+            except Exception as e:  # noqa: BLE001
+                if not krx_enabled():
+                    raise
+                log.warning("Naver quote failed, fallback to KRX T-1: %s", e)
+        if q is None:
+            q = await previous_close(stock_code, market)
+            if q is None:
+                raise UpstreamError("KRX", "전일 종가를 찾지 못했습니다.")
+            source = "KRX"
+            q["delayed"] = True
         q.update(stock_code=stock_code, name=q.get("name") or name, source=source, fetched_at=pp.now_iso())
         return q
 
@@ -172,7 +184,7 @@ async def _daily(stock_code: str, bgn: date, end: date) -> tuple[list[dict], str
 
 
 async def get_chart(corp_code: str, days: int = 365) -> dict:
-    stock_code, name = await _require_listed(corp_code)
+    stock_code, name, _ = await _require_listed(corp_code)
     end = date.today()
     bgn = end - timedelta(days=days)
     rows, source = await _daily(stock_code, bgn, end)
