@@ -13,8 +13,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -86,11 +86,11 @@ private fun Root() {
         if (top == Dest.Home || top == Dest.Info) NavigationBar(containerColor = MaterialTheme.colorScheme.background) {
             NavigationBarItem(
                 selected = top == Dest.Home, onClick = { vm.openSearch() },
-                icon = { Icon(Icons.Filled.Home, contentDescription = null) }, label = { Text("홈") },
+                icon = { Icon(Icons.Filled.Search, contentDescription = null) }, label = { Text("기업 검색") },
             )
             NavigationBarItem(
                 selected = top == Dest.Info, onClick = { vm.openInfo() },
-                icon = { Icon(Icons.Filled.Menu, contentDescription = null) }, label = { Text("메뉴") },
+                icon = { Icon(Icons.Filled.Info, contentDescription = null) }, label = { Text("앱 정보") },
             )
         }
     }

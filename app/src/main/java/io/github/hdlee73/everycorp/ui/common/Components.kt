@@ -200,15 +200,17 @@ fun LargeTitle(title: String, modifier: Modifier = Modifier, subtitle: String? =
 fun GradientTopBar(title: String, onBack: (() -> Unit)?, modifier: Modifier = Modifier, badge: String? = null, trailing: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {}) {
     Column(modifier.fillMaxWidth().background(AppColors.heroStart)) {
         Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
-        Row(Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로", tint = AppColors.onHero) }
             else Spacer(Modifier.width(16.dp))
-            Text(title, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.titleLarge, color = AppColors.onHero, maxLines = 1)
-            if (badge != null) Text(
-                badge, Modifier.padding(start = 8.dp).background(AppColors.onHero.copy(alpha = 0.1f), RoundedCornerShape(5.dp)).padding(horizontal = 7.dp, vertical = 2.dp),
-                style = MaterialTheme.typography.labelSmall, color = AppColors.onHero, fontWeight = FontWeight.Bold,
-            )
-            Spacer(Modifier.weight(1f))
+            // 회사명은 잘리지 않게 두 줄까지 보여 주고, 시장 배지는 이름 아래에 둔다.
+            Column(Modifier.weight(1f).padding(vertical = 4.dp)) {
+                Text(title, style = MaterialTheme.typography.titleLarge, color = AppColors.onHero, maxLines = 2)
+                if (badge != null) Text(
+                    badge, Modifier.padding(top = 2.dp).background(AppColors.onHero.copy(alpha = 0.1f), RoundedCornerShape(5.dp)).padding(horizontal = 7.dp, vertical = 1.dp),
+                    style = MaterialTheme.typography.labelSmall, color = AppColors.onHero, fontWeight = FontWeight.Bold,
+                )
+            }
             CompositionLocalProvider(LocalContentColor provides AppColors.onHero) { trailing() }
         }
     }
