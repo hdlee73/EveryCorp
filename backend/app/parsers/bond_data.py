@@ -71,7 +71,9 @@ def summarize_outstanding(items, today: date) -> list[dict]:
         rate = str(it.get("bondSrfcInrt") or "").strip()
         if rate and rate not in ("0", "0.0"):
             parts.append(f"{rate}%")
-        g["rows"].append({"label": " · ".join(p for p in parts if p), "is_total": False, "total": bal,
+        name = str(it.get("isinCdNm") or it.get("isinCd") or "")
+        g["rows"].append({"label": " · ".join(p for p in parts if p), "name": name, "maturity": _fmt_date(expr) if expr else "",
+                          "rate": rate if rate and rate not in ("0", "0.0") else "", "is_total": False, "total": bal,
                           "issue_limit": None, "remaining_limit": None, "buckets": [], "_expr": expr})
         g["total"] += bal
     order = [k for k, _, _ in KINDS] + [OTHER[0]]
