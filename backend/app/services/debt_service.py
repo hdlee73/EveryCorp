@@ -1,10 +1,11 @@
 """탭 5. 채권·단기증권(회사채, CP, 단기사채 등) 미상환 잔액.
 
-원천: 공공데이터포털 금융위원회 채권기본정보(한국예탁결제원 제공)의 종목별 잔액만 쓴다.
-조회가 비거나 실패하면 DART 정기보고서로 대체하지 않고 이유를 그대로 알려 준다.
+원천: Open DART 증권 미상환 잔액 API(정기보고서 기준, 보고서 기준일 시점 잔액).
+우선 공공데이터포털 채권기본정보(예탁결제원)의 종목별 잔액을 쓰고, 없거나 실패하면 DART 로 대체한다.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import date, timedelta
 
@@ -14,13 +15,28 @@ from ..cache import cached
 from ..config import get_settings
 from ..http import get_client
 from ..parsers.bond_data import as_list, summarize_outstanding
-from .company_service import get_company
+from ..parsers.dart_debt import SECTIONS, summarize_section
+from . import dart_client
+from .company_service import _basis, get_company, get_periodic_reports
+from .dart_client import DartNoData
 
 log = logging.getLogger(__name__)
 
+# DART 공시 기준 금액 단위는 보고서에 따라 다를 수 있어 원문 확인 문구를 함께 내려준다.
+SOURCE_NOTE = "출처: Open DART 증권 미상환 잔액(정기보고서 기준, 보고서 기준일 시점)."
 KSD_SOURCE_NOTE = "출처: 공공데이터포털 금융위원회 채권기본정보(한국예탁결제원 제공, 종목별 잔액, 공공누리 2유형). 전 영업일 기준이며 비상장·사모 일부는 빠질 수 있습니다."
+NONE_SOURCE_NOTE = "확인한 출처: 공공데이터포털 금융위원회 채권기본정보(한국예탁결제원), Open DART 증권 미상환 잔액."
 KSD_UNIT_NOTE = "금액 단위: 억원(종목별 채권잔액)"
 KSD_URL = "https://apis.data.go.kr/1160100/GetBondIssuInfoService_V2/getBondBasiInfo_V2"
+UNIT_NOTE = "공시 원문 단위(통상 백만원) 그대로의 숫자입니다. 정확한 단위는 DART 원문에서 확인하세요."
+
+
+async def _fetch_section(corp_code: str, endpoint: str, year: str, reprt_code: str) -> list[dict] | None:
+    try:
+        data = await dart_client.get_json(endpoint, corp_code=corp_code, bsns_year=year, reprt_code=reprt_code)
+        return data.get("list", [])
+    except DartNoData:
+        return None
 
 
 async def _ksd_page(key: str, crno: str, bas_dt: str | None, page: int) -> tuple[list[dict], int]:
@@ -52,27 +68,26 @@ async def _ksd_snapshot(key: str, crno: str, today: date) -> list[dict]:
 
 
 async def _from_ksd(corp_code: str) -> tuple[dict | None, str]:
-    """(결과, 실패 이유). 결과가 없을 때 이유를 화면에 그대로 보여 준다."""
+    """(결과, 사용하지 못한 이유). DART 로 대체될 때 이유를 출처 문구에 덧붙인다."""
     key = get_settings().data_go_kr_key
     if not key:
-        return None, "서버에 공공데이터포털 인증키(DATA_GO_KR_KEY)가 설정되어 있지 않습니다."
+        return None, "공공데이터포털 인증키 미설정"
     company = await get_company(corp_code)
     crno = (company.get("jurir_no") or "").replace("-", "").strip()
     if not crno:
-        return None, "법인등록번호를 확인하지 못해 종목을 조회할 수 없습니다."
+        return None, "법인등록번호 확인 불가"
     try:
         rows = await _ksd_snapshot(key, crno, date.today())
     except httpx.HTTPStatusError as e:
         code = e.response.status_code
-        hint = " 활용신청 승인 전이거나 키가 맞지 않을 수 있습니다." if code in (401, 403) else ""
         log.warning("ksd bond http %s for %s", code, corp_code)
-        return None, f"채권기본정보 조회가 거부되었습니다(HTTP {code}).{hint}"
-    except Exception as e:  # noqa: BLE001
+        return None, f"조회 거부(HTTP {code})" + (", 활용신청 승인 전이거나 키 불일치 가능" if code in (401, 403) else "")
+    except Exception as e:  # noqa: BLE001  키 미승인·서비스 장애 때는 DART 로 대체
         log.warning("ksd bond failed for %s: %s", corp_code, type(e).__name__)
-        return None, "채권기본정보 조회 중 오류가 발생했습니다. 잠시 뒤 다시 시도해 주세요."
+        return None, "조회 오류"
     sections = summarize_outstanding(rows, date.today())
     if not sections:
-        return None, ""
+        return None, "예탁결제원 등록 미상환 종목 없음"
     return {
         "corp_code": corp_code,
         "available": True,
@@ -85,16 +100,47 @@ async def _from_ksd(corp_code: str) -> tuple[dict | None, str]:
 
 @cached(ttl=6 * 3600)
 async def get_debt_securities(corp_code: str) -> dict:
-    ksd, reason = await _from_ksd(corp_code)
+    from ..parsers.dart_overview import bsns_year_candidates, reprt_code_for
+
+    ksd, ksd_reason = await _from_ksd(corp_code)
     if ksd:
         return ksd
-    message = reason or "예탁결제원 채권기본정보에서 이 기업의 미상환 종목을 찾지 못했습니다. 발행 이력이 없거나 사모·비등록 종목만 있는 경우입니다."
+    source = SOURCE_NOTE + (f" (예탁결제원 채권기본정보 미사용: {ksd_reason})" if ksd_reason else "")
+
+    company = await get_company(corp_code)
+    fiscal_month = int(company.get("acc_mt") or 12)
+    reports = await get_periodic_reports(corp_code)
+
+    for report in reports[:4]:  # 최신 보고서부터, 한 건이라도 잔액 표가 있으면 채택
+        code = reprt_code_for(report, fiscal_month)
+        for year in bsns_year_candidates(report, fiscal_month):
+            results = await asyncio.gather(
+                *[_fetch_section(corp_code, ep, year, code) for _, _, ep in SECTIONS], return_exceptions=True
+            )
+            sections = []
+            for (key, title, _), rows in zip(SECTIONS, results):
+                if isinstance(rows, Exception):
+                    log.warning("debt section %s failed: %s", key, rows)
+                    continue
+                if rows:
+                    sections.append(summarize_section(key, title, rows))
+            if sections:
+                return {
+                    "corp_code": corp_code,
+                    "available": True,
+                    "unit_note": UNIT_NOTE,
+                    "source": source,
+                    "basis": _basis(report, year, code),
+                    "sections": sections,
+                    "missing": [t for k, t, _ in SECTIONS if k not in {s["key"] for s in sections}],
+                    "viewer_url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={report.rcept_no}",
+                }
     return {
         "corp_code": corp_code,
         "available": False,
-        "message": message,
+        "message": "조회된 채권·단기증권 발행잔액이 없습니다. 예탁결제원 종목정보와 DART 공시를 모두 확인했으나 이 기업의 잔액이 없거나(사모·미발행 등) 조회 대상에서 빠진 경우입니다.",
         "unit_note": "",
-        "source": KSD_SOURCE_NOTE,
+        "source": NONE_SOURCE_NOTE,
         "sections": [],
-        "missing": [],
+        "missing": [t for _, t, _ in SECTIONS],
     }
