@@ -129,12 +129,31 @@ async def diag_bonds(corp_code: str) -> None:
             print(url, "실패:", type(e).__name__, e)
 
 
+async def diag_opinions(corp_code: str) -> None:
+    head("감사의견 원본 행 (연결/별도 구분 확인용)")
+    from .services.company_service import _fetch_report_api, get_company, get_periodic_reports
+
+    try:
+        company = await get_company(corp_code)
+        fm = int(company.get("acc_mt") or 12)
+        annuals = [r for r in await get_periodic_reports(corp_code) if r.kind == "사업"]
+        if not annuals:
+            print("사업보고서 없음")
+            return
+        got = await _fetch_report_api("accnutAdtorNmNdAdtOpinion.json", corp_code, annuals[0], fm)
+        for r in (got[0] if got else []):
+            print({k: (str(v)[:40]) for k, v in r.items() if k not in ("rcept_no", "corp_cls", "corp_code", "corp_name")})
+    except Exception as e:  # noqa: BLE001
+        print("실패:", type(e).__name__, e)
+
+
 async def main() -> None:
     corp_code = sys.argv[1] if len(sys.argv) > 1 else "00126380"
     stock = sys.argv[2] if len(sys.argv) > 2 else "005930"
     name = "삼성전자" if corp_code == "00126380" else ""
     await diag_kind(name, stock)
     await diag_reports(corp_code)
+    await diag_opinions(corp_code)
     await diag_bonds(corp_code)
     head("끝")
 

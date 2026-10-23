@@ -185,7 +185,7 @@ data class AuditOpinionsDto(
 )
 
 @Serializable
-data class AuditOpinionItemDto(val term: String = "", val auditor: String = "", val opinion: String = "")
+data class AuditOpinionItemDto(val term: String = "", val auditor: String = "", val opinion: String = "", val scope: String = "")
 
 @Serializable
 data class AuditReportDto(
@@ -329,6 +329,10 @@ data class DebtSectionDto(
 @Serializable
 data class DebtRowDto(
     val label: String,
+    /** 종목별 잔액 표(공공데이터포털)일 때만 채워진다. */
+    val name: String? = null,
+    val maturity: String? = null,
+    val rate: String? = null,
     @SerialName("is_total") val isTotal: Boolean = false,
     val total: Long? = null,
     @SerialName("issue_limit") val issueLimit: Long? = null,

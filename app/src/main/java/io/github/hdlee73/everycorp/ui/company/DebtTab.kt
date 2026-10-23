@@ -1,6 +1,12 @@
 package io.github.hdlee73.everycorp.ui.company
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -52,7 +58,38 @@ private fun DebtBody(d: DebtSecuritiesDto) {
 private fun SectionBlock(s: DebtSectionDto) {
     SectionCard(title = s.title) {
         Text(s.totalDisplay ?: s.total?.let { Fmt.number(it) } ?: "-", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        s.rows.forEach { RowBlock(it) }
+        if (s.rows.isNotEmpty() && s.rows.all { it.maturity != null }) BondTable(s) else s.rows.forEach { RowBlock(it) }
+    }
+}
+
+/** 종목별 잔액 표: 종목 | 만기일 | 이율 | 잔액(억원). 금액은 원 단위로 받아 억원으로 보여 준다. */
+@Composable
+private fun BondTable(s: DebtSectionDto) {
+    @Composable
+    fun Line(name: String, maturity: String, rate: String, amount: String, header: Boolean = false, bold: Boolean = false) {
+        val style = if (header) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodyMedium
+        val weight = if (header || bold) FontWeight.SemiBold else FontWeight.Normal
+        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(name, Modifier.weight(2.4f), style = style, fontWeight = weight, maxLines = 2)
+            Text(maturity, Modifier.weight(1.3f), style = style, fontWeight = weight, textAlign = TextAlign.Center, maxLines = 1)
+            Text(rate, Modifier.weight(0.8f), style = style, fontWeight = weight, textAlign = TextAlign.End, maxLines = 1)
+            Text(amount, Modifier.weight(1.3f), style = style, fontWeight = weight, textAlign = TextAlign.End, maxLines = 1)
+        }
+    }
+    Column(Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(horizontal = 4.dp)) {
+            Line("종목", "만기일", "이율(%)", "잔액(억원)", header = true)
+        }
+        s.rows.forEachIndexed { i, r ->
+            if (i > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+            Column(Modifier.padding(horizontal = 4.dp)) {
+                Line(r.name.orEmpty(), r.maturity.orEmpty(), r.rate.orEmpty().ifBlank { "-" }, Fmt.eok(r.total?.toDouble()))
+            }
+        }
+        HorizontalDivider()
+        Column(Modifier.padding(horizontal = 4.dp)) {
+            Line("합계", "", "", Fmt.eok(s.total?.toDouble()), bold = true)
+        }
     }
 }
 

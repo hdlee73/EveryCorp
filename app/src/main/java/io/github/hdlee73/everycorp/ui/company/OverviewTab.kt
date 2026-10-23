@@ -42,7 +42,6 @@ fun OverviewTab(vm: CompanyViewModel) {
 
 @Composable
 private fun OverviewBody(o: OverviewDto, badge: String, holders: UiState<ShareholdersDto>) {
-    o.financials.trend?.let { KpiRow(it) }
     SectionCard(title = "기업 개요") {
         KeyValueTable(
             listOf(
@@ -81,7 +80,7 @@ private fun OverviewBody(o: OverviewDto, badge: String, holders: UiState<Shareho
         Text("부채비율 = 부채총계 ÷ 자본총계", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     SectionCard(title = "손익현황") {
-        Text("출처: DART 정기보고서 · 단위 ${tables.unit} (1조원 이상은 조원 병기)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("출처: DART 정기보고서 · 단위 ${tables.unit}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         FinancialTable(tables.income)
     }
     f.trend?.let { t ->
@@ -89,6 +88,12 @@ private fun OverviewBody(o: OverviewDto, badge: String, holders: UiState<Shareho
             Text("출처: DART 사업보고서 · ${f.fsLabel.orEmpty()}재무제표 · 단위 억원 (막대를 누르면 수치 표시)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             TrendBars(t)
             TrendLine(t, "debt_ratio")
+            TrendLine(t, "eps")
+            TrendLine(t, "per")
+            TrendLine(t, "pbr")
+            if (t.series.any { it.key == "per" || it.key == "pbr" }) {
+                Text("PER·PBR은 각 연도 마지막 거래일 종가 기준 추정치(PBR은 지배주주 자본 ÷ 가중평균 주식수)입니다.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 }
@@ -128,49 +133,3 @@ private fun HoldersCard(h: ShareholdersDto) {
     }
 }
 
-/** 최근 결산 핵심 지표 4개를 한눈에. 전년 대비 증감(%p)을 함께 보여준다. */
-@Composable
-private fun KpiRow(t: TrendDto) {
-    val last = t.years.lastIndex
-    if (last < 0) return
-    val tiles = listOf("revenue", "operating_income", "net_income", "debt_ratio").mapNotNull { key ->
-        val s = t.series.firstOrNull { it.key == key } ?: return@mapNotNull null
-        val now = s.values.getOrNull(last) ?: return@mapNotNull null
-        val prev = s.values.getOrNull(last - 1)
-        Triple(s, now, prev)
-    }
-    if (tiles.isEmpty()) return
-    Text("${t.years[last]}년 결산 핵심 지표", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    tiles.chunked(2).forEach { rowTiles ->
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            rowTiles.forEach { (s, now, prev) ->
-                val isRatio = s.key == "debt_ratio"
-                val value = if (isRatio) Fmt.percent(now) else (Fmt.jo(now) ?: "${Fmt.eok(now)}억원")
-                val delta = when {
-                    prev == null -> null
-                    isRatio -> String.format(Locale.US, "%+.1f%%p", now - prev)
-                    prev != 0.0 -> String.format(Locale.US, "%+.1f%%", (now - prev) / kotlin.math.abs(prev) * 100)
-                    else -> null
-                }
-                val tone = when {
-                    prev == null || now == prev -> StockColors.flat
-                    now > prev -> StockColors.up
-                    else -> StockColors.down
-                }
-                Surface(
-                    Modifier.weight(1f),
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainer,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                ) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(s.label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1)
-                        Text(delta?.let { "전년 대비 $it" } ?: "전년 비교 없음", style = MaterialTheme.typography.labelSmall, color = tone)
-                    }
-                }
-            }
-            if (rowTiles.size == 1) Spacer(Modifier.weight(1f))
-        }
-    }
-}

@@ -23,6 +23,9 @@ def test_groups_and_filters():
     assert [r["label"].split(" · ")[0] for r in bond["rows"]] == ["에스케이하이닉스 300-2", "에스케이하이닉스 300-1"]
     assert "만기 2027.10.22" in bond["rows"][0]["label"] and "2.5%" in bond["rows"][0]["label"]
     assert "%" not in s[0]["rows"][0]["label"]
+    r = bond["rows"][0]
+    assert (r["name"], r["maturity"], r["rate"]) == ("에스케이하이닉스 300-2", "2027.10.22", "2.5")
+    assert s[0]["rows"][0]["rate"] == ""
 
 
 def test_latest_basdt_per_isin_and_single_dict():

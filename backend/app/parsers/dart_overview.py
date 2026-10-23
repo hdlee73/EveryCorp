@@ -154,6 +154,14 @@ _LABEL_DEFAULT = {
 }
 
 
+_EPS_IDS = ("ifrs-full_BasicEarningsLossPerShare",)
+_EPS_NAMES = ("기본주당이익", "기본주당이익(손실)", "기본주당순이익", "기본주당순이익(손실)", "기본주당손익", "주당이익", "주당순이익")
+_NI_PARENT_IDS = ("ifrs-full_ProfitLossAttributableToOwnersOfParent",)
+_NI_PARENT_NAMES = ("지배기업의소유주에게귀속되는당기순이익", "지배기업의소유주에게귀속되는당기순이익(손실)", "지배기업소유주지분")
+_EQ_PARENT_IDS = ("ifrs-full_EquityAttributableToOwnersOfParent",)
+_EQ_PARENT_NAMES = ("지배기업의소유주에게귀속되는자본", "지배기업소유주지분", "지배기업의소유주에게귀속되는지분")
+
+
 def _clean_nm(nm: str) -> str:
     return re.sub(r"\s+", "", nm or "")
 
@@ -227,6 +235,9 @@ def _account_rows(rows: list[dict], industry_code: str | None) -> dict:
         "revenue": rev,
         "operating": _find(rows, is_sj, _OPINC_IDS, _OPINC_NAMES),
         "net": _find(rows, ("IS",), _NI_IDS, _NI_NAMES) or _find(rows, ("CIS",), _NI_IDS, _NI_NAMES),
+        "eps": _find(rows, is_sj, _EPS_IDS, _EPS_NAMES),
+        "ni_parent": _find(rows, is_sj, _NI_PARENT_IDS, _NI_PARENT_NAMES),
+        "equity_parent": _find(rows, ("BS",), _EQ_PARENT_IDS, _EQ_PARENT_NAMES),
     }
 
 
@@ -340,13 +351,31 @@ def _year_values(rows: list[dict], year: int, industry_code: str | None) -> dict
         out[year - offset] = {
             "revenue": _v(acc["revenue"], field), "operating": _v(acc["operating"], field), "net": _v(acc["net"], field),
             "assets": _v(acc["assets"], field), "liabilities": _v(acc["liabilities"], field), "equity": _v(acc["equity"], field),
+            "eps": _v(acc["eps"], field),
+            # 지배주주 귀속분이 없으면(별도재무제표 등) 전체 순이익·자본을 쓴다.
+            "ni_parent": _v(acc["ni_parent"], field) if acc["ni_parent"] else _v(acc["net"], field),
+            "equity_parent": _v(acc["equity_parent"], field) if acc["equity_parent"] else _v(acc["equity"], field),
         }
     return out
 
 
+def _valuation(v: dict, close: int | None) -> tuple[float | None, float | None]:
+    """연말 종가 ÷ EPS = PER, 연말 종가 ÷ BPS = PBR. BPS 는 지배주주 자본 ÷ (지배주주 순이익 ÷ EPS = 가중평균 주식수)."""
+    eps = v.get("eps")
+    if not close or not eps or eps <= 0:
+        return None, None
+    per = round(close / eps, 2)
+    ni, eq = v.get("ni_parent"), v.get("equity_parent")
+    pbr = None
+    if ni and ni > 0 and eq and eq > 0:
+        shares = ni / eps
+        pbr = round(close / (eq / shares), 2) if shares > 0 else None
+    return per, pbr
+
+
 def build_trend(recent_rows: list[dict] | None, recent_year: int | None,
                 older_rows: list[dict] | None, older_year: int | None,
-                industry_code: str | None = None) -> dict | None:
+                industry_code: str | None = None, closes: dict[int, int] | None = None) -> dict | None:
     """사업보고서 2건(최근, 2년 전)으로 최대 5개 연도의 매출·영업이익·순이익·부채비율 시계열.
 
     같은 연도가 겹치면 최근 보고서 값을 쓴다(정정 반영). 값이 하나도 없는 연도는 뺀다.
@@ -369,5 +398,14 @@ def build_trend(recent_rows: list[dict] | None, recent_year: int | None,
             series("operating_income", "영업이익", lambda v: v["operating"]),
             series("net_income", "당기순이익", lambda v: v["net"]),
             series("debt_ratio", "부채비율(%)", lambda v: _debt_ratio(v["liabilities"], v["equity"])),
-        ],
+        ]
+        + ([series("eps", "EPS(원)", lambda v: v["eps"])] if any(merged[y]["eps"] is not None for y in years) else [])
+        + (
+            [
+                {"key": "per", "label": "PER(배)", "values": [_valuation(merged[y], (closes or {}).get(y))[0] for y in years]},
+                {"key": "pbr", "label": "PBR(배)", "values": [_valuation(merged[y], (closes or {}).get(y))[1] for y in years]},
+            ]
+            if closes
+            else []
+        ),
     }

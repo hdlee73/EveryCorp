@@ -245,3 +245,13 @@ def latest_session(points: list[dict]) -> list[dict]:
         return []
     day = max(p["date"] for p in points)
     return [p for p in points if p["date"] == day]
+
+
+def year_end_closes(rows: list[dict], years: list[int]) -> dict[int, int]:
+    """12월 결산 기준 {연도: 그 해 마지막 거래일 종가}. 일봉에 그 해가 없으면 빠진다."""
+    out: dict[int, int] = {}
+    for y in years:
+        cand = [r for r in rows if r["date"].startswith(f"{y}-") and r.get("close")]
+        if cand:
+            out[y] = max(cand, key=lambda r: r["date"])["close"]
+    return out

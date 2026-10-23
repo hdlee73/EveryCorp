@@ -118,13 +118,22 @@ def merge_reports(items: list[dict]) -> list[dict]:
 def summarize_opinions(rows: list[dict]) -> list[dict]:
     """회계감사인의 명칭 및 감사의견(accnutAdtorNmNdAdtOpinion) → 기수별 감사의견·감사인만."""
     out = []
+    seen: dict[str, int] = {}
     for r in rows:
         term = (r.get("bsns_year") or "").strip()
         auditor = (r.get("adtor") or "").strip()
         opinion = (r.get("adt_opinion") or "").strip()
         if not (term and (auditor or opinion)) or (auditor in ("", "-") and opinion in ("", "-")):
             continue
-        out.append({"term": term, "auditor": "" if auditor == "-" else auditor, "opinion": "" if opinion == "-" else opinion})
+        seen[term] = seen.get(term, 0) + 1
+        out.append({"term": term, "auditor": "" if auditor == "-" else auditor, "opinion": "" if opinion == "-" else opinion, "scope": ""})
+    # 같은 기수가 두 줄이면 연결·별도로 보고 DART 표 순서(연결 먼저)대로 구분 표시한다. 순서는 diag 로 확인한다.
+    idx: dict[str, int] = {}
+    for o in out:
+        if seen[o["term"]] == 2:
+            n = idx.get(o["term"], 0)
+            o["scope"] = ("연결", "별도")[n]
+            idx[o["term"]] = n + 1
     return out
 
 

@@ -107,8 +107,9 @@ object DisclosureMerge {
 
     fun isPeriodic(title: String) = PERIODIC.containsMatchIn(title.trim())
 
+    /** 정기보고서(사업·반기·분기)는 DART 것만 보여 주므로 KIND 쪽에서는 뺀다. 그래서 정기보고서만 보기에서는 KIND 가 비게 된다. */
     fun filterKind(items: List<DisclosureDto>, query: String, periodicOnly: Boolean): List<DisclosureDto> =
-        items.filter { (!periodicOnly || isPeriodic(it.title)) && (query.isBlank() || it.title.contains(query.trim(), ignoreCase = true)) }
+        items.filter { !isPeriodic(it.title) && !periodicOnly && (query.isBlank() || it.title.contains(query.trim(), ignoreCase = true)) }
 
     /** 공시일자·시각·접수번호 내림차순. 같은 id 는 하나만. */
     fun merge(dart: List<DisclosureDto>, kind: List<DisclosureDto>): List<DisclosureDto> =

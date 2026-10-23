@@ -25,7 +25,7 @@ import io.github.hdlee73.everycorp.data.api.dto.FinTableDto
 import io.github.hdlee73.everycorp.ui.theme.StockColors
 
 private val LabelWidth = 84.dp
-private val CellWidth = 92.dp
+private val CellWidth = 116.dp
 
 /** 항목 | 값 두 칸짜리 표(기업 개요처럼 이름-값 목록). 빈 값은 줄 자체를 숨긴다. */
 @Composable
@@ -43,7 +43,7 @@ fun KeyValueTable(rows: List<Pair<String, String?>>, modifier: Modifier = Modifi
 }
 
 /**
- * 기간 비교표. 첫 열은 항목명(고정), 나머지는 기간 열. 금액은 억원, 1조 이상은 조원을 아래에 함께 보여 준다.
+ * 기간 비교표. 첫 열은 항목명(고정), 나머지는 기간 열. 금액은 모두 억원으로 보여 준다.
  * 열이 많으면 가로로 밀어서 볼 수 있다.
  */
 @Composable
@@ -86,7 +86,7 @@ private fun RowLabel(label: String) {
     }
 }
 
-private val ROW_HEIGHT = 48.dp
+private val ROW_HEIGHT = 40.dp
 
 @Composable
 private fun AmountCell(value: Double?, unit: String?) {
@@ -98,8 +98,7 @@ private fun AmountCell(value: Double?, unit: String?) {
             Text(if (value == null) "-" else Fmt.percent(value), style = MaterialTheme.typography.bodyMedium, maxLines = 1)
         } else {
             val color = if (value != null && value < 0) StockColors.down else MaterialTheme.colorScheme.onSurface
-            Text(Fmt.eok(value), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = color, maxLines = 1)
-            Fmt.jo(value)?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1) }
+            Text(Fmt.eok(value), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = color, maxLines = 1, softWrap = false)
         }
     }
 }

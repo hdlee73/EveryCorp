@@ -99,6 +99,25 @@ async def _fetch_year_rows(corp_code: str, year: int, fs_div: str) -> list[dict]
     return None
 
 
+async def _year_end_closes(corp_code: str, fiscal_month: int, years: list[int]) -> dict[int, int] | None:
+    """상장사·12월 결산일 때만 연말 종가를 구한다(PER·PBR 추이용). 실패해도 개황 본문은 낸다."""
+    if fiscal_month != 12 or not years:
+        return None
+    try:
+        from ..parsers import price as pp
+        from . import price_service
+
+        company = await get_company(corp_code)
+        stock = (company.get("stock_code") or "").strip()
+        if not stock or company.get("corp_cls") not in ("Y", "K", "N"):
+            return None
+        rows = await price_service._naver_daily(stock, date(min(years), 1, 1), date.today())
+        return pp.year_end_closes(rows, years) or None
+    except Exception as e:  # noqa: BLE001
+        log.warning("year-end closes failed: %s", e)
+        return None
+
+
 @cached(ttl=6 * 3600)
 async def get_financials(corp_code: str, fiscal_month: int, industry_code: str | None) -> dict:
     """최직근 정기보고서(사업·반기·분기) + 최근 사업보고서 기준 재무 비교. 연결(CFS) 우선, 없으면 별도(OFS)."""
@@ -134,7 +153,10 @@ async def get_financials(corp_code: str, fiscal_month: int, industry_code: str |
         got = await _fetch_year_rows(corp_code, int(annual_year) - 2, fs_div)
         if got:
             older_rows, older_year = got, int(annual_year) - 2
-    summary["trend"] = build_trend(annual_rows, int(annual_year) if annual_year else None, older_rows, older_year, industry_code)
+    closes = None
+    if annual_year:
+        closes = await _year_end_closes(corp_code, fiscal_month, list(range(int(annual_year) - 4, int(annual_year) + 1)))
+    summary["trend"] = build_trend(annual_rows, int(annual_year) if annual_year else None, older_rows, older_year, industry_code, closes)
     summary["tables"] = build_comparison_tables(
         latest_rows, latest.kind, latest.period_year, latest.period_month,
         annual_rows, int(annual_year) if annual_year else None, fiscal_month, industry_code,

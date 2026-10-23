@@ -48,7 +48,8 @@ class KindTest {
         val dart = listOf(item("DART-3", "2026-03-10", "사업보고서 (2025.12)"), item("DART-1", "2026-10-01", "분기보고서 (2026.09)"))
         val kind = listOf(item("KIND-2", "2026-10-01", "주요공시", "09:00"), item("KIND-9", "2026-05-01", "분기보고서 (2026.03)"))
         assertEquals(listOf("KIND-2", "DART-1", "KIND-9", "DART-3"), DisclosureMerge.merge(dart, kind).map { it.id })
-        assertEquals(listOf("KIND-9"), DisclosureMerge.filterKind(kind, "", periodicOnly = true).map { it.id })
+        assertEquals(emptyList<String>(), DisclosureMerge.filterKind(kind, "", periodicOnly = true).map { it.id })
+        assertEquals(listOf("KIND-2"), DisclosureMerge.filterKind(kind, "", periodicOnly = false).map { it.id })
         assertEquals(listOf("KIND-2"), DisclosureMerge.filterKind(kind, "주요", periodicOnly = false).map { it.id })
     }
 }
