@@ -40,7 +40,7 @@ fun sessionMinute(time: String): Int? {
     return (h * 60 + m - SESSION_START).coerceIn(0, SESSION_MINUTES)
 }
 
-/** 당일 주가 추이 미니 차트. 가로축은 장 시간(09:00~15:30) 고정이라 장중에는 오른쪽이 비어 있다. 점선은 전일 종가. */
+/** 당일 주가 추이 미니 차트. 가로축은 장 시간(09:00~15:30) 고정이라 장중에는 오른쪽이 비어 있다. 점선은 전일 종가이고 그 위는 빨강, 아래는 파랑. */
 @Composable
 fun IntradaySparkline(points: List<IntradayPointDto>, prevClose: Long?, lineColor: Color, modifier: Modifier = Modifier) {
     val gridColor = MaterialTheme.colorScheme.outlineVariant
@@ -59,15 +59,31 @@ fun IntradaySparkline(points: List<IntradayPointDto>, prevClose: Long?, lineColo
         val lastX = x(points.last().time)
         val fill = Path().apply { addPath(line); lineTo(lastX, size.height); lineTo(x(points.first().time), size.height); close() }
         drawPath(fill, Brush.verticalGradient(listOf(lineColor.copy(alpha = 0.18f), Color.Transparent)))
-        // 오르는 구간은 빨강, 내리는 구간은 파랑. 0.4% 이상 되돌릴 때마다 색이 바뀐다.
-        val pivots = swingPivots(prices, 0.004f)
-        for (k in 0 until pivots.size - 1) {
-            val a = pivots[k]; val b = pivots[k + 1]
-            val seg = Path()
-            for (i in a..b) { val px = x(points[i].time); val py = y(prices[i]); if (i == a) seg.moveTo(px, py) else seg.lineTo(px, py) }
-            drawPath(seg, if (prices[b] >= prices[a]) StockColors.up else StockColors.down, style = Stroke(width = 3f))
+        // 전일 종가 위는 빨강, 아래는 파랑. 기준선을 가로지르는 구간은 교차점에서 나눠 색을 바꾼다.
+        // 전일 종가를 모르면 0.4% 이상 되돌릴 때마다 오름(빨강)/내림(파랑)으로 나눈다.
+        if (base != null) {
+            for (i in 1 until points.size) {
+                val x0 = x(points[i - 1].time); val x1 = x(points[i].time)
+                val p0 = prices[i - 1]; val p1 = prices[i]
+                fun seg(xa: Float, pa: Float, xb: Float, pb: Float, up: Boolean) =
+                    drawLine(if (up) StockColors.up else StockColors.down, Offset(xa, y(pa)), Offset(xb, y(pb)), strokeWidth = 3f)
+                if ((p0 - base) * (p1 - base) < 0f) {
+                    val t = (base - p0) / (p1 - p0)
+                    val xm = x0 + (x1 - x0) * t
+                    seg(x0, p0, xm, base, p0 > base)
+                    seg(xm, base, x1, p1, p1 > base)
+                } else seg(x0, p0, x1, p1, (p0 + p1) / 2f >= base)
+            }
+        } else {
+            val pivots = swingPivots(prices, 0.004f)
+            for (k in 0 until pivots.size - 1) {
+                val a = pivots[k]; val b = pivots[k + 1]
+                val seg = Path()
+                for (i in a..b) { val px = x(points[i].time); val py = y(prices[i]); if (i == a) seg.moveTo(px, py) else seg.lineTo(px, py) }
+                drawPath(seg, if (prices[b] >= prices[a]) StockColors.up else StockColors.down, style = Stroke(width = 3f))
+            }
         }
-        drawCircle(lineColor, radius = 5f, center = Offset(lastX, y(prices.last())))
+        drawCircle(if (base != null && prices.last() < base) StockColors.down else if (base != null) StockColors.up else lineColor, radius = 5f, center = Offset(lastX, y(prices.last())))
     }
 }
 
