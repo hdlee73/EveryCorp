@@ -86,3 +86,20 @@ def mobile_viewer_url(rcp_no: str) -> str:
 
 def pdf_url(rcp_no: str, dcm_no: str) -> str:
     return f"{DART_HOST}/pdf/download/pdf.do?rcp_no={rcp_no}&dcm_no={dcm_no}"
+
+
+_NODE_ATTR_RE = re.compile(r"""node\d+\['(text|id|rcpNo|dcmNo|eleId|offset|length|dtd)'\]\s*=\s*"([^"]*)\"""")
+
+
+def parse_nodes(html: str) -> list[dict]:
+    """뷰어 목차 노드(text·rcpNo·dcmNo·eleId·offset·length·dtd). 노드는 'text' 속성에서 시작한다(2026-10 실서버 확인)."""
+    blocks: list[dict] = []
+    cur: dict = {}
+    for k, v in _NODE_ATTR_RE.findall(html):
+        if k == "text" and cur:
+            blocks.append(cur)
+            cur = {}
+        cur[k] = v
+    if cur:
+        blocks.append(cur)
+    return blocks

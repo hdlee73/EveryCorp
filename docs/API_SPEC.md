@@ -426,3 +426,7 @@ DART 정기보고서의 증권 미상환 잔액(회사채·기업어음증권(CP
 - `GET /etfs/search?q=&limit=`: 키움 ETF 전체시세(ka40004)를 6시간 캐시해 이름·코드·기초지수로 검색. 항목은 `code,name,index_name,price,change_rate,nav,volume`.
 - `GET /etfs/{code}`: 종목정보(ka40002)·일별추이(ka40003)·현재가. `quote`는 주식 현재가와 같은 형식, `daily[]`는 최신순 `date,close,change_rate,volume,nav,disparity,tracking_error`. 추적오차율은 소수점 없는 응답(예 69)을 100으로 나눠 0.69%로 표시한다.
 - `GET /etfs/{code}/chart?days=`: 주식 차트와 같은 형식.
+
+## v1.0.7 추가 사항
+
+- `GET /corps/{corp_code}/shareholders`: DART 최대주주 데이터가 없는 법인은 단독 감사보고서 주석의 주주현황 표에서 추출해 `available: true, estimated: true`로 내려준다(추출 실패 시 기존처럼 `available: false`). `overview.largest_shareholder`도 같은 방식이며 `estimated`가 true다.

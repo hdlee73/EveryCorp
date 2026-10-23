@@ -67,6 +67,11 @@ async def get_shareholders(corp_code: str, fiscal_month: int) -> dict:
         if summary["available"]:
             summary["basis"] = _basis(report, year, reprt_code_for(report, fiscal_month))
             return summary
+    from . import audit_holders_service
+
+    est = await audit_holders_service.get_audit_holders(corp_code)
+    if est:
+        return audit_holders_service.as_summary(est)
     return {
         "available": False,
         "display": "정기보고서(사업·반기·분기) 제출 대상이 아니어서 최대주주 현황을 제공하지 않습니다.",

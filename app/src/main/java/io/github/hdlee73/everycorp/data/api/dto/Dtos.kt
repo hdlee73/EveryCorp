@@ -374,6 +374,8 @@ data class IntradayPointDto(val time: String, val price: Long, val volume: Long 
 data class ShareholdersDto(
     val available: Boolean = false,
     val message: String? = null,
+    /** 비상장 법인의 감사보고서 주석에서 뽑은 추정값이면 true. */
+    val estimated: Boolean = false,
     val source: String = "",
     val basis: BasisDto? = null,
     val holders: List<ShareholderRowDto> = emptyList(),

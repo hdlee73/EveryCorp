@@ -106,7 +106,7 @@ private fun HoldersCard(h: ShareholdersDto) {
     // 보통주·우선주 등 종류별로 행이 따로 오므로 같은 사람이 여러 번 나올 수 있다. 종류를 함께 보여 준다.
     val kinds = h.holders.map { it.stockKind }.filter { it.isNotBlank() }.distinct()
     val showKind = kinds.size > 1
-    SectionCard(title = "최대주주 및 특수관계인") {
+    SectionCard(title = if (h.estimated) "최대주주 및 특수관계인 (추정)" else "최대주주 및 특수관계인") {
         h.basis?.let { Text("${it.reportName} 기준 · 기말 지분율", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         Row(Modifier.fillMaxWidth()) {
             Text("성명", Modifier.weight(1.5f), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
