@@ -430,3 +430,7 @@ DART 정기보고서의 증권 미상환 잔액(회사채·기업어음증권(CP
 ## v1.0.7 추가 사항
 
 - `GET /corps/{corp_code}/shareholders`: DART 최대주주 데이터가 없는 법인은 단독 감사보고서 주석의 주주현황 표에서 추출해 `available: true, estimated: true`로 내려준다(추출 실패 시 기존처럼 `available: false`). `overview.largest_shareholder`도 같은 방식이며 `estimated`가 true다.
+
+## 채권 출처 변경(서버만)
+
+- `GET /corps/{corp_code}/debt-securities`: 공공데이터포털 채권기본정보(예탁결제원)만 사용한다. 조회가 비거나 실패하면 DART 정기보고서로 대체하지 않고 `available:false` 와 사유(`message`)를 내려준다.
