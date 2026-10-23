@@ -109,24 +109,32 @@ def test_health_and_meta_public():
 
 
 @respx.mock
-def test_debt_securities_endpoint(client, monkeypatch):
-    from app.config import get_settings
-    monkeypatch.setattr(get_settings(), "data_go_kr_key", "KEY", raising=False)
-    respx.get(f"{DART}/company.json").mock(return_value=httpx.Response(200, json={"status": "000", "corp_name": "삼성전자", "stock_code": "005930", "corp_cls": "Y", "acc_mt": "12", "jurir_no": "1301110006246"}))
-    ksd = respx.get("https://apis.data.go.kr/1160100/GetBondIssuInfoService_V2/getBondBasiInfo_V2")
-    ksd.mock(return_value=httpx.Response(200, json={"response": {"body": {"totalCount": 1, "items": {"item": [
-        {"isinCd": "KR1", "isinCdNm": "테스트 제1회", "basDt": "20991231", "bondBal": "20000000000", "bondExprDt": "20991231", "scrsItmsKcdNm": "회사채"}]}}}}))
+def test_debt_securities_endpoint(client):
+    respx.get(f"{DART}/company.json").mock(return_value=httpx.Response(200, json={"status": "000", "corp_name": "삼성전자", "stock_code": "005930", "corp_cls": "Y", "acc_mt": "12"}))
+    respx.get(f"{DART}/list.json").mock(return_value=httpx.Response(200, json={"status": "000", "total_page": 1, "list": [
+        {"report_nm": "사업보고서 (2025.12)", "rcept_no": "20260310000100", "rcept_dt": "20260310"}]}))
+    respx.get(f"{DART}/cprndNrdmpBlce.json").mock(return_value=httpx.Response(200, json={"status": "000", "list": [
+        {"remndr_exprtn1": "합계", "remndr_exprtn2": "-", "yy1_below": "10", "sm": "10"}]}))
+    for ep in ("entrprsBilScritsNrdmpBlce", "srtpdPsndbtNrdmpBlce", "newCaplScritsNrdmpBlce", "cndlCaplScritsNrdmpBlce"):
+        respx.get(f"{DART}/{ep}.json").mock(return_value=httpx.Response(200, json={"status": "013", "message": "조회된 데이타가 없습니다."}))
     body = client.get("/api/v1/corps/00126380/debt-securities").json()
     assert body["available"] is True
-    assert body["sections"][0]["total"] == 20_000_000_000
+    assert [s["key"] for s in body["sections"]] == ["CORP_BOND"]
+    assert "기업어음증권" in body["missing"] and "단기사채" in body["missing"]
+    assert body["basis"]["reprt_code"] == "11011"
 
 
 @respx.mock
-def test_debt_securities_reports_ksd_failure_without_dart(client, monkeypatch):
+def test_debt_fallback_notes_ksd_reason(client, monkeypatch):
     from app.config import get_settings
     monkeypatch.setattr(get_settings(), "data_go_kr_key", "KEY", raising=False)
     respx.get(f"{DART}/company.json").mock(return_value=httpx.Response(200, json={"status": "000", "corp_name": "삼성전자", "stock_code": "005930", "corp_cls": "Y", "acc_mt": "12", "jurir_no": "1301110006246"}))
     respx.get("https://apis.data.go.kr/1160100/GetBondIssuInfoService_V2/getBondBasiInfo_V2").mock(return_value=httpx.Response(403))
+    respx.get(f"{DART}/list.json").mock(return_value=httpx.Response(200, json={"status": "000", "total_page": 1, "list": [
+        {"report_nm": "사업보고서 (2025.12)", "rcept_no": "20260310000100", "rcept_dt": "20260310"}]}))
+    respx.get(f"{DART}/cprndNrdmpBlce.json").mock(return_value=httpx.Response(200, json={"status": "000", "list": [
+        {"remndr_exprtn1": "합계", "remndr_exprtn2": "-", "yy1_below": "10", "sm": "10"}]}))
+    for ep in ("entrprsBilScritsNrdmpBlce", "srtpdPsndbtNrdmpBlce", "newCaplScritsNrdmpBlce", "cndlCaplScritsNrdmpBlce"):
+        respx.get(f"{DART}/{ep}.json").mock(return_value=httpx.Response(200, json={"status": "013", "message": "조회된 데이타가 없습니다."}))
     body = client.get("/api/v1/corps/00126380/debt-securities").json()
-    assert body["available"] is False
-    assert "HTTP 403" in body["message"] and "DART" not in body["source"]
+    assert body["available"] is True and "HTTP 403" in body["source"]
