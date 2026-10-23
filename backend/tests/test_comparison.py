@@ -39,10 +39,10 @@ def test_tables_with_half_year_report():
     assert bal["rows"][0]["values"] == [1000, 900, 800, 700]
     assert bal["rows"][3]["values"] == [66.7, 50.0, 60.0, 40.0]      # 부채비율 = 부채/자본
     inc = t["income"]
-    assert [c["label"] for c in inc["columns"]] == ["분기손익", "누적손익", "2025년 연간", "2024년 연간"]
+    assert [c["label"] for c in inc["columns"]] == ["분기손익", "누적손익", "2025년 연간", "2024년 연간", "2023년 연간"]
     assert inc["columns"][0]["sub"] == "2026.04~06" and inc["columns"][1]["sub"] == "2026.01~06"
-    assert inc["rows"][0]["values"] == [50, 100, 400, 350]
-    assert inc["rows"][2]["values"] == [8, 15, 30, 25]
+    assert inc["rows"][0]["values"] == [50, 100, 400, 350, 300]
+    assert inc["rows"][2]["values"] == [8, 15, 30, 25, 15]
 
 
 def test_tables_when_latest_is_annual():

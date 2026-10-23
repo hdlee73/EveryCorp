@@ -30,6 +30,7 @@ import io.github.hdlee73.everycorp.ui.common.KeyValueTable
 import io.github.hdlee73.everycorp.ui.common.SectionCard
 import io.github.hdlee73.everycorp.ui.common.TrendBars
 import io.github.hdlee73.everycorp.ui.common.TrendLine
+import io.github.hdlee73.everycorp.ui.common.TrendValueTable
 import io.github.hdlee73.everycorp.ui.common.UiState
 import io.github.hdlee73.everycorp.ui.common.UiStateContent
 
@@ -88,11 +89,13 @@ private fun OverviewBody(o: OverviewDto, badge: String, holders: UiState<Shareho
             Text("출처: DART 사업보고서 · ${f.fsLabel.orEmpty()}재무제표 · 단위 억원 (막대를 누르면 수치 표시)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             TrendBars(t)
             TrendLine(t, "debt_ratio")
-            TrendLine(t, "eps")
-            TrendLine(t, "per")
-            TrendLine(t, "pbr")
-            if (t.series.any { it.key == "per" || it.key == "pbr" }) {
-                Text("PER·PBR은 각 연도 마지막 거래일 종가 기준 추정치(PBR은 지배주주 자본 ÷ 가중평균 주식수)입니다.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (t.series.any { it.key in listOf("eps", "per", "pbr") }) {
+                Text("주당·배수 지표", style = MaterialTheme.typography.titleSmall)
+                TrendValueTable(t, listOf("eps", "per", "pbr"))
+                Text(
+                    "EPS는 DART 공시값입니다. PER = 연말 종가 ÷ EPS, PBR = 연말 종가 ÷ BPS(지배주주 자본 ÷ 가중평균 주식수)로 직접 계산한 추정치라 키움·증권사 표시값과 다를 수 있습니다.",
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
@@ -100,23 +103,29 @@ private fun OverviewBody(o: OverviewDto, badge: String, holders: UiState<Shareho
 
 @Composable
 private fun HoldersCard(h: ShareholdersDto) {
+    // 보통주·우선주 등 종류별로 행이 따로 오므로 같은 사람이 여러 번 나올 수 있다. 종류를 함께 보여 준다.
+    val kinds = h.holders.map { it.stockKind }.filter { it.isNotBlank() }.distinct()
+    val showKind = kinds.size > 1
     SectionCard(title = "최대주주 및 특수관계인") {
         h.basis?.let { Text("${it.reportName} 기준 · 기말 지분율", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         Row(Modifier.fillMaxWidth()) {
             Text("성명", Modifier.weight(1.5f), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
             Text("관계", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+            if (showKind) Text("종류", Modifier.weight(0.7f), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
             Text("지분율", Modifier.weight(0.8f), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End)
         }
         h.holders.forEach { x ->
             Row(Modifier.fillMaxWidth()) {
                 Text(x.name, Modifier.weight(1.5f), style = MaterialTheme.typography.bodyMedium)
                 Text(x.relation, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (showKind) Text(x.stockKind, Modifier.weight(0.7f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(x.endRatio?.let { Fmt.percent(it) } ?: "-", Modifier.weight(0.8f), style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.End)
             }
         }
-        h.total?.let { t ->
+        val totals = h.totals.ifEmpty { listOfNotNull(h.total) }
+        totals.forEach { t ->
             Row(Modifier.fillMaxWidth()) {
-                Text("합계", Modifier.weight(2.5f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Text(if (t.stockKind.isNotBlank()) "합계 · ${t.stockKind}" else "합계", Modifier.weight(if (showKind) 3.2f else 2.5f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                 Text(t.endRatio?.let { Fmt.percent(it) } ?: "-", Modifier.weight(0.8f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End)
             }
         }

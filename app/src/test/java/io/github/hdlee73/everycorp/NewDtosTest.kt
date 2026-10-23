@@ -20,18 +20,20 @@ class NewDtosTest {
         assertNull(f.trend?.series?.first()?.values?.get(1))
     }
 
-    @Test fun opinionsDecode() {
+    @Test fun reportOpinionDecodes() {
         val r = json.decodeFromString<AuditReportsResponse>(
-            """{"opinions":{"report_name":"사업보고서 (2025.12)","items":[{"term":"제57기(당기)","auditor":"삼정회계법인","opinion":"적정"}],"source":"s"},"reports":[]}""",
+            """{"reports":[{"id":"1-2","title":"반기검토보고서","kind":"REVIEW","rcp_no":"1","dcm_no":"2","auditor":"삼정회계법인","opinion":"적정","pdf_url":"u","pdf_proxy_path":"p","viewer_url":"v","file_name":"f.pdf"}]}""",
         )
-        assertEquals("적정", r.opinions?.items?.first()?.opinion)
+        assertEquals("적정", r.reports.first().opinion)
+        assertEquals("삼정회계법인", r.reports.first().auditor)
     }
 
     @Test fun shareholdersDecode() {
         val s = json.decodeFromString<ShareholdersDto>(
-            """{"available":true,"holders":[{"name":"이재용","relation":"본인","end_shares":97414196,"end_ratio":1.63}],"changes":[{"date":"2020.10.25","name":"이재용","cause":"상속"}]}""",
+            """{"available":true,"holders":[{"name":"이재용","relation":"본인","end_shares":97414196,"end_ratio":1.63}],"totals":[{"name":"계","stock_kind":"우선주","end_ratio":3.4}],"changes":[{"date":"2020.10.25","name":"이재용","cause":"상속"}]}""",
         )
         assertEquals(97_414_196L, s.holders.first().endShares)
         assertEquals("상속", s.changes.first().cause)
+        assertEquals("우선주", s.totals.first().stockKind)
     }
 }

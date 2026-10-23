@@ -172,20 +172,8 @@ data class AuditReportsResponse(
     val to: String = "",
     val count: Int = 0,
     val partial: Boolean = false,
-    /** 최근 사업보고서의 감사의견·감사인(당기·전기·전전기). 정기보고서 제출 대상이 아니면 null. */
-    val opinions: AuditOpinionsDto? = null,
     val reports: List<AuditReportDto> = emptyList(),
 )
-
-@Serializable
-data class AuditOpinionsDto(
-    @SerialName("report_name") val reportName: String = "",
-    val items: List<AuditOpinionItemDto> = emptyList(),
-    val source: String = "",
-)
-
-@Serializable
-data class AuditOpinionItemDto(val term: String = "", val auditor: String = "", val opinion: String = "", val scope: String = "")
 
 @Serializable
 data class AuditReportDto(
@@ -195,6 +183,9 @@ data class AuditReportDto(
     val kind: String,
     val consolidated: Boolean = false,
     val period: String = "",
+    /** 해당 기간 정기보고서의 감사(검토)인·의견. 없으면 빈 문자열. */
+    val auditor: String = "",
+    val opinion: String = "",
     @SerialName("period_label") val periodLabel: String = "",
     @SerialName("rcept_dt") val rceptDt: String = "",
     @SerialName("rcp_no") val rcpNo: String,
@@ -387,6 +378,8 @@ data class ShareholdersDto(
     val basis: BasisDto? = null,
     val holders: List<ShareholderRowDto> = emptyList(),
     val total: ShareholderRowDto? = null,
+    /** 주식 종류(보통주·우선주 등)별 합계. */
+    val totals: List<ShareholderRowDto> = emptyList(),
     val largest: String? = null,
     val changes: List<HolderChangeDto> = emptyList(),
     @SerialName("viewer_url") val viewerUrl: String? = null,

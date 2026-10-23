@@ -414,3 +414,9 @@ DART 정기보고서의 증권 미상환 잔액(회사채·기업어음증권(CP
 
 ### `GET /corps/{corp_code}/audit-reports`
 응답에 `opinions`(회계연도별 감사의견·감사인 요약)가 추가되었다.
+
+## v1.0.5 변경 사항
+
+- `GET /corps/{corp_code}/shareholders`: `totals`(주식 종류별 합계) 추가. `total`은 보통주 합계(하위 호환).
+- `GET /corps/{corp_code}/audit-reports`: 최상위 `opinions` 제거, 각 `reports[]` 항목에 `auditor`·`opinion` 추가(해당 기간 정기보고서 기준, 없으면 빈 문자열).
+- `GET /corps/{corp_code}/overview`: `financials.tables.income`에 최근 3개 연간 열(기존 2개).

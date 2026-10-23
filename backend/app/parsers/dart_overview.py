@@ -270,7 +270,7 @@ def build_comparison_tables(
     """최직근 보고서(분기·반기·사업) + 최근 사업보고서로 재무 비교표를 만든다.
 
     - 재무상태: [최직근 기말(분기·반기일 때만)] + 최근 3개 연말
-    - 손익: 분기·반기일 때 [분기 손익, 누적 손익] + 직전 2개 연간 / 사업보고서가 최직근이면 연간 3개
+    - 손익: 분기·반기일 때 [분기 손익, 누적 손익] + 직전 3개 연간 / 사업보고서가 최직근이면 연간 3개
     금액은 원 단위 정수, 부채비율은 %. 없는 값은 None.
     """
     latest = _account_rows(latest_rows, industry_code) if latest_rows else None
@@ -323,6 +323,7 @@ def build_comparison_tables(
         if annual and annual_year:
             add_inc(f"{annual_year}년 연간", "전년말", annual, "thstrm_amount")
             add_inc(f"{annual_year - 1}년 연간", "전전년말", annual, "frmtrm_amount")
+            add_inc(f"{annual_year - 2}년 연간", None, annual, "bfefrmtrm_amount")  # 재무상태의 3개 연말과 맞춘다
     else:
         src = latest if latest else annual
         year = latest_year if latest else (annual_year or 0)

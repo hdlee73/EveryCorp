@@ -24,3 +24,15 @@ def test_changes_skip_blank_names():
     ]
     c = summarize_changes(rows)
     assert len(c) == 1 and c[0]["cause"] == "별세" and c[0]["ratio"] == 0.5
+
+
+def test_totals_split_by_stock_kind():
+    def row(nm, kind, rt, relate="임원"):
+        return {"nm": nm, "relate": relate, "stock_knd": kind, "bsis_posesn_stock_co": "1", "bsis_posesn_stock_qota_rt": rt,
+                "trmend_posesn_stock_co": "1", "trmend_posesn_stock_qota_rt": rt, "rm": "-"}
+    rows = [row("한진칼", "보통주", "26.1", "본인"), row("조원태", "보통주", "0.0"), row("조원태", "우선주", "0.5"),
+            row("계", "보통주", "26.1"), row("계", "우선주", "3.4")]
+    s = summarize_holders(rows)
+    assert [(h["name"], h["stock_kind"]) for h in s["holders"]][1:] == [("조원태", "보통주"), ("조원태", "우선주")]
+    assert [(t["stock_kind"], t["end_ratio"]) for t in s["totals"]] == [("보통주", 26.1), ("우선주", 3.4)]
+    assert s["total"]["end_ratio"] == 26.1 and s["largest"] == "한진칼"

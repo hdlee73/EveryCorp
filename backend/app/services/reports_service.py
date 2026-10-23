@@ -147,23 +147,34 @@ def summarize_opinions(rows: list[dict]) -> list[dict]:
     return out
 
 
-async def get_audit_opinions(corp_code: str) -> dict | None:
-    """최근 사업보고서의 감사의견·감사인(당기·전기·전전기). 정기보고서 제출 대상이 아니면 None."""
+async def get_period_opinions(corp_code: str, since: date) -> dict[str, dict]:
+    """정기보고서(사업·반기·분기)별 당기 감사의견·감사인 → {"YYYY-MM": {auditor, opinion}}.
+
+    DART 응답에는 연결·별도를 가르는 필드가 없어서 같은 기간의 연결·별도 카드가 같은 값을 쓴다.
+    실패해도 보고서 목록은 내려주므로 빈 dict로 둔다.
+    """
     try:
         company = await get_company(corp_code)
         fiscal_month = int(company.get("acc_mt") or 12)
-        annuals = [r for r in await get_periodic_reports(corp_code) if r.kind == "사업"]
-        for report in annuals[:2]:
-            got = await _fetch_report_api("accnutAdtorNmNdAdtOpinion.json", corp_code, report, fiscal_month)
-            if got is None:
-                continue
-            items = summarize_opinions(got[0])
-            if items:
-                return {"report_name": report.report_nm, "rcept_no": report.rcept_no, "items": items,
-                        "source": "출처: Open DART 회계감사인의 명칭 및 감사의견(사업보고서)"}
-    except Exception as e:  # noqa: BLE001  요약은 부가 정보라 실패해도 보고서 목록은 내려준다
-        log.warning("audit opinion failed: %s", e)
-    return None
+        reports = [r for r in await get_periodic_reports(corp_code) if r.rcept_dt >= since.strftime("%Y%m%d")][:12]
+    except Exception as e:  # noqa: BLE001
+        log.warning("period opinions failed: %s", e)
+        return {}
+
+    async def one(report) -> tuple[str, dict] | None:
+        got = await _fetch_report_api("accnutAdtorNmNdAdtOpinion.json", corp_code, report, fiscal_month)
+        items = summarize_opinions(got[0]) if got else []
+        if not items:
+            return None
+        return f"{report.period_year}-{report.period_month:02d}", {"auditor": items[0]["auditor"], "opinion": items[0]["opinion"]}
+
+    out: dict[str, dict] = {}
+    for r in await asyncio.gather(*(one(rep) for rep in reports), return_exceptions=True):
+        if isinstance(r, Exception):
+            log.warning("period opinion failed: %s", r)
+        elif r:
+            out[r[0]] = r[1]
+    return out
 
 
 @cached(ttl=6 * 3600)
@@ -177,7 +188,7 @@ async def get_audit_reports(corp_code: str, years: int = 3) -> dict:
     f_items, a_items, opinions = await asyncio.gather(
         dart_client.list_disclosures(corp_code, bgn_s, end_s, pblntf_ty="F", max_pages=5),
         dart_client.list_disclosures(corp_code, bgn_s, end_s, pblntf_ty="A", max_pages=5),
-        get_audit_opinions(corp_code),
+        get_period_opinions(corp_code, bgn),
     )
     tasks = [_standalone(corp_name, it) for it in f_items] + [_attachments(corp_name, it) for it in a_items]
     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -190,6 +201,9 @@ async def get_audit_reports(corp_code: str, years: int = 3) -> dict:
             continue
         collected.extend(r)
     reports = merge_reports(collected)
+    for rep in reports:
+        got = opinions.get(rep["period"], {})
+        rep["auditor"], rep["opinion"] = got.get("auditor", ""), got.get("opinion", "")
     return {
         "corp_code": corp_code,
         "corp_name": corp_name,
@@ -197,6 +211,5 @@ async def get_audit_reports(corp_code: str, years: int = 3) -> dict:
         "to": end.isoformat(),
         "count": len(reports),
         "partial": failed > 0,
-        "opinions": opinions,
         "reports": reports,
     }
