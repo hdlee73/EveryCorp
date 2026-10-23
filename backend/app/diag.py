@@ -89,8 +89,15 @@ async def diag_reports(corp_code: str) -> None:
 
 # 공공데이터포털(금융위원회/예탁결제원) 채권 API. 엔드포인트 경로는 명세에서 확인하지 못해 후보를 모두 시도한다.
 BOND_CANDIDATES = [
-    "https://apis.data.go.kr/1160100/service/GetBondBasiInfoService/getBondBasiInfo",
-    "https://apis.data.go.kr/1160100/service/GetBondIssuInfoService/getBondIssuInfo",
+    # 확인된 주소(채권발행정보): 발행자별 발행종목 내역
+    "https://apis.data.go.kr/1160100/GetBondTradInfoService_V2/getIssuIssuItemStat_V2",
+    # 채권기본정보는 명세 화면에서 경로를 확인하지 못해 여러 후보를 시도한다.
+    "https://apis.data.go.kr/1160100/GetBondBasiInfoService/getBondBasiInfo",
+    "https://apis.data.go.kr/1160100/GetBondBasiInfoService_V2/getBondBasiInfo_V2",
+    "https://apis.data.go.kr/1160100/GetBondIssuInfoService/getBondBasiInfo",
+    "https://apis.data.go.kr/1160100/GetBondIssuInfoService_V2/getBondBasiInfo_V2",
+    "https://apis.data.go.kr/1160100/GetBondIssuInfoService/getBondIssuInfo",
+    "https://apis.data.go.kr/1160100/GetBondTradInfoService_V2/getBondBasiInfo_V2",
 ]
 
 
@@ -113,7 +120,11 @@ async def diag_bonds(corp_code: str) -> None:
             r = await get_client().get(url, params={"serviceKey": key, "resultType": "json", "numOfRows": 3,
                                                       "pageNo": 1, "crno": crno})
             print(url.rsplit("/", 2)[-2] + "/" + url.rsplit("/", 1)[-1], "->", r.status_code, "len", len(r.text))
-            print("   ", snippet(r.text.replace(key, "***"), 700))
+            body = r.text.replace(key, "***")
+            if "NO_OPENAPI_SERVICE_ERROR" in body:
+                print("    (없는 서비스 경로)")
+            else:
+                print("   ", snippet(body, 900))
         except Exception as e:  # noqa: BLE001
             print(url, "실패:", type(e).__name__, e)
 
