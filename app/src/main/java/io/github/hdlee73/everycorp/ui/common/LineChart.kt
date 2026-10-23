@@ -23,15 +23,19 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
+import io.github.hdlee73.everycorp.ui.theme.StockColors
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import io.github.hdlee73.everycorp.data.api.dto.ChartPointDto
 
 /**
  * 외부 라이브러리 없이 Canvas 로 그리는 라인 차트(종가).
  * - 손가락으로 누르거나 끌면 해당 일자의 종가를 보여준다.
- * - [high]/[low]는 52주 최고/최저 기준선으로 점선 표시.
+ * - [high]/[low]는 52주 최고/최저 기준선으로 점선과 가격·일자 라벨을 그래프 안에 표시.
  */
 @Composable
-fun PriceLineChart(points: List<ChartPointDto>, high: Long?, low: Long?, lineColor: Color, modifier: Modifier = Modifier) {
+fun PriceLineChart(points: List<ChartPointDto>, high: Long?, low: Long?, lineColor: Color, modifier: Modifier = Modifier, highDate: String? = null, lowDate: String? = null) {
     val data = remember(points) { points.filter { it.close != null } }
     if (data.size < 2) return
     var selected by remember(data) { mutableStateOf<Int?>(null) }
@@ -61,6 +65,17 @@ fun PriceLineChart(points: List<ChartPointDto>, high: Long?, low: Long?, lineCol
             val dash = PathEffect.dashPathEffect(floatArrayOf(10f, 10f))
             listOfNotNull(high, low).forEach { v ->
                 drawLine(gridColor, Offset(0f, y(v.toFloat())), Offset(size.width, y(v.toFloat())), strokeWidth = 2f, pathEffect = dash)
+            }
+            val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { textSize = 11.sp.toPx() }
+            high?.let { v ->
+                paint.color = StockColors.up.toArgb()
+                val t = "52주 최고 ${Fmt.price(v)}원" + (highDate?.let { " (${Fmt.date(it)})" } ?: "")
+                drawContext.canvas.nativeCanvas.drawText(t, 8f, y(v.toFloat()) + paint.textSize + 4f, paint)
+            }
+            low?.let { v ->
+                paint.color = StockColors.down.toArgb()
+                val t = "52주 최저 ${Fmt.price(v)}원" + (lowDate?.let { " (${Fmt.date(it)})" } ?: "")
+                drawContext.canvas.nativeCanvas.drawText(t, 8f, y(v.toFloat()) - 8f, paint)
             }
             val line = Path().apply {
                 closes.forEachIndexed { i, v -> if (i == 0) moveTo(x(i), y(v)) else lineTo(x(i), y(v)) }

@@ -58,20 +58,10 @@ fun StockTab(vm: CompanyViewModel) {
             SectionCard(title = "최근 1년 (일별 종가·거래량)") {
                 if (ch.points.size < 2) Text("차트 데이터가 부족합니다.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 else {
-                    PriceLineChart(ch.points, ch.range52w.high, ch.range52w.low, color)
+                    PriceLineChart(ch.points, ch.range52w.high, ch.range52w.low, color, highDate = ch.range52w.highDate, lowDate = ch.range52w.lowDate)
                     Text("거래량", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     VolumeBarChart(ch.points, Modifier.fillMaxWidth().height(72.dp))
                 }
-            }
-            SectionCard(title = "52주 범위") {
-                StatGrid(
-                    listOf(
-                        "52주 최고" to ch.range52w.high?.let { Fmt.price(it) + "원" },
-                        "52주 최저" to ch.range52w.low?.let { Fmt.price(it) + "원" },
-                        "최고가 일자" to ch.range52w.highDate?.let { Fmt.date(it) },
-                        "최저가 일자" to ch.range52w.lowDate?.let { Fmt.date(it) },
-                    ),
-                )
             }
         }
     }

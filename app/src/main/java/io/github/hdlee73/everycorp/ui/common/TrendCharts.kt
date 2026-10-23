@@ -33,7 +33,7 @@ import kotlin.math.abs
 /** 5개 연도 매출·영업이익·순이익 묶음 막대(억원). 막대를 누르면 그 해 수치를 위에 보여준다. */
 @Composable
 fun TrendBars(trend: TrendDto, modifier: Modifier = Modifier) {
-    val series = trend.series.filter { it.key != "debt_ratio" && it.values.any { v -> v != null } }
+    val series = trend.series.filter { it.key in setOf("revenue", "operating_income", "net_income") && it.values.any { v -> v != null } }
     val years = trend.years
     if (series.isEmpty() || years.isEmpty()) return
     val colors = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary, MaterialTheme.colorScheme.secondary)
@@ -85,7 +85,7 @@ fun TrendBars(trend: TrendDto, modifier: Modifier = Modifier) {
     }
 }
 
-/** 부채비율(%) 꺾은선. 점을 누르면 해당 연도 값을 보여준다. */
+/** 부채비율·EPS·PER·PBR 꺾은선. 점을 누르면 해당 연도 값을 보여준다. */
 @Composable
 fun TrendLine(trend: TrendDto, key: String, modifier: Modifier = Modifier) {
     val s = trend.series.firstOrNull { it.key == key } ?: return
@@ -100,7 +100,7 @@ fun TrendLine(trend: TrendDto, key: String, modifier: Modifier = Modifier) {
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
-            selected?.let { i -> "${years[i]}년  ${s.label} ${vals.getOrNull(i)?.let { String.format(java.util.Locale.US, "%.1f", it) } ?: "-"}" } ?: s.label,
+            selected?.let { i -> "${years[i]}년  ${s.label} ${vals.getOrNull(i)?.let { trendValue(key, it) } ?: "-"}" } ?: s.label,
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -124,6 +124,12 @@ fun TrendLine(trend: TrendDto, key: String, modifier: Modifier = Modifier) {
         }
         YearAxis(years)
     }
+}
+
+private fun trendValue(key: String, v: Float): String = when (key) {
+    "eps" -> String.format(java.util.Locale.US, "%,d원", v.toLong())
+    "per", "pbr" -> String.format(java.util.Locale.US, "%.2f배", v)
+    else -> String.format(java.util.Locale.US, "%.1f%%", v)
 }
 
 @Composable

@@ -273,6 +273,17 @@ def test_audit_opinion_summary():
         {"bsns_year": "제55기(전전기)", "adtor": "-", "adt_opinion": "-"},
     ]
     assert summarize_opinions(rows) == [
-        {"term": "제57기(당기)", "auditor": "삼정회계법인", "opinion": "적정"},
-        {"term": "제56기(전기)", "auditor": "삼정회계법인", "opinion": "적정"},
+        {"term": "제57기(당기)", "auditor": "삼정회계법인", "opinion": "적정", "scope": ""},
+        {"term": "제56기(전기)", "auditor": "삼정회계법인", "opinion": "적정", "scope": ""},
     ]
+
+
+def test_audit_opinion_duplicate_terms_marked_consolidated_then_separate():
+    from app.services.reports_service import summarize_opinions
+    rows = [
+        {"bsns_year": "제57기(당기)", "adtor": "삼정회계법인", "adt_opinion": "적정"},
+        {"bsns_year": "제57기(당기)", "adtor": "삼정회계법인", "adt_opinion": "적정"},
+        {"bsns_year": "제56기(전기)", "adtor": "삼정회계법인", "adt_opinion": "적정"},
+    ]
+    got = summarize_opinions(rows)
+    assert [(o["term"], o["scope"]) for o in got] == [("제57기(당기)", "연결"), ("제57기(당기)", "별도"), ("제56기(전기)", "")]

@@ -185,7 +185,7 @@ data class AuditOpinionsDto(
 )
 
 @Serializable
-data class AuditOpinionItemDto(val term: String = "", val auditor: String = "", val opinion: String = "")
+data class AuditOpinionItemDto(val term: String = "", val auditor: String = "", val opinion: String = "", val scope: String = "")
 
 @Serializable
 data class AuditReportDto(

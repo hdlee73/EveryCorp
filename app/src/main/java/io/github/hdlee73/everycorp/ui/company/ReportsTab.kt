@@ -46,7 +46,7 @@ private fun OpinionCard(op: AuditOpinionsDto) {
     SectionCard(title = "감사의견·감사인") {
         op.items.forEach { i ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(i.term, Modifier.weight(1.2f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(listOf(i.term, i.scope).filter { it.isNotBlank() }.joinToString(" · "), Modifier.weight(1.2f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(i.opinion.ifBlank { "-" }, Modifier.weight(0.8f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                 Text(i.auditor.ifBlank { "-" }, Modifier.weight(1.6f), style = MaterialTheme.typography.bodyMedium)
             }
