@@ -44,6 +44,11 @@ async def get_shareholders(corp_code: str) -> dict:
                 "changes": summarize_changes(changes or []),
                 "viewer_url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={report.rcept_no}",
             }
+    from . import audit_holders_service
+
+    est = await audit_holders_service.get_audit_holders(corp_code)
+    if est:
+        return audit_holders_service.as_shareholders(corp_code, est)
     return {
         "corp_code": corp_code,
         "available": False,
