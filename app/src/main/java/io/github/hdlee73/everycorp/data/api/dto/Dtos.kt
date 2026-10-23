@@ -406,3 +406,43 @@ data class HolderChangeDto(
     val cause: String = "",
     val note: String = "",
 )
+
+
+// ───────── ETF ─────────
+@Serializable
+data class EtfSearchResponse(val query: String = "", val count: Int = 0, val items: List<EtfItemDto> = emptyList())
+
+@Serializable
+data class EtfItemDto(
+    val code: String,
+    val name: String,
+    @SerialName("index_name") val indexName: String = "",
+    val price: Long? = null,
+    @SerialName("change_rate") val changeRate: Double? = null,
+    val nav: Double? = null,
+    val volume: Long? = null,
+)
+
+@Serializable
+data class EtfDetailDto(
+    val code: String,
+    val name: String = "",
+    @SerialName("index_name") val indexName: String = "",
+    @SerialName("tax_type") val taxType: String = "",
+    @SerialName("par_value") val parValue: Long? = null,
+    val quote: QuoteDto? = null,
+    val daily: List<EtfDailyDto> = emptyList(),
+    val source: String = "",
+)
+
+@Serializable
+data class EtfDailyDto(
+    val date: String,
+    val close: Long? = null,
+    @SerialName("change_rate") val changeRate: Double? = null,
+    val volume: Long? = null,
+    val nav: Double? = null,
+    /** 종가가 NAV보다 높으면 +(프리미엄), 낮으면 -(할인). 단위 %. */
+    val disparity: Double? = null,
+    @SerialName("tracking_error") val trackingError: Double? = null,
+)

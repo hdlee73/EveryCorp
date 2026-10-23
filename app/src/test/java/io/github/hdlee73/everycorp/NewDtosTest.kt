@@ -36,4 +36,15 @@ class NewDtosTest {
         assertEquals("상속", s.changes.first().cause)
         assertEquals("우선주", s.totals.first().stockKind)
     }
+
+    @Test fun etfDetailDecodes() {
+        val d = json.decodeFromString<io.github.hdlee73.everycorp.data.api.dto.EtfDetailDto>(
+            """{"code":"069500","name":"KODEX 200","index_name":"KOSPI200","tax_type":"비과세","par_value":10,
+               "quote":{"stock_code":"069500","price":87045,"change":520,"change_rate":0.6,"direction":"UP"},
+               "daily":[{"date":"2026-10-23","close":87045,"nav":87206.45,"disparity":-0.19,"tracking_error":0.69}]}""",
+        )
+        assertEquals("KOSPI200", d.indexName)
+        assertEquals(-0.19, d.daily.first().disparity ?: 0.0, 1e-9)
+        assertEquals(87045L, d.quote?.price)
+    }
 }

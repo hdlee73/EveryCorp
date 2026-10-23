@@ -30,6 +30,7 @@ import io.github.hdlee73.everycorp.ui.AppViewModel
 import io.github.hdlee73.everycorp.ui.UpdateDialogs
 import io.github.hdlee73.everycorp.ui.common.Dest
 import io.github.hdlee73.everycorp.ui.company.CompanyScreen
+import io.github.hdlee73.everycorp.ui.etf.EtfScreen
 import io.github.hdlee73.everycorp.ui.home.SearchScreen
 import io.github.hdlee73.everycorp.ui.info.AppInfoScreen
 import io.github.hdlee73.everycorp.ui.theme.EveryCorpTheme
@@ -68,6 +69,7 @@ private fun Root() {
         Dest.Home -> CompositionLocalProvider(LocalHeroPalette provides HeroPalettes.Sky) { SearchScreen(vm) }
         Dest.Info -> CompositionLocalProvider(LocalHeroPalette provides HeroPalettes.Slate) { AppInfoScreen(vm) }
         is Dest.Company -> CompanyScreen(vm, d)
+        is Dest.Etf -> EtfScreen(vm, d)
     }
     UpdateDialogs(vm)
 }
