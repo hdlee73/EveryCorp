@@ -6,6 +6,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
+import io.github.hdlee73.everycorp.data.api.dto.AuditReportDto
 import io.github.hdlee73.everycorp.data.api.dto.ChartDto
 import io.github.hdlee73.everycorp.data.api.dto.DebtSecuritiesDto
 import io.github.hdlee73.everycorp.data.api.dto.FinTableDto
@@ -22,6 +23,8 @@ data class SummaryPdfInput(
     val debt: DebtSecuritiesDto?,
     val quote: QuoteDto?,
     val chart: ChartDto?,
+    /** 기수·재무제표(연결/별도)별 감사(검토)인과 의견. 불러오지 못했으면 null. */
+    val auditReports: List<AuditReportDto>? = null,
     val appName: String,
     val versionName: String,
     val author: String,
@@ -176,6 +179,29 @@ class SummaryPdfWriter {
         y += 6f
     }
 
+    private fun auditTable(reports: List<AuditReportDto>) {
+        val x = floatArrayOf(MARGIN, MARGIN + 92f, MARGIN + 132f, MARGIN + 172f, MARGIN + 330f)
+        need(30f)
+        y += 11f
+        listOf("기간", "구분", "재무제표", "감사(검토)인", "의견").forEachIndexed { i, h -> canvas!!.drawText(h, x[i], y, small) }
+        y += 4f
+        canvas!!.drawLine(MARGIN, y, PAGE_W - MARGIN, y, line)
+        for (r in reports) {
+            val auditor = wrap(r.auditor.ifBlank { "-" }, body, x[4] - x[3] - 6f)
+            val opinion = wrap(r.opinion.ifBlank { "-" }, body, PAGE_W - MARGIN - x[4])
+            val n = maxOf(auditor.size, opinion.size)
+            need(13f * n + 4f)
+            y += 13f
+            canvas!!.drawText(r.periodLabel.ifBlank { r.period }, x[0], y, body)
+            canvas!!.drawText(if (r.kind == "REVIEW") "검토" else "감사", x[1], y, body)
+            canvas!!.drawText(if (r.consolidated) "연결" else "별도", x[2], y, body)
+            auditor.forEachIndexed { i, l -> canvas!!.drawText(l, x[3], y + 13f * i, body) }
+            opinion.forEachIndexed { i, l -> canvas!!.drawText(l, x[4], y + 13f * i, body) }
+            y += 13f * (n - 1) + 3f
+        }
+        y += 4f
+    }
+
     fun write(input: SummaryPdfInput, out: OutputStream) {
         newPage()
         text(input.corpName, h1, gap = 4f)
@@ -244,6 +270,15 @@ class SummaryPdfWriter {
                 }
             }
             input.chart?.let { priceChart(it) }
+        }
+
+        heading("5. 감사의견·감사인 (기수·재무제표별)")
+        val ar = input.auditReports
+        if (ar == null) text("감사보고서 정보를 불러오지 못했습니다.", small)
+        else if (ar.isEmpty()) text("조회 기간 내 감사·검토보고서가 없습니다.", small)
+        else {
+            auditTable(ar)
+            text("출처: DART 정기보고서·감사보고서. 연결/별도는 공시된 보고서 기준입니다.", small)
         }
 
         need(40f)

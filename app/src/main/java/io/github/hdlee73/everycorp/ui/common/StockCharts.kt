@@ -59,7 +59,14 @@ fun IntradaySparkline(points: List<IntradayPointDto>, prevClose: Long?, lineColo
         val lastX = x(points.last().time)
         val fill = Path().apply { addPath(line); lineTo(lastX, size.height); lineTo(x(points.first().time), size.height); close() }
         drawPath(fill, Brush.verticalGradient(listOf(lineColor.copy(alpha = 0.18f), Color.Transparent)))
-        drawPath(line, lineColor, style = Stroke(width = 3f))
+        // 오르는 구간은 빨강, 내리는 구간은 파랑. 0.4% 이상 되돌릴 때마다 색이 바뀐다.
+        val pivots = swingPivots(prices, 0.004f)
+        for (k in 0 until pivots.size - 1) {
+            val a = pivots[k]; val b = pivots[k + 1]
+            val seg = Path()
+            for (i in a..b) { val px = x(points[i].time); val py = y(prices[i]); if (i == a) seg.moveTo(px, py) else seg.lineTo(px, py) }
+            drawPath(seg, if (prices[b] >= prices[a]) StockColors.up else StockColors.down, style = Stroke(width = 3f))
+        }
         drawCircle(lineColor, radius = 5f, center = Offset(lastX, y(prices.last())))
     }
 }
@@ -84,15 +91,15 @@ fun VolumeBarChart(points: List<ChartPointDto>, modifier: Modifier = Modifier) {
     }
 }
 
-/** 시가·고가·저가·거래량 등을 2열 칸으로 정리한 표. 값이 없는 칸은 숨긴다. */
+/** 시가·고가·저가·거래량 등을 작은 3열 칸으로 정리한 표(9개 항목이 3줄). 값이 없는 칸은 숨긴다. */
 @Composable
-fun StatGrid(items: List<Pair<String, String?>>, modifier: Modifier = Modifier) {
+fun StatGrid(items: List<Pair<String, String?>>, modifier: Modifier = Modifier, columns: Int = 3) {
     val shown = items.filter { !it.second.isNullOrBlank() }
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        shown.chunked(2).forEach { row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        shown.chunked(columns).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 row.forEach { (label, value) -> StatTile(label, value.orEmpty(), Modifier.weight(1f)) }
-                if (row.size == 1) Box(Modifier.weight(1f))
+                repeat(columns - row.size) { Box(Modifier.weight(1f)) }
             }
         }
     }
@@ -101,12 +108,12 @@ fun StatGrid(items: List<Pair<String, String?>>, modifier: Modifier = Modifier) 
 @Composable
 private fun StatTile(label: String, value: String, modifier: Modifier = Modifier) {
     Surface(
-        modifier, shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f),
+        modifier, shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
     ) {
-        Column(Modifier.padding(horizontal = 12.dp, vertical = 9.dp)) {
-            Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
     }
 }

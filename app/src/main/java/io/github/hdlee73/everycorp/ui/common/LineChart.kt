@@ -46,6 +46,7 @@ fun PriceLineChart(points: List<ChartPointDto>, high: Long?, low: Long?, lineCol
     val maxV = maxOf(closes.max(), high?.toFloat() ?: closes.max())
     val minV = minOf(closes.min(), low?.toFloat() ?: closes.min())
     val span = (maxV - minV).takeIf { it > 0f } ?: 1f
+    val pivots = remember(closes) { swingPivots(closes, SWING_PCT) }
 
     Column(modifier) {
         val sel = selected?.let { data.getOrNull(it) }
@@ -67,27 +68,41 @@ fun PriceLineChart(points: List<ChartPointDto>, high: Long?, low: Long?, lineCol
                 drawLine(gridColor, Offset(0f, y(v.toFloat())), Offset(size.width, y(v.toFloat())), strokeWidth = 2f, pathEffect = dash)
             }
             val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { textSize = 11.sp.toPx() }
+            // 라벨은 해당 일자 근방에 놓는다. 일자를 못 찾으면 종가 최고/최저 위치로 대신한다.
+            fun idxOf(date: String?, fallback: Int) = date?.let { d -> data.indexOfFirst { it.date == d }.takeIf { it >= 0 } } ?: fallback
+            fun label(text: String, cx: Float, py: Float, above: Boolean, color: Color) {
+                paint.color = color.toArgb()
+                val w = paint.measureText(text)
+                val tx = (cx - w / 2).coerceIn(4f, (size.width - w - 4f).coerceAtLeast(4f))
+                val ty = if (above) py - 14f else py + paint.textSize + 10f
+                drawContext.canvas.nativeCanvas.drawText(text, tx, ty.coerceIn(paint.textSize, size.height - 4f), paint)
+                drawCircle(color, radius = 7f, center = Offset(cx, py))
+            }
             high?.let { v ->
-                paint.color = StockColors.up.toArgb()
-                val t = "52주 최고 ${Fmt.price(v)}원" + (highDate?.let { " (${Fmt.date(it)})" } ?: "")
-                drawContext.canvas.nativeCanvas.drawText(t, 8f, y(v.toFloat()) + paint.textSize + 4f, paint)
+                val i = idxOf(highDate, closes.indices.maxByOrNull { closes[it] } ?: 0)
+                label("최고 ${Fmt.price(v)}원" + (highDate?.let { " (${Fmt.date(it)})" } ?: ""), x(i), y(v.toFloat()), above = true, color = StockColors.up)
             }
             low?.let { v ->
-                paint.color = StockColors.down.toArgb()
-                val t = "52주 최저 ${Fmt.price(v)}원" + (lowDate?.let { " (${Fmt.date(it)})" } ?: "")
-                drawContext.canvas.nativeCanvas.drawText(t, 8f, y(v.toFloat()) - 8f, paint)
-            }
-            val line = Path().apply {
-                closes.forEachIndexed { i, v -> if (i == 0) moveTo(x(i), y(v)) else lineTo(x(i), y(v)) }
+                val i = idxOf(lowDate, closes.indices.minByOrNull { closes[it] } ?: 0)
+                label("최저 ${Fmt.price(v)}원" + (lowDate?.let { " (${Fmt.date(it)})" } ?: ""), x(i), y(v.toFloat()), above = false, color = StockColors.down)
             }
             val fill = Path().apply {
-                addPath(line); lineTo(size.width, size.height); lineTo(0f, size.height); close()
+                closes.forEachIndexed { i, v -> if (i == 0) moveTo(x(i), y(v)) else lineTo(x(i), y(v)) }
+                lineTo(size.width, size.height); lineTo(0f, size.height); close()
             }
-            drawPath(fill, Brush.verticalGradient(listOf(lineColor.copy(alpha = 0.18f), Color.Transparent)))
-            drawPath(line, lineColor, style = Stroke(width = 4f))
+            drawPath(fill, Brush.verticalGradient(listOf(lineColor.copy(alpha = 0.12f), Color.Transparent)))
+            // 상승 구간은 빨강, 하락 구간은 파랑. 방향이 바뀌는 지점(피벗)마다 색을 바꿔 그린다.
+            for (k in 0 until pivots.size - 1) {
+                val from = pivots[k]; val to = pivots[k + 1]
+                val seg = Path().apply {
+                    moveTo(x(from), y(closes[from]))
+                    for (i in from + 1..to) lineTo(x(i), y(closes[i]))
+                }
+                drawPath(seg, if (closes[to] >= closes[from]) StockColors.up else StockColors.down, style = Stroke(width = 4f))
+            }
             selected?.let { i ->
                 drawLine(labelColor, Offset(x(i), 0f), Offset(x(i), size.height), strokeWidth = 2f)
-                drawCircle(lineColor, radius = 9f, center = Offset(x(i), y(closes[i])))
+                drawCircle(if (closes[i] >= closes[(i - 1).coerceAtLeast(0)]) StockColors.up else StockColors.down, radius = 9f, center = Offset(x(i), y(closes[i])))
             }
         }
     }
@@ -95,3 +110,32 @@ fun PriceLineChart(points: List<ChartPointDto>, high: Long?, low: Long?, lineCol
 
 private fun indexAt(px: Float, width: Float, n: Int): Int =
     ((px / width) * (n - 1)).toInt().coerceIn(0, n - 1)
+
+/** 일 종가 추이용 되돌림 기준(%). 이만큼 반대로 움직이면 추세가 바뀐 것으로 본다. */
+internal const val SWING_PCT = 0.04f
+
+/**
+ * 지그재그 피벗 인덱스. 직전 극값에서 [pct] 이상 반대로 움직이면 방향 전환으로 보고 그 극값을 피벗으로 확정한다.
+ * 첫·끝 인덱스는 항상 포함하므로 인접 피벗 사이 구간마다 상승/하락 색을 하나씩 정하면 된다.
+ */
+internal fun swingPivots(v: List<Float>, pct: Float): List<Int> {
+    if (v.size < 2) return listOf(0)
+    val out = mutableListOf(0)
+    var dir = 0
+    var lo = 0; var hi = 0   // 방향이 정해지기 전 최저·최고 위치
+    var ext = 0              // 방향이 정해진 뒤 현재 구간의 극값 위치
+    for (i in 1 until v.size) {
+        when (dir) {
+            0 -> {
+                if (v[i] < v[lo]) lo = i
+                if (v[i] > v[hi]) hi = i
+                if (v[i] >= v[lo] * (1 + pct)) { if (lo != 0) out.add(lo); dir = 1; ext = i }
+                else if (v[i] <= v[hi] * (1 - pct)) { if (hi != 0) out.add(hi); dir = -1; ext = i }
+            }
+            1 -> if (v[i] >= v[ext]) ext = i else if (v[i] <= v[ext] * (1 - pct)) { out.add(ext); dir = -1; ext = i }
+            else -> if (v[i] <= v[ext]) ext = i else if (v[i] >= v[ext] * (1 + pct)) { out.add(ext); dir = 1; ext = i }
+        }
+    }
+    if (out.last() != v.lastIndex) out.add(v.lastIndex)
+    return out.distinct()
+}

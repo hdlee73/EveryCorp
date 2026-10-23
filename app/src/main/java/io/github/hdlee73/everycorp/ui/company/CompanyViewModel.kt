@@ -82,8 +82,9 @@ class CompanyViewModel(
                 val dt = (debt as? UiState.Success)?.data ?: repo.debtSecurities(corp.corpCode).getOrNull()
                 val q = if (corp.isListed) repo.quote(corp.corpCode).getOrNull() else null
                 val ch = if (corp.isListed) ((chart as? UiState.Success)?.data ?: repo.chart(corp.corpCode).getOrNull()) else null
+                val ar = ((reports as? UiState.Success)?.data ?: repo.auditReports(corp.corpCode).getOrNull())?.reports
                 val input = SummaryPdfInput(
-                    corpName = corp.corpName, badge = corp.badge, overview = ov, debt = dt, quote = q, chart = ch,
+                    corpName = corp.corpName, badge = corp.badge, overview = ov, debt = dt, quote = q, chart = ch, auditReports = ar,
                     appName = "Every Corp", versionName = BuildConfig.VERSION_NAME,
                     author = "${BuildConfig.AUTHOR_NAME} (${BuildConfig.AUTHOR_EMAIL})",
                     generatedAt = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy.MM.dd HH:mm")),
