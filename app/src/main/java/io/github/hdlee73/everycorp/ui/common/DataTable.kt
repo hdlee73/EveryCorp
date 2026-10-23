@@ -22,6 +22,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.hdlee73.everycorp.data.api.dto.FinTableDto
+import io.github.hdlee73.everycorp.data.api.dto.TrendDto
 import io.github.hdlee73.everycorp.ui.theme.StockColors
 
 private val LabelWidth = 84.dp
@@ -62,6 +63,38 @@ fun FinancialTable(table: FinTableDto, modifier: Modifier = Modifier) {
             table.rows.forEach { r ->
                 Row {
                     table.columns.indices.forEach { i -> AmountCell(r.values.getOrNull(i), r.unit) }
+                }
+            }
+        }
+    }
+}
+
+/** 연도별 주당·배수 지표 표(EPS·PER·PBR). 열은 연도, 행은 지표. */
+@Composable
+fun TrendValueTable(trend: TrendDto, keys: List<String>, modifier: Modifier = Modifier) {
+    val rows = trend.series.filter { it.key in keys }
+    if (rows.isEmpty() || trend.years.isEmpty()) return
+    val scroll = rememberScrollState()
+    Row(modifier.fillMaxWidth()) {
+        Column(Modifier.width(LabelWidth)) {
+            HeaderCell("구분", null, LabelWidth, TextAlign.Start)
+            rows.forEach { r -> RowLabel(r.label) }
+        }
+        Column(Modifier.weight(1f).horizontalScroll(scroll)) {
+            Row { trend.years.forEach { y -> HeaderCell("${y}년", null, CellWidth, TextAlign.End) } }
+            rows.forEach { r ->
+                Row {
+                    trend.years.indices.forEach { i ->
+                        val v = r.values.getOrNull(i)
+                        val text = when {
+                            v == null -> "-"
+                            r.key == "eps" -> String.format(java.util.Locale.US, "%,d", v.toLong())
+                            else -> String.format(java.util.Locale.US, "%.2f", v)
+                        }
+                        Column(Modifier.width(CellWidth).height(ROW_HEIGHT).padding(horizontal = 8.dp), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.Center) {
+                            Text(text, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                        }
+                    }
                 }
             }
         }

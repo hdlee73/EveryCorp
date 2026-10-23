@@ -23,6 +23,7 @@ log = logging.getLogger(__name__)
 # DART 공시 기준 금액 단위는 보고서에 따라 다를 수 있어 원문 확인 문구를 함께 내려준다.
 SOURCE_NOTE = "출처: Open DART 증권 미상환 잔액(정기보고서 기준, 보고서 기준일 시점)."
 KSD_SOURCE_NOTE = "출처: 공공데이터포털 금융위원회 채권기본정보(한국예탁결제원 제공, 종목별 잔액, 공공누리 2유형). 전 영업일 기준이며 비상장·사모 일부는 빠질 수 있습니다."
+NONE_SOURCE_NOTE = "확인한 출처: 공공데이터포털 금융위원회 채권기본정보(한국예탁결제원), Open DART 증권 미상환 잔액."
 KSD_UNIT_NOTE = "금액 단위: 억원(종목별 채권잔액)"
 KSD_URL = "https://apis.data.go.kr/1160100/GetBondIssuInfoService_V2/getBondBasiInfo_V2"
 UNIT_NOTE = "공시 원문 단위(통상 백만원) 그대로의 숫자입니다. 정확한 단위는 DART 원문에서 확인하세요."
@@ -129,9 +130,9 @@ async def get_debt_securities(corp_code: str) -> dict:
     return {
         "corp_code": corp_code,
         "available": False,
-        "message": "정기보고서에 공시된 채권·단기증권 미상환 잔액이 없습니다(정기보고서 제출 대상이 아니거나 발행 내역이 없는 경우).",
-        "unit_note": UNIT_NOTE,
-        "source": SOURCE_NOTE,
+        "message": "조회된 채권·단기증권 발행잔액이 없습니다. 예탁결제원 종목정보와 DART 공시를 모두 확인했으나 이 기업의 잔액이 없거나(사모·미발행 등) 조회 대상에서 빠진 경우입니다.",
+        "unit_note": "",
+        "source": NONE_SOURCE_NOTE,
         "sections": [],
         "missing": [t for _, t, _ in SECTIONS],
     }
