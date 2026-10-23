@@ -1,6 +1,9 @@
 package io.github.hdlee73.everycorp.ui.company
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -104,41 +107,46 @@ private fun OverviewBody(o: OverviewDto, badge: String, holders: UiState<Shareho
 @Composable
 private fun HoldersCard(h: ShareholdersDto) {
     // 보통주·우선주 등 종류별로 행이 따로 오므로 같은 사람이 여러 번 나올 수 있다. 종류를 함께 보여 준다.
-    val kinds = h.holders.map { it.stockKind }.filter { it.isNotBlank() }.distinct()
-    val showKind = kinds.size > 1
+    val showKind = h.holders.map { it.stockKind }.filter { it.isNotBlank() }.distinct().size > 1
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val line = MaterialTheme.colorScheme.outlineVariant
+    fun pct(v: Double?) = if (v == null) "-" else String.format(Locale.US, "%.2f%%", v)
+    fun num(v: Long?) = if (v == null) "-" else String.format(Locale.US, "%,d", v)
     SectionCard(title = if (h.estimated) "최대주주 및 특수관계인 (추정)" else "최대주주 및 특수관계인") {
-        h.basis?.let { Text("${it.reportName} 기준 · 기말 지분율", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        Row(Modifier.fillMaxWidth()) {
-            Text("성명", Modifier.weight(1.5f), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-            Text("관계", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-            if (showKind) Text("종류", Modifier.weight(0.7f), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-            Text("지분율", Modifier.weight(0.8f), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End)
-        }
-        h.holders.forEach { x ->
-            Row(Modifier.fillMaxWidth()) {
-                Text(x.name, Modifier.weight(1.5f), style = MaterialTheme.typography.bodyMedium)
-                Text(x.relation, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                if (showKind) Text(x.stockKind, Modifier.weight(0.7f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(x.endRatio?.let { Fmt.percent(it) } ?: "-", Modifier.weight(0.8f), style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.End)
+        h.basis?.let { Text("${it.reportName} 기준 · 기말 · 주식수(주) / 지분율", style = MaterialTheme.typography.bodySmall, color = muted) }
+        Column(Modifier.fillMaxWidth()) {
+            Row(
+                Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(6.dp)).padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("성명", Modifier.weight(1.6f), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                Text(if (showKind) "관계·종류" else "관계", Modifier.weight(1.2f), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                Text("주식수", Modifier.weight(1.3f), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End)
+                Text("지분율", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End)
+            }
+            h.holders.forEach { x ->
+                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(x.name, Modifier.weight(1.6f), style = MaterialTheme.typography.bodyMedium)
+                    Column(Modifier.weight(1.2f)) {
+                        Text(x.relation.ifBlank { "-" }, style = MaterialTheme.typography.bodySmall, color = muted)
+                        if (showKind && x.stockKind.isNotBlank()) Text(x.stockKind, style = MaterialTheme.typography.labelSmall, color = muted)
+                    }
+                    Text(num(x.endShares), Modifier.weight(1.3f), style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.End)
+                    Text(pct(x.endRatio), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.End)
+                }
+                HorizontalDivider(color = line.copy(alpha = 0.5f))
+            }
+            h.totals.ifEmpty { listOfNotNull(h.total) }.forEach { t ->
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(if (t.stockKind.isNotBlank()) "합계 · ${t.stockKind}" else "합계", Modifier.weight(2.8f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                    Text(num(t.endShares), Modifier.weight(1.3f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
+                    Text(pct(t.endRatio), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
+                }
             }
         }
-        val totals = h.totals.ifEmpty { listOfNotNull(h.total) }
-        totals.forEach { t ->
-            Row(Modifier.fillMaxWidth()) {
-                Text(if (t.stockKind.isNotBlank()) "합계 · ${t.stockKind}" else "합계", Modifier.weight(if (showKind) 3.2f else 2.5f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                Text(t.endRatio?.let { Fmt.percent(it) } ?: "-", Modifier.weight(0.8f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End)
-            }
-        }
-        if (h.changes.isNotEmpty()) {
-            Text("최대주주 변동", style = MaterialTheme.typography.titleSmall)
-            h.changes.forEach { c ->
-                Text(
-                    listOf(c.date, c.name, c.ratio?.let { Fmt.percent(it) }, c.cause.ifBlank { null }).filterNotNull().filter { it.isNotBlank() }.joinToString(" · "),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-        }
-        Text(h.source, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(h.source, style = MaterialTheme.typography.labelSmall, color = muted)
     }
 }
-
