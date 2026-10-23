@@ -1,14 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 빌딩 3동 + 주황 상승 화살표 (안전 영역 66dp 안) -->
+<!-- 공시 문서 + 파랑·빨강 막대 (안전 영역 66dp 안) -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#FFFFFF" android:pathData="M28,52h12a2,2 0 0,1 2,2v26h-16v-26a2,2 0 0,1 2,-2z" />
-    <path android:fillColor="#FFFFFF" android:pathData="M46,38h14a2,2 0 0,1 2,2v42h-18v-42a2,2 0 0,1 2,-2z" />
-    <path android:fillColor="#D9FFFFFF" android:pathData="M66,46h10a2,2 0 0,1 2,2v34h-14v-34a2,2 0 0,1 2,-2z" />
-    <path android:fillColor="#8C2563EB" android:pathData="M48,44h3v4h-3zM53,44h3v4h-3zM48,52h3v4h-3zM53,52h3v4h-3z" />
-    <path android:strokeColor="#FFB067" android:strokeWidth="5" android:strokeLineCap="round" android:strokeLineJoin="round"
-        android:pathData="M30,34L50,22L62,28L80,16" />
-    <path android:strokeColor="#FFB067" android:strokeWidth="5" android:strokeLineCap="round" android:strokeLineJoin="round"
-        android:pathData="M70,15H81V26" />
+    <path android:fillColor="#FFFFFF" android:pathData="M41,29h26a5,5 0 0,1 5,5v40a5,5 0 0,1 -5,5h-26a5,5 0 0,1 -5,-5v-40a5,5 0 0,1 5,-5z" />
+    <path android:fillColor="#CBD5E1" android:pathData="M42,36h24v3h-24zM42,42h16v3h-16z" />
+    <path android:fillColor="#2F6BFF" android:pathData="M42,62h4v9h-4z" />
+    <path android:fillColor="#E5333D" android:pathData="M49,56h4v15h-4zM56,51h4v20h-4z" />
 </vector>

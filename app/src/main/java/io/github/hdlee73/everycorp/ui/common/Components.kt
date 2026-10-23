@@ -181,18 +181,10 @@ fun <T> UiStateContent(state: UiState<T>, onRetry: (() -> Unit)?, modifier: Modi
 
 // ───────── FSS Insights 스타일 공통 요소 ─────────
 
-/** 화면 맨 위 히어로 머리말: 그라데이션 위에 큰 제목과 한 줄 설명(스크롤하면 함께 올라감). */
+/** 화면 맨 위 머리말: 큰 제목과 한 줄 설명. */
 @Composable
 fun LargeTitle(title: String, modifier: Modifier = Modifier, subtitle: String? = null, trailing: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {}) {
-    val shape = RoundedCornerShape(bottomStart = 26.dp, bottomEnd = 26.dp)
-    Box(
-        modifier.fillMaxWidth().clip(shape)
-            .background(Brush.verticalGradient(listOf(AppColors.heroStart, AppColors.heroEnd)))
-            .drawBehind {
-                drawCircle(Color.White.copy(alpha = 0.16f), radius = size.height * 0.95f, center = Offset(size.width * 0.96f, -size.height * 0.15f))
-                drawCircle(Color.White.copy(alpha = 0.08f), radius = size.height * 0.5f, center = Offset(size.width * 0.72f, size.height * 1.05f))
-            },
-    ) {
+    Box(modifier.fillMaxWidth().background(AppColors.heroStart)) {
         Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 6.dp, top = 6.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.headlineMedium, color = AppColors.onHero, maxLines = 2)
@@ -213,7 +205,7 @@ fun GradientTopBar(title: String, onBack: (() -> Unit)?, modifier: Modifier = Mo
             else Spacer(Modifier.width(16.dp))
             Text(title, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.titleLarge, color = AppColors.onHero, maxLines = 1)
             if (badge != null) Text(
-                badge, Modifier.padding(start = 8.dp).background(Color.White.copy(alpha = 0.25f), RoundedCornerShape(5.dp)).padding(horizontal = 7.dp, vertical = 2.dp),
+                badge, Modifier.padding(start = 8.dp).background(AppColors.onHero.copy(alpha = 0.1f), RoundedCornerShape(5.dp)).padding(horizontal = 7.dp, vertical = 2.dp),
                 style = MaterialTheme.typography.labelSmall, color = AppColors.onHero, fontWeight = FontWeight.Bold,
             )
             Spacer(Modifier.weight(1f))

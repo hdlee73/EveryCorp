@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsTopHeight
@@ -51,7 +50,7 @@ import io.github.hdlee73.everycorp.ui.theme.AppColors
 fun SearchScreen(vm: AppViewModel) {
     val focus = remember { FocusRequester() }
     LaunchedEffect(vm.searchFocusTick) { if (vm.searchFocusTick > 0) runCatching { focus.requestFocus() } }
-    Column(Modifier.fillMaxSize().navigationBarsPadding()) {
+    Column(Modifier.fillMaxSize()) {
         Spacer(Modifier.fillMaxWidth().background(AppColors.heroStart).windowInsetsTopHeight(WindowInsets.statusBars))
         LargeTitle(
             title = "Every Corp",

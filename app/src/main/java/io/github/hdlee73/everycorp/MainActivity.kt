@@ -9,17 +9,23 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Text
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
-import io.github.hdlee73.everycorp.ui.theme.HeroPalettes
-import io.github.hdlee73.everycorp.ui.theme.LocalHeroPalette
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -60,16 +66,33 @@ private fun Root() {
     // 뒤로가기 버튼·제스처: 직전 화면/탭으로 이동. 더 갈 곳이 없을 때만 앱 종료(핸들러 비활성).
     BackHandler(enabled = vm.nav.canGoBack) { vm.back() }
 
-    // 머리말이 진한 그라데이션이므로 상태 표시줄 아이콘은 항상 밝게.
+    // 머리말이 배경색과 같으므로 상태 표시줄 아이콘은 테마에 맞춘다.
+    val darkTheme = androidx.compose.foundation.isSystemInDarkTheme()
     val view = LocalView.current
     SideEffect {
-        (view.context as? android.app.Activity)?.window?.let { WindowCompat.getInsetsController(it, view).isAppearanceLightStatusBars = false }
+        (view.context as? android.app.Activity)?.window?.let { WindowCompat.getInsetsController(it, view).isAppearanceLightStatusBars = !darkTheme }
     }
-    when (val d = vm.nav.top) {
-        Dest.Home -> CompositionLocalProvider(LocalHeroPalette provides HeroPalettes.Sky) { SearchScreen(vm) }
-        Dest.Info -> CompositionLocalProvider(LocalHeroPalette provides HeroPalettes.Slate) { AppInfoScreen(vm) }
-        is Dest.Company -> CompanyScreen(vm, d)
-        is Dest.Etf -> EtfScreen(vm, d)
+    val top = vm.nav.top
+    Column(Modifier.fillMaxSize()) {
+        Box(Modifier.weight(1f)) {
+            when (val d = top) {
+                Dest.Home -> SearchScreen(vm)
+                Dest.Info -> AppInfoScreen(vm)
+                is Dest.Company -> CompanyScreen(vm, d)
+                is Dest.Etf -> EtfScreen(vm, d)
+            }
+        }
+        // 첫 화면과 메뉴에서만 하단 바를 보여 준다(기업·ETF 화면은 자체 상단 바와 탭 사용).
+        if (top == Dest.Home || top == Dest.Info) NavigationBar(containerColor = MaterialTheme.colorScheme.background) {
+            NavigationBarItem(
+                selected = top == Dest.Home, onClick = { vm.openSearch() },
+                icon = { Icon(Icons.Filled.Home, contentDescription = null) }, label = { Text("홈") },
+            )
+            NavigationBarItem(
+                selected = top == Dest.Info, onClick = { vm.openInfo() },
+                icon = { Icon(Icons.Filled.Menu, contentDescription = null) }, label = { Text("메뉴") },
+            )
+        }
     }
     UpdateDialogs(vm)
 }
