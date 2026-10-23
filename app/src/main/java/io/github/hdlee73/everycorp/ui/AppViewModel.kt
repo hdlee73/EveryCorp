@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import io.github.hdlee73.everycorp.AppContainer
 import io.github.hdlee73.everycorp.BuildConfig
 import io.github.hdlee73.everycorp.data.api.dto.CorpItemDto
+import io.github.hdlee73.everycorp.data.api.dto.EtfItemDto
 import io.github.hdlee73.everycorp.data.prefs.CorpListCodec
 import io.github.hdlee73.everycorp.data.update.CheckState
 import io.github.hdlee73.everycorp.data.update.UpdateStatus
@@ -33,6 +34,9 @@ class AppViewModel(private val c: AppContainer) : ViewModel() {
     var query by mutableStateOf("")
         private set
     var results by mutableStateOf<UiState<List<CorpItemDto>>>(UiState.Idle)
+        private set
+    /** ETF 검색 결과. 실패(키움 미설정 등)해도 기업 검색은 그대로 두고 빈 목록으로 둔다. */
+    var etfResults by mutableStateOf<List<EtfItemDto>>(emptyList())
         private set
     var searchFocusTick by mutableStateOf(0)
         private set
@@ -71,6 +75,8 @@ class AppViewModel(private val c: AppContainer) : ViewModel() {
         recents = CorpListCodec.pushFront(recents, corp, 10).also { c.prefs.recents = it }
     }
 
+    fun openEtf(item: EtfItemDto) { nav = nav.openEtf(item) }
+
     fun openInfo() { nav = nav.openInfo() }
 
     /** 기업 화면에서 검색 아이콘 한 번으로 첫 화면으로 돌아와 입력창에 커서를 둔다. */
@@ -86,11 +92,12 @@ class AppViewModel(private val c: AppContainer) : ViewModel() {
     fun onQuery(q: String) {
         query = q
         searchJob?.cancel()
-        if (q.isBlank()) { results = UiState.Idle; return }
+        if (q.isBlank()) { results = UiState.Idle; etfResults = emptyList(); return }
         results = UiState.Loading
         searchJob = viewModelScope.launch {
             delay(250) // 입력이 멈춘 뒤에만 호출(서버·API 한도 보호)
             results = c.repository.search(q).toUiState()
+            etfResults = c.repository.searchEtfs(q).getOrDefault(emptyList())
         }
     }
 

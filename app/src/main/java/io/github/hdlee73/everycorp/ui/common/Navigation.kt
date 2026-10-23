@@ -1,6 +1,7 @@
 package io.github.hdlee73.everycorp.ui.common
 
 import io.github.hdlee73.everycorp.data.api.dto.CorpItemDto
+import io.github.hdlee73.everycorp.data.api.dto.EtfItemDto
 
 enum class CompanyTab(val label: String) {
     Overview("기업개황"),
@@ -14,6 +15,9 @@ enum class CompanyTab(val label: String) {
 sealed interface Dest {
     data object Home : Dest
     data object Info : Dest
+
+    /** ETF 상세(탭 없는 한 화면). */
+    data class Etf(val item: EtfItemDto) : Dest
 
     /** [tabs]는 이 기업 화면 안에서 방문한 탭 기록(맨 뒤가 현재 탭). 뒤로가기는 직전 탭으로 돌아간다. */
     data class Company(val corp: CorpItemDto, val tabs: List<CompanyTab> = listOf(CompanyTab.Overview)) : Dest {
@@ -32,6 +36,8 @@ data class NavState(val stack: List<Dest> = listOf(Dest.Home)) {
 
     /** 어느 화면에서든 한 번에 첫 화면(검색)으로. 이미 첫 화면이면 그대로. */
     fun goHome(): NavState = if (stack.size == 1) this else NavState()
+
+    fun openEtf(item: EtfItemDto): NavState = copy(stack = stack + Dest.Etf(item))
 
     fun openInfo(): NavState = if (top == Dest.Info) this else copy(stack = stack + Dest.Info)
 

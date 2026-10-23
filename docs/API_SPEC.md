@@ -420,3 +420,9 @@ DART 정기보고서의 증권 미상환 잔액(회사채·기업어음증권(CP
 - `GET /corps/{corp_code}/shareholders`: `totals`(주식 종류별 합계) 추가. `total`은 보통주 합계(하위 호환).
 - `GET /corps/{corp_code}/audit-reports`: 최상위 `opinions` 제거, 각 `reports[]` 항목에 `auditor`·`opinion` 추가(해당 기간 정기보고서 기준, 없으면 빈 문자열).
 - `GET /corps/{corp_code}/overview`: `financials.tables.income`에 최근 3개 연간 열(기존 2개).
+
+## v1.0.6 추가 사항
+
+- `GET /etfs/search?q=&limit=`: 키움 ETF 전체시세(ka40004)를 6시간 캐시해 이름·코드·기초지수로 검색. 항목은 `code,name,index_name,price,change_rate,nav,volume`.
+- `GET /etfs/{code}`: 종목정보(ka40002)·일별추이(ka40003)·현재가. `quote`는 주식 현재가와 같은 형식, `daily[]`는 최신순 `date,close,change_rate,volume,nav,disparity,tracking_error`. 추적오차율은 소수점 없는 응답(예 69)을 100으로 나눠 0.69%로 표시한다.
+- `GET /etfs/{code}/chart?days=`: 주식 차트와 같은 형식.

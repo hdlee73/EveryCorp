@@ -52,6 +52,11 @@ async def _require_listed(corp_code: str) -> tuple[str, str, str]:
 
 async def get_quote(corp_code: str) -> dict:
     stock_code, name, market = await _require_listed(corp_code)
+    return await quote_by_code(stock_code, name, market)
+
+
+async def quote_by_code(stock_code: str, name: str, market: str) -> dict:
+    """종목코드 기준 현재가(상장사·ETF 공용). 5초 캐시."""
 
     async def load() -> dict:
         q, source = None, None
@@ -138,6 +143,10 @@ async def _daily(stock_code: str, bgn: date, end: date) -> tuple[list[dict], str
 
 async def get_chart(corp_code: str, days: int = 365) -> dict:
     stock_code, name, _ = await _require_listed(corp_code)
+    return await chart_by_code(stock_code, name, days)
+
+
+async def chart_by_code(stock_code: str, name: str, days: int = 365) -> dict:
     end = date.today()
     bgn = end - timedelta(days=days)
     rows, source = await _daily(stock_code, bgn, end)

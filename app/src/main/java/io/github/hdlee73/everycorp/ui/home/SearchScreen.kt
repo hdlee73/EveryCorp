@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.github.hdlee73.everycorp.data.api.dto.CorpItemDto
+import io.github.hdlee73.everycorp.data.api.dto.EtfItemDto
 import io.github.hdlee73.everycorp.ui.AppViewModel
 import io.github.hdlee73.everycorp.ui.common.Badge
 import io.github.hdlee73.everycorp.ui.common.EmptyBox
@@ -75,9 +76,13 @@ fun SearchScreen(vm: AppViewModel) {
 @Composable
 private fun SearchResults(vm: AppViewModel) {
     UiStateContent(vm.results, onRetry = { vm.onQuery(vm.query) }, modifier = Modifier.padding(horizontal = 16.dp)) { list ->
-        if (list.isEmpty()) EmptyBox("검색 결과가 없습니다. 기업명을 다시 확인해 주세요.", Modifier.padding(horizontal = 16.dp))
+        if (list.isEmpty() && vm.etfResults.isEmpty()) EmptyBox("검색 결과가 없습니다. 기업명·ETF명을 다시 확인해 주세요.", Modifier.padding(horizontal = 16.dp))
         else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp)) {
             items(list, key = { it.corpCode }) { CorpRow(it) { vm.openCompany(it) } }
+            if (vm.etfResults.isNotEmpty()) {
+                item { SectionLabel("ETF") }
+                items(vm.etfResults, key = { "etf" + it.code }) { EtfRow(it) { vm.openEtf(it) } }
+            }
         }
     }
 }
@@ -106,6 +111,21 @@ fun CorpRow(corp: CorpItemDto, onClick: () -> Unit) {
                 if (sub.isNotBlank()) Text(sub, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
             }
             Badge(corp.badge.ifBlank { if (corp.isListed) "상장" else "외감" }, listed = corp.isListed)
+        }
+    }
+}
+
+@Composable
+private fun EtfRow(etf: EtfItemDto, onClick: () -> Unit) {
+    SectionCard(Modifier.clickable(onClick = onClick)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            InitialAvatar(etf.name, MaterialTheme.colorScheme.tertiary)
+            Column(Modifier.weight(1f)) {
+                Text(etf.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                val sub = listOf(etf.code, etf.indexName).filter { it.isNotBlank() }.joinToString(" · ")
+                if (sub.isNotBlank()) Text(sub, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            }
+            Badge("ETF", listed = true)
         }
     }
 }

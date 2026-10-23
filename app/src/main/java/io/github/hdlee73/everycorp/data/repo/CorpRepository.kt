@@ -12,6 +12,8 @@ import io.github.hdlee73.everycorp.data.api.dto.IntradayDto
 import io.github.hdlee73.everycorp.data.api.dto.OverviewDto
 import io.github.hdlee73.everycorp.data.api.dto.DisclosureDto
 import io.github.hdlee73.everycorp.data.api.dto.QuoteDto
+import io.github.hdlee73.everycorp.data.api.dto.EtfDetailDto
+import io.github.hdlee73.everycorp.data.api.dto.EtfItemDto
 import io.github.hdlee73.everycorp.data.api.dto.ShareholdersDto
 import io.github.hdlee73.everycorp.data.kind.KindClient
 import kotlinx.coroutines.CancellationException
@@ -52,6 +54,17 @@ class CorpRepository(private val api: EveryCorpApi, private val kind: KindClient
         if (q.isEmpty()) return Result.success(emptyList())
         return apiCall { api.searchCorps(q, listedOnly = listedOnly).items }
     }
+
+    /** ETF 검색. 키움 설정이 없거나 실패해도 기업 검색에는 영향이 없도록 호출하는 쪽에서 실패를 무시한다. */
+    suspend fun searchEtfs(query: String): Result<List<EtfItemDto>> {
+        val q = query.trim()
+        if (q.isEmpty()) return Result.success(emptyList())
+        return apiCall { api.searchEtfs(q).items }
+    }
+
+    suspend fun etf(code: String): Result<EtfDetailDto> = apiCall { api.etf(code) }
+
+    suspend fun etfChart(code: String, days: Int = 365): Result<ChartDto> = apiCall { api.etfChart(code, days) }
 
     suspend fun overview(corpCode: String): Result<OverviewDto> = apiCall { api.overview(corpCode) }
 

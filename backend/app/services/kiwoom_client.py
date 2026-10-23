@@ -135,3 +135,28 @@ async def minutes(stock_code: str) -> list[dict]:
     data, _ = await _post("/api/dostk/chart", "ka10080", {"stk_cd": stock_code, "tic_scope": "1", "upd_stkpc_tp": "1"})
     _check(data, "분봉 조회")
     return pp.parse_kiwoom_minutes(data.get("stk_min_pole_chart_qry") or [])
+
+
+async def etf_list_page(cont_key: str | None = None) -> tuple[list[dict], str | None]:
+    """ka40004 ETF 전체시세 한 페이지(100건)와 다음 페이지 키."""
+    data, headers = await _post(
+        "/api/dostk/etf", "ka40004",
+        {"txon_type": "0", "navpre": "0", "mngmcomp": "0000", "txon_yn": "0", "trace_idex": "0", "stex_tp": "1"},
+        cont_key,
+    )
+    _check(data, "ETF 목록 조회")
+    more = str(headers.get("cont-yn") or headers.get("Cont-Yn") or "N").upper() == "Y"
+    nxt = (headers.get("next-key") or headers.get("Next-Key")) if more else None
+    return data.get("etfall_mrpr") or [], nxt or None
+
+
+async def etf_info(stock_code: str) -> dict:
+    data, _ = await _post("/api/dostk/etf", "ka40002", {"stk_cd": stock_code})
+    _check(data, "ETF 종목정보 조회")
+    return data
+
+
+async def etf_daily(stock_code: str) -> list[dict]:
+    data, _ = await _post("/api/dostk/etf", "ka40003", {"stk_cd": stock_code})
+    _check(data, "ETF 일별추이 조회")
+    return data.get("etfdaly_trnsn") or []

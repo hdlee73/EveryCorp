@@ -11,7 +11,7 @@ from ..config import get_settings
 from ..errors import ApiError, UpstreamError
 from ..http import get_client
 from ..parsers import dart_viewer as dv
-from ..services import app_meta, company_service, debt_service, disclosures_service, market_service, news_service, price_service, reports_service, shareholders_service
+from ..services import app_meta, company_service, debt_service, disclosures_service, etf_service, market_service, news_service, price_service, reports_service, shareholders_service
 from ..services.corp_index import corp_index
 
 
@@ -69,6 +69,23 @@ async def search_corps(
             for e in hits
         ],
     }
+
+
+# ───────── ETF ─────────
+
+@router.get("/etfs/search")
+async def search_etfs(q: str = Query(..., min_length=1, max_length=50), limit: int = Query(20, ge=1, le=50)) -> dict:
+    return await etf_service.search(q, limit)
+
+
+@router.get("/etfs/{code}")
+async def etf_detail(code: str) -> dict:
+    return await etf_service.get_etf(code)
+
+
+@router.get("/etfs/{code}/chart")
+async def etf_chart(code: str, days: int = Query(365, ge=30, le=1100)) -> dict:
+    return await etf_service.get_etf_chart(code, days)
 
 
 # ───────── 탭 1 ─────────
