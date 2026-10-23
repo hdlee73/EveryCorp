@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -35,7 +34,7 @@ import io.github.hdlee73.everycorp.ui.common.openInAppBrowser
 fun AppInfoScreen(vm: AppViewModel) {
     val context = LocalContext.current
     val st = vm.updateStatus
-    Column(Modifier.fillMaxSize().navigationBarsPadding()) {
+    Column(Modifier.fillMaxSize()) {
         GradientTopBar(title = "앱 정보", onBack = { vm.back() })
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SectionCard {

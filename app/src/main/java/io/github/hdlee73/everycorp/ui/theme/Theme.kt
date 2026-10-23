@@ -15,19 +15,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// FSS Insights 의 디자인 체계(연한 하늘색 바탕 · 흰 카드 · 둥근 모서리 · 파랑 강조 · 주황 보조)를 그대로 따른다.
+// 클리어 라이트: 흰 바탕 · 연회색 카드 · 진한 글자 · 상승 빨강/하락 파랑.
 private val LightColors = lightColorScheme(
-    primary = Color(0xFF2A7DE1), onPrimary = Color.White,
-    primaryContainer = Color(0xFFDCEBFC), onPrimaryContainer = Color(0xFF1A5FB4),
-    secondary = Color(0xFF47638A), onSecondary = Color.White,
-    secondaryContainer = Color(0xFFEFF1F5), onSecondaryContainer = Color(0xFF232A36),
-    tertiary = Color(0xFFF08A4B), onTertiary = Color.White,
-    tertiaryContainer = Color(0xFFFCEDE5), onTertiaryContainer = Color(0xFFA8461A),
-    background = Color(0xFFF2F7FC), onBackground = Color(0xFF1D2B3F),
-    surface = Color(0xFFF2F7FC), onSurface = Color(0xFF1D2B3F),
-    surfaceVariant = Color(0xFFE6EEF8), onSurfaceVariant = Color(0xFF64778F),
-    surfaceContainer = Color(0xFFFFFFFF), surfaceContainerHigh = Color(0xFFEAF2FB),
-    outline = Color(0xFFA3AAB5), outlineVariant = Color(0xFFE3ECF6), error = Color(0xFFC9372C),
+    primary = Color(0xFF191F28), onPrimary = Color.White,
+    primaryContainer = Color(0xFFF2F4F6), onPrimaryContainer = Color(0xFF191F28),
+    secondary = Color(0xFF4E5968), onSecondary = Color.White,
+    secondaryContainer = Color(0xFFF2F4F6), onSecondaryContainer = Color(0xFF191F28),
+    tertiary = Color(0xFFF59E0B), onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFFEF3C7), onTertiaryContainer = Color(0xFF92400E),
+    background = Color.White, onBackground = Color(0xFF191F28),
+    surface = Color.White, onSurface = Color(0xFF191F28),
+    surfaceVariant = Color(0xFFF2F4F6), onSurfaceVariant = Color(0xFF6B7684),
+    surfaceContainer = Color(0xFFF7F8FA), surfaceContainerHigh = Color(0xFFF2F4F6),
+    outline = Color(0xFF8B95A1), outlineVariant = Color(0xFFE5E8EB), error = Color(0xFFC9372C),
 )
 
 private val DarkColors = darkColorScheme(
@@ -81,9 +81,10 @@ val LocalHeroPalette = compositionLocalOf { HeroPalettes.Sky }
 object AppColors {
     val accentLight = Color(0xFFE2622B)
     val accentDark = Color(0xFFFF9A72)
-    val onHero: Color = Color.White
-    val heroStart: Color @Composable get() = LocalHeroPalette.current.let { if (isSystemInDarkTheme()) it.darkStart else it.start }
-    val heroEnd: Color @Composable get() = LocalHeroPalette.current.let { if (isSystemInDarkTheme()) it.darkEnd else it.end }
+    // 머리말은 그라데이션 없이 배경색 그대로(클리어 라이트).
+    val onHero: Color @Composable get() = MaterialTheme.colorScheme.onBackground
+    val heroStart: Color @Composable get() = MaterialTheme.colorScheme.background
+    val heroEnd: Color @Composable get() = MaterialTheme.colorScheme.background
     val accent: Color @Composable get() = if (isSystemInDarkTheme()) accentDark else accentLight
 }
 
