@@ -46,7 +46,6 @@ fun PriceLineChart(points: List<ChartPointDto>, high: Long?, low: Long?, lineCol
     val maxV = maxOf(closes.max(), high?.toFloat() ?: closes.max())
     val minV = minOf(closes.min(), low?.toFloat() ?: closes.min())
     val span = (maxV - minV).takeIf { it > 0f } ?: 1f
-    val pivots = remember(closes) { swingPivots(closes, SWING_PCT) }
 
     Column(modifier) {
         val sel = selected?.let { data.getOrNull(it) }
@@ -86,23 +85,17 @@ fun PriceLineChart(points: List<ChartPointDto>, high: Long?, low: Long?, lineCol
                 val i = idxOf(lowDate, closes.indices.minByOrNull { closes[it] } ?: 0)
                 label("최저 ${Fmt.price(v)}원" + (lowDate?.let { " (${Fmt.date(it)})" } ?: ""), x(i), y(v.toFloat()), above = false, color = StockColors.down)
             }
-            val fill = Path().apply {
+            val line = Path().apply {
                 closes.forEachIndexed { i, v -> if (i == 0) moveTo(x(i), y(v)) else lineTo(x(i), y(v)) }
-                lineTo(size.width, size.height); lineTo(0f, size.height); close()
             }
-            drawPath(fill, Brush.verticalGradient(listOf(lineColor.copy(alpha = 0.12f), Color.Transparent)))
-            // 상승 구간은 빨강, 하락 구간은 파랑. 방향이 바뀌는 지점(피벗)마다 색을 바꿔 그린다.
-            for (k in 0 until pivots.size - 1) {
-                val from = pivots[k]; val to = pivots[k + 1]
-                val seg = Path().apply {
-                    moveTo(x(from), y(closes[from]))
-                    for (i in from + 1..to) lineTo(x(i), y(closes[i]))
-                }
-                drawPath(seg, if (closes[to] >= closes[from]) StockColors.up else StockColors.down, style = Stroke(width = 4f))
+            val fill = Path().apply {
+                addPath(line); lineTo(size.width, size.height); lineTo(0f, size.height); close()
             }
+            drawPath(fill, Brush.verticalGradient(listOf(lineColor.copy(alpha = 0.18f), Color.Transparent)))
+            drawPath(line, lineColor, style = Stroke(width = 4f))
             selected?.let { i ->
                 drawLine(labelColor, Offset(x(i), 0f), Offset(x(i), size.height), strokeWidth = 2f)
-                drawCircle(if (closes[i] >= closes[(i - 1).coerceAtLeast(0)]) StockColors.up else StockColors.down, radius = 9f, center = Offset(x(i), y(closes[i])))
+                drawCircle(lineColor, radius = 9f, center = Offset(x(i), y(closes[i])))
             }
         }
     }
@@ -110,9 +103,6 @@ fun PriceLineChart(points: List<ChartPointDto>, high: Long?, low: Long?, lineCol
 
 private fun indexAt(px: Float, width: Float, n: Int): Int =
     ((px / width) * (n - 1)).toInt().coerceIn(0, n - 1)
-
-/** 일 종가 추이용 되돌림 기준(%). 이만큼 반대로 움직이면 추세가 바뀐 것으로 본다. */
-internal const val SWING_PCT = 0.04f
 
 /**
  * 지그재그 피벗 인덱스. 직전 극값에서 [pct] 이상 반대로 움직이면 방향 전환으로 보고 그 극값을 피벗으로 확정한다.
