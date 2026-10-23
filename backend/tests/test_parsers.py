@@ -278,7 +278,7 @@ def test_audit_opinion_summary():
     ]
 
 
-def test_audit_opinion_duplicate_terms_marked_consolidated_then_separate():
+def test_audit_opinion_duplicate_terms_merged_or_marked():
     from app.services.reports_service import summarize_opinions
     rows = [
         {"bsns_year": "제57기(당기)", "adtor": "삼정회계법인", "adt_opinion": "적정"},
@@ -286,4 +286,9 @@ def test_audit_opinion_duplicate_terms_marked_consolidated_then_separate():
         {"bsns_year": "제56기(전기)", "adtor": "삼정회계법인", "adt_opinion": "적정"},
     ]
     got = summarize_opinions(rows)
-    assert [(o["term"], o["scope"]) for o in got] == [("제57기(당기)", "연결"), ("제57기(당기)", "별도"), ("제56기(전기)", "")]
+    assert [(o["term"], o["scope"]) for o in got] == [("제57기(당기)", "연결·별도 동일"), ("제56기(전기)", "")]
+
+    rows[1]["adt_opinion"] = "한정"
+    got = summarize_opinions(rows)
+    assert [(o["term"], o["scope"], o["opinion"]) for o in got] == [
+        ("제57기(당기)", "연결", "적정"), ("제57기(당기)", "별도", "한정"), ("제56기(전기)", "", "적정")]

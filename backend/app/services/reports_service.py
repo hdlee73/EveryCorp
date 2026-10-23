@@ -127,13 +127,23 @@ def summarize_opinions(rows: list[dict]) -> list[dict]:
             continue
         seen[term] = seen.get(term, 0) + 1
         out.append({"term": term, "auditor": "" if auditor == "-" else auditor, "opinion": "" if opinion == "-" else opinion, "scope": ""})
-    # 같은 기수가 두 줄이면 연결·별도로 보고 DART 표 순서(연결 먼저)대로 구분 표시한다. 순서는 diag 로 확인한다.
+    # 같은 기수가 두 줄이면 연결·별도로 본다. DART 응답에는 둘을 가르는 필드가 없어서,
+    # 감사인·의견이 같으면 한 줄로 합쳐 "연결·별도 동일"로 보여 주고, 다르면 표 순서(연결 먼저)대로 구분한다.
+    merged: list[dict] = []
     idx: dict[str, int] = {}
     for o in out:
-        if seen[o["term"]] == 2:
-            n = idx.get(o["term"], 0)
-            o["scope"] = ("연결", "별도")[n]
-            idx[o["term"]] = n + 1
+        if seen[o["term"]] != 2:
+            merged.append(o)
+            continue
+        n = idx.get(o["term"], 0)
+        idx[o["term"]] = n + 1
+        pair = [x for x in out if x["term"] == o["term"]]
+        if (pair[0]["auditor"], pair[0]["opinion"]) == (pair[1]["auditor"], pair[1]["opinion"]):
+            if n == 0:
+                merged.append({**o, "scope": "연결·별도 동일"})
+        else:
+            merged.append({**o, "scope": ("연결", "별도")[n]})
+    out = merged
     return out
 
 
