@@ -2,6 +2,8 @@
 
 사용: docker compose exec api python -m app.diag            (삼성전자 기본)
       docker compose exec api python -m app.diag 00126380 005930
+      docker compose exec api python -m app.diag <corp_code> <stock_code> --holder   (비상장: 감사보고서 주석 탐색)
+      docker compose exec api python -m app.diag 00126380 005930 --etf              (키움 ETF TR 후보)
 """
 from __future__ import annotations
 
@@ -147,14 +149,97 @@ async def diag_opinions(corp_code: str) -> None:
         print("실패:", type(e).__name__, e)
 
 
+async def diag_holder_note(corp_code: str) -> None:
+    head("감사보고서 본문에서 주주·지분 문구 찾기 (비상장 최대주주 추출용)")
+    end = date.today()
+    bgn = end - timedelta(days=365 * 2 + 1)
+    try:
+        items = await dart_client.list_disclosures(corp_code, bgn.strftime("%Y%m%d"), end.strftime("%Y%m%d"), pblntf_ty="F", max_pages=2)
+    except Exception as e:  # noqa: BLE001
+        print("목록 실패:", type(e).__name__, e)
+        return
+    audits = [i for i in items if "감사보고서" in i.get("report_nm", "") and "연결" not in i.get("report_nm", "")]
+    print("감사보고서 공시:", [(i.get("rcept_dt"), i.get("report_nm")) for i in audits[:3]])
+    if not audits:
+        return
+    rcp = audits[0]["rcept_no"]
+    client = get_client()
+    r = await client.get(f"{dv.DART_HOST}/dsaf001/main.do", params={"rcpNo": rcp})
+    html = r.text
+    nodes = re.findall(r"node\d+\['(text|id|rcpNo|dcmNo|eleId|offset|length|dtd)'\]\s*=\s*\"([^\"]*)\"", html)
+    print("뷰어:", r.status_code, "len", len(html), "노드 속성", len(nodes))
+    blocks: list[dict] = []
+    cur: dict = {}
+    for k, v in nodes:
+        if k == "text" and cur:
+            blocks.append(cur)
+            cur = {}
+        cur[k] = v
+    if cur:
+        blocks.append(cur)
+    print("노드:", [(b.get("id"), b.get("text")) for b in blocks][:25])
+    for b in blocks:
+        if not re.search(r"주석|일반|개요", b.get("text", "")):
+            continue
+        try:
+            rr = await client.get(f"{dv.DART_HOST}/report/viewer.do", params={
+                "rcpNo": b.get("rcpNo") or rcp, "dcmNo": b.get("dcmNo"), "eleId": b.get("eleId"),
+                "offset": b.get("offset"), "length": b.get("length"), "dtd": b.get("dtd")})
+            text = re.sub(r"<[^>]+>", " ", rr.text)
+            text = re.sub(r"\s+", " ", text)
+            print(f"  [{b.get('text')}] {rr.status_code} len {len(text)}")
+            for m in list(re.finditer(r"최대주주|지배기업|모회사|주주\s*현황|지분율", text))[:6]:
+                print("    ...", text[max(0, m.start() - 80):m.start() + 200])
+        except Exception as e:  # noqa: BLE001
+            print("  노드 실패:", type(e).__name__, e)
+
+
+ETF_CODE = "069500"  # KODEX 200
+
+
+async def diag_kiwoom_etf() -> None:
+    head("키움 ETF TR 후보 (069500 KODEX 200)")
+    from .services import kiwoom_client as kw
+
+    if not kw.kiwoom_enabled():
+        print("키움 키 없음")
+        return
+    today = date.today().strftime("%Y%m%d")
+    tries = [
+        ("/api/dostk/stkinfo", "ka10001", {"stk_cd": ETF_CODE}),
+        ("/api/dostk/etf", "ka40001", {"stk_cd": ETF_CODE, "etfobjt_idex_cd": "207", "dt": "1"}),
+        ("/api/dostk/etf", "ka40002", {"stk_cd": ETF_CODE}),
+        ("/api/dostk/etf", "ka40003", {"stk_cd": ETF_CODE}),
+        ("/api/dostk/etf", "ka40004", {"txon_type": "0", "navpre": "0", "mngmcomp": "0000", "txon_yn": "0", "trace_idex": "0", "stex_tp": "1"}),
+        ("/api/dostk/etf", "ka40006", {"stk_cd": ETF_CODE}),
+        ("/api/dostk/chart", "ka10081", {"stk_cd": ETF_CODE, "base_dt": today, "upd_stkpc_tp": "1"}),
+    ]
+    for path, api_id, body in tries:
+        try:
+            data, _ = await kw._post(path, api_id, body)
+            keys = {k: (v if not isinstance(v, list) else f"list[{len(v)}]") for k, v in data.items()}
+            print(f"{api_id} {path}: return_code={data.get('return_code')} msg={str(data.get('return_msg'))[:80]}")
+            print("   키:", snippet(str(keys), 500))
+            for k, v in data.items():
+                if isinstance(v, list) and v:
+                    print("   첫 행:", snippet(str(v[0]), 600))
+        except Exception as e:  # noqa: BLE001
+            print(f"{api_id} 실패:", type(e).__name__, e)
+
+
 async def main() -> None:
-    corp_code = sys.argv[1] if len(sys.argv) > 1 else "00126380"
-    stock = sys.argv[2] if len(sys.argv) > 2 else "005930"
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    corp_code = args[0] if len(args) > 0 else "00126380"
+    stock = args[1] if len(args) > 1 else "005930"
     name = "삼성전자" if corp_code == "00126380" else ""
     await diag_kind(name, stock)
     await diag_reports(corp_code)
     await diag_opinions(corp_code)
     await diag_bonds(corp_code)
+    if "--holder" in sys.argv:
+        await diag_holder_note(corp_code)
+    if "--etf" in sys.argv:
+        await diag_kiwoom_etf()
     head("끝")
 
 
