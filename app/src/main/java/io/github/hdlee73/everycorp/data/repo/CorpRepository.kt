@@ -18,6 +18,7 @@ import io.github.hdlee73.everycorp.data.api.dto.QuoteDto
 import io.github.hdlee73.everycorp.data.api.dto.EtfDetailDto
 import io.github.hdlee73.everycorp.data.api.dto.EtfItemDto
 import io.github.hdlee73.everycorp.data.api.dto.ShareholdersDto
+import io.github.hdlee73.everycorp.data.api.dto.StakeChangesDto
 import io.github.hdlee73.everycorp.data.kind.KindClient
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -103,6 +104,8 @@ class CorpRepository(private val api: EveryCorpApi, private val kind: KindClient
     /** 알림 탭용: 최근 DART 공시 몇 건만. */
     suspend fun recentDisclosures(corpCode: String, size: Int = 5): Result<List<DisclosureDto>> =
         apiCall { api.disclosures(corpCode, years = 1, source = "dart", size = size).items }
+
+    suspend fun stakeChanges(corpCode: String): Result<StakeChangesDto> = apiCall { api.stakeChanges(corpCode) }
 
     suspend fun screeningAudit(year: Int): Result<AuditScreeningDto> = apiCall { api.screeningAudit(year) }
 

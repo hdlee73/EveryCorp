@@ -16,6 +16,7 @@ import io.github.hdlee73.everycorp.data.api.dto.IntradayDto
 import io.github.hdlee73.everycorp.data.api.dto.OverviewDto
 import io.github.hdlee73.everycorp.data.api.dto.QuoteDto
 import io.github.hdlee73.everycorp.data.api.dto.ShareholdersDto
+import io.github.hdlee73.everycorp.data.api.dto.StakeChangesDto
 import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -82,6 +83,9 @@ interface EveryCorpApi {
 
     @GET("api/v1/etfs/{code}/chart")
     suspend fun etfChart(@Path("code") code: String, @Query("days") days: Int = 365): ChartDto
+
+    @GET("api/v1/corps/{corpCode}/stake-changes")
+    suspend fun stakeChanges(@Path("corpCode") corpCode: String): StakeChangesDto
 
     @GET("api/v1/screening/audit-opinion")
     suspend fun screeningAudit(@Query("year") year: Int): AuditScreeningDto

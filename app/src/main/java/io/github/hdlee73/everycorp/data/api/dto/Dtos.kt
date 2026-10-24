@@ -505,3 +505,41 @@ data class CapitalScreeningDto(
 /** 감사의견 목록 행을 눌렀을 때 열 DART 감사보고서 주소. found=false면 사업보고서 본문 주소. */
 @Serializable
 data class AuditLinkDto(val url: String, val title: String = "", val found: Boolean = false)
+
+// ───────── 지분 변동 ─────────
+/** 5% 대량보유 보고 한 건. 변동폭(…Change)은 보고서에 없으면 null. */
+@Serializable
+data class MajorStakeDto(
+    @SerialName("rcept_no") val rceptNo: String = "",
+    val date: String = "",
+    val reporter: String = "",
+    @SerialName("report_type") val reportType: String = "",
+    val reason: String = "",
+    val shares: Long? = null,
+    @SerialName("shares_change") val sharesChange: Long? = null,
+    val ratio: Double? = null,
+    @SerialName("ratio_change") val ratioChange: Double? = null,
+)
+
+/** 임원·주요주주 소유 보고 한 건. [sharesChange] 양수는 취득, 음수는 처분. */
+@Serializable
+data class InsiderStakeDto(
+    @SerialName("rcept_no") val rceptNo: String = "",
+    val date: String = "",
+    val reporter: String = "",
+    val position: String = "",
+    @SerialName("main_holder") val mainHolder: String = "",
+    val shares: Long? = null,
+    @SerialName("shares_change") val sharesChange: Long? = null,
+    val ratio: Double? = null,
+    @SerialName("ratio_change") val ratioChange: Double? = null,
+)
+
+@Serializable
+data class StakeChangesDto(
+    @SerialName("corp_code") val corpCode: String = "",
+    val major: List<MajorStakeDto> = emptyList(),
+    val insiders: List<InsiderStakeDto> = emptyList(),
+    val errors: List<String> = emptyList(),
+    val source: String = "",
+)
