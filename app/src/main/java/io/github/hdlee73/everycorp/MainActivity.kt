@@ -42,6 +42,7 @@ import io.github.hdlee73.everycorp.ui.common.Dest
 import io.github.hdlee73.everycorp.ui.alerts.AlertsScreen
 import io.github.hdlee73.everycorp.ui.company.CompanyScreen
 import io.github.hdlee73.everycorp.ui.etf.EtfScreen
+import io.github.hdlee73.everycorp.ui.compare.CompareScreen
 import io.github.hdlee73.everycorp.ui.favorites.FavoritesScreen
 import io.github.hdlee73.everycorp.ui.home.SearchScreen
 import io.github.hdlee73.everycorp.ui.info.AppInfoScreen
@@ -111,6 +112,7 @@ private fun Root() {
                 Dest.Screening -> ScreeningScreen(vm)
                 Dest.Alerts -> AlertsScreen(vm)
                 Dest.More -> MoreScreen(vm)
+                is Dest.Compare -> CompareScreen(vm, d)
                 is Dest.ScreeningResult -> ScreeningResultScreen(vm, d)
                 is Dest.Company -> CompanyScreen(vm, d)
                 is Dest.Etf -> EtfScreen(vm, d)
