@@ -16,8 +16,8 @@ android {
         applicationId = "io.github.hdlee73.everycorp"
         minSdk = 26
         targetSdk = 36
-        versionCode = 17
-        versionName = "1.3.0"
+        versionCode = 18
+        versionName = "1.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true

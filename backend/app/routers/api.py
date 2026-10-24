@@ -11,7 +11,7 @@ from ..config import get_settings
 from ..errors import ApiError, UpstreamError
 from ..http import get_client
 from ..parsers import dart_viewer as dv
-from ..services import app_meta, company_service, debt_service, disclosures_service, etf_service, market_service, news_service, price_service, reports_service, screening_service, shareholders_service
+from ..services import app_meta, company_service, debt_service, disclosures_service, etf_service, market_service, news_service, price_service, reports_service, screening_service, shareholders_service, stake_service
 from ..services.corp_index import corp_index
 
 
@@ -102,6 +102,13 @@ async def overview(corp_code: str) -> dict:
 async def audit_reports(corp_code: str, years: int = Query(3, ge=1, le=5)) -> dict:
     _corp_or_404(corp_code)
     return await reports_service.get_audit_reports(corp_code, years)
+
+
+@router.get("/corps/{corp_code}/stake-changes")
+async def stake_changes(corp_code: str) -> dict:
+    """5% 대량보유 보고와 임원·주요주주 소유 변동(최근 30건씩)."""
+    _corp_or_404(corp_code)
+    return await stake_service.get_stake_changes(corp_code)
 
 
 # ───────── 스크리닝 ─────────
