@@ -11,7 +11,7 @@ from ..config import get_settings
 from ..errors import ApiError, UpstreamError
 from ..http import get_client
 from ..parsers import dart_viewer as dv
-from ..services import app_meta, company_service, debt_service, disclosures_service, etf_service, market_service, news_service, price_service, reports_service, shareholders_service
+from ..services import app_meta, company_service, debt_service, disclosures_service, etf_service, market_service, news_service, price_service, reports_service, screening_service, shareholders_service
 from ..services.corp_index import corp_index
 
 
@@ -102,6 +102,24 @@ async def overview(corp_code: str) -> dict:
 async def audit_reports(corp_code: str, years: int = Query(3, ge=1, le=5)) -> dict:
     _corp_or_404(corp_code)
     return await reports_service.get_audit_reports(corp_code, years)
+
+
+# ───────── 스크리닝 ─────────
+
+_YEAR = Query(..., ge=2015, le=2100, description="결산(사업)연도")
+
+
+@router.get("/screening/audit-opinion")
+async def screening_audit(year: int = _YEAR, refresh: bool = False) -> dict:
+    """감사의견 비적정(한정·부적정·의견거절) 상장사. 서버가 모아 저장한 결과이며 수집 중이면 status=collecting."""
+    return await screening_service.audit_nonclean(year, refresh)
+
+
+@router.get("/screening/capital-impairment")
+async def screening_capital(year: int = _YEAR, reprt_code: Literal["11011", "11012", "11013", "11014"] = "11011",
+                            refresh: bool = False) -> dict:
+    """자본잠식(자본총계 < 자본금) 상장사. 금액 단위는 원."""
+    return await screening_service.capital_impairment(year, reprt_code, refresh)
 
 
 @router.get("/reports/pdf")
