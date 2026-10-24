@@ -6,6 +6,7 @@ import io.github.hdlee73.everycorp.ui.common.CompanyTab
 import io.github.hdlee73.everycorp.ui.common.Dest
 import io.github.hdlee73.everycorp.ui.common.Fmt
 import io.github.hdlee73.everycorp.ui.common.NavState
+import io.github.hdlee73.everycorp.ui.common.ScreeningKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -34,6 +35,16 @@ class NavigationAndFormatTest {
         assertEquals(Dest.Info, s.top)
         val back = s.back()!!
         assertEquals(CompanyTab.Disclosures, (back.top as Dest.Company).current)
+    }
+
+    @Test fun tabsStackOnHomeAndBackReturnsToSearch() {
+        val s = NavState().openCompany(samsung).openTab(Dest.Screening)
+        assertEquals(listOf(Dest.Home, Dest.Screening), s.stack)
+        val r = s.openScreeningResult(ScreeningKind.Capital, 2025, "11012")
+        assertEquals(Dest.ScreeningResult(ScreeningKind.Capital, 2025, "11012"), r.top)
+        assertEquals(Dest.Screening, r.back()!!.top)
+        assertEquals(Dest.Home, s.back()!!.top)
+        assertEquals(NavState(), NavState().openTab(Dest.Home))
     }
 
     @Test fun goHomeJumpsToSearchInOneStep() {

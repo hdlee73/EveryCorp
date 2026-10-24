@@ -13,7 +13,9 @@ import io.github.hdlee73.everycorp.data.prefs.CorpListCodec
 import io.github.hdlee73.everycorp.data.update.CheckState
 import io.github.hdlee73.everycorp.data.update.UpdateStatus
 import io.github.hdlee73.everycorp.ui.common.CompanyTab
+import io.github.hdlee73.everycorp.ui.common.Dest
 import io.github.hdlee73.everycorp.ui.common.NavState
+import io.github.hdlee73.everycorp.ui.common.ScreeningKind
 import io.github.hdlee73.everycorp.ui.common.UiState
 import io.github.hdlee73.everycorp.ui.common.toUiState
 import kotlinx.coroutines.Job
@@ -43,6 +45,11 @@ class AppViewModel(private val c: AppContainer) : ViewModel() {
     var favorites by mutableStateOf(c.prefs.favorites)
         private set
     var recents by mutableStateOf(c.prefs.recents)
+        private set
+
+    var groupNames by mutableStateOf(c.prefs.groupNames)
+        private set
+    var groupOf by mutableStateOf(c.prefs.groupOf)
         private set
 
     var updateStatus by mutableStateOf(UpdateStatus())
@@ -86,6 +93,12 @@ class AppViewModel(private val c: AppContainer) : ViewModel() {
         searchFocusTick++
     }
 
+    fun openTab(dest: Dest) { nav = nav.openTab(dest) }
+
+    fun openScreeningResult(kind: ScreeningKind, year: Int, reprt: String = "11011") { nav = nav.openScreeningResult(kind, year, reprt) }
+
+    val repository get() = c.repository
+
     fun selectTab(tab: CompanyTab) { nav = nav.selectTab(tab) }
 
     // ───── 검색 ─────
@@ -109,6 +122,20 @@ class AppViewModel(private val c: AppContainer) : ViewModel() {
         favorites = if (isFavorite(corp)) favorites.filterNot { it.corpCode == corp.corpCode }
         else CorpListCodec.pushFront(favorites, corp, 50)
         c.prefs.favorites = favorites
+    }
+
+    // ───── 관심기업 그룹 ─────
+    fun addGroup(name: String) {
+        val n = name.trim()
+        if (n.isEmpty() || n in groupNames) return
+        groupNames = groupNames + n
+        c.prefs.groupNames = groupNames
+    }
+
+    /** [group]이 null이면 그룹 없음. */
+    fun setGroup(corp: CorpItemDto, group: String?) {
+        groupOf = if (group == null) groupOf - corp.corpCode else groupOf + (corp.corpCode to group)
+        c.prefs.groupOf = groupOf
     }
 
     // ───── 업데이트 ─────

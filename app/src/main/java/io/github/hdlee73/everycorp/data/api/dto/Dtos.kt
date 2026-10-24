@@ -448,3 +448,55 @@ data class EtfDailyDto(
     val disparity: Double? = null,
     @SerialName("tracking_error") val trackingError: Double? = null,
 )
+
+// ───────── 스크리닝 ─────────
+@Serializable
+data class ScreeningProgressDto(val done: Int = 0, val total: Int = 0)
+
+@Serializable
+data class AuditScreenItemDto(
+    @SerialName("corp_code") val corpCode: String,
+    @SerialName("corp_name") val corpName: String,
+    @SerialName("stock_code") val stockCode: String = "",
+    val period: String = "",
+    val opinion: String = "",
+    val auditor: String = "",
+    val scope: String = "",
+)
+
+/** status: ready(완료) | collecting(서버 수집 중) | partial | empty. 완료 전 items 는 일부일 수 있다. */
+@Serializable
+data class AuditScreeningDto(
+    val status: String = "empty",
+    val progress: ScreeningProgressDto = ScreeningProgressDto(),
+    @SerialName("updated_at") val updatedAt: Long? = null,
+    val year: Int = 0,
+    val checked: Int = 0,
+    val items: List<AuditScreenItemDto> = emptyList(),
+)
+
+@Serializable
+data class CapitalScreenItemDto(
+    @SerialName("corp_code") val corpCode: String,
+    @SerialName("corp_name") val corpName: String,
+    @SerialName("stock_code") val stockCode: String = "",
+    val period: String = "",
+    val assets: Long? = null,
+    val liabilities: Long? = null,
+    val equity: Long? = null,
+    val capital: Long? = null,
+    /** 완전잠식 | 부분잠식 */
+    val kind: String = "",
+    @SerialName("fs_div") val fsDiv: String = "",
+)
+
+@Serializable
+data class CapitalScreeningDto(
+    val status: String = "empty",
+    val progress: ScreeningProgressDto = ScreeningProgressDto(),
+    @SerialName("updated_at") val updatedAt: Long? = null,
+    val year: Int = 0,
+    @SerialName("report_name") val reportName: String = "",
+    val checked: Int = 0,
+    val items: List<CapitalScreenItemDto> = emptyList(),
+)
