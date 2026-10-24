@@ -26,6 +26,9 @@ sealed interface Dest {
     data object Alerts : Dest
     data object More : Dest
 
+    /** 관심기업 2~4곳 비교표. */
+    data class Compare(val corps: List<CorpItemDto>) : Dest
+
     /** 스크리닝 결과 표. [reprt]는 DART 보고서 코드(자본잠식만 사업/반기/분기 선택). */
     data class ScreeningResult(val kind: ScreeningKind, val year: Int, val reprt: String = "11011") : Dest
 
@@ -52,6 +55,8 @@ data class NavState(val stack: List<Dest> = listOf(Dest.Home)) {
 
     /** 하단 바 탭 전환: 첫 화면(검색) 위에 해당 탭만 쌓아 뒤로가기는 검색으로 돌아간다. */
     fun openTab(dest: Dest): NavState = if (dest == Dest.Home) NavState() else NavState(listOf(Dest.Home, dest))
+
+    fun openCompare(corps: List<CorpItemDto>): NavState = copy(stack = stack + Dest.Compare(corps))
 
     fun openScreeningResult(kind: ScreeningKind, year: Int, reprt: String = "11011"): NavState =
         copy(stack = stack + Dest.ScreeningResult(kind, year, reprt))

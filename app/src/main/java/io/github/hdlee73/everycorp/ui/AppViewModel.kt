@@ -97,6 +97,8 @@ class AppViewModel(private val c: AppContainer) : ViewModel() {
 
     fun openScreeningResult(kind: ScreeningKind, year: Int, reprt: String = "11011") { nav = nav.openScreeningResult(kind, year, reprt) }
 
+    fun openCompare(corps: List<CorpItemDto>) { nav = nav.openCompare(corps) }
+
     val repository get() = c.repository
 
     fun selectTab(tab: CompanyTab) { nav = nav.selectTab(tab) }

@@ -16,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -48,6 +49,8 @@ import io.github.hdlee73.everycorp.ui.theme.AppColors
 fun FavoritesScreen(vm: AppViewModel) {
     var selected by remember { mutableStateOf<String?>(null) } // null = 전체
     var adding by remember { mutableStateOf(false) }
+    var comparing by remember { mutableStateOf(false) }
+    var picked by remember { mutableStateOf(listOf<CorpItemDto>()) }
     val shown = vm.favorites.filter { selected == null || vm.groupOf[it.corpCode] == selected }
     Column(Modifier.fillMaxSize()) {
         TabHeader("관심 기업", "★로 저장한 기업을 그룹별로 모아 봅니다")
@@ -60,6 +63,11 @@ fun FavoritesScreen(vm: AppViewModel) {
                 PillChip("$g ${vm.favorites.count { vm.groupOf[it.corpCode] == g }}", onClick = { selected = g }, selected = selected == g)
             }
             PillChip("＋ 그룹", onClick = { adding = true })
+            PillChip(if (comparing) "비교 취소" else "기업 비교", onClick = { comparing = !comparing; picked = emptyList() }, selected = comparing)
+        }
+        if (comparing) Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("비교할 기업을 2~4곳 고르세요 (${picked.size}/4)", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            TextButton(onClick = { vm.openCompare(picked); comparing = false; picked = emptyList() }, enabled = picked.size in 2..4) { Text("비교하기") }
         }
         if (shown.isEmpty()) {
             EmptyBox(
@@ -68,18 +76,24 @@ fun FavoritesScreen(vm: AppViewModel) {
                 Modifier.padding(horizontal = 16.dp),
             )
         } else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp)) {
-            items(shown, key = { it.corpCode }) { corp -> FavoriteRow(vm, corp) }
+            items(shown, key = { it.corpCode }) { corp ->
+                FavoriteRow(
+                    vm, corp, picking = comparing, picked = corp in picked,
+                    onPick = { picked = if (corp in picked) picked - corp else if (picked.size < 4) picked + corp else picked },
+                )
+            }
         }
     }
     if (adding) AddGroupDialog(onDismiss = { adding = false }, onAdd = { vm.addGroup(it); adding = false })
 }
 
 @Composable
-private fun FavoriteRow(vm: AppViewModel, corp: CorpItemDto) {
+private fun FavoriteRow(vm: AppViewModel, corp: CorpItemDto, picking: Boolean, picked: Boolean, onPick: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     val group = vm.groupOf[corp.corpCode]
-    SectionCard(Modifier.clickable { vm.openCompany(corp) }) {
+    SectionCard(Modifier.clickable { if (picking) onPick() else vm.openCompany(corp) }) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (picking) Checkbox(checked = picked, onCheckedChange = { onPick() })
             InitialAvatar(corp.corpName, if (corp.isListed) MaterialTheme.colorScheme.primary else AppColors.accent)
             Column(Modifier.weight(1f)) {
                 Text(corp.corpName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 2)
