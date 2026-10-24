@@ -6,6 +6,7 @@ import io.github.hdlee73.everycorp.data.api.dto.AuditReportsResponse
 import io.github.hdlee73.everycorp.data.api.dto.AuditLinkDto
 import io.github.hdlee73.everycorp.data.api.dto.AuditScreeningDto
 import io.github.hdlee73.everycorp.data.api.dto.CapitalScreeningDto
+import io.github.hdlee73.everycorp.data.api.dto.ConvertibleScreeningDto
 import io.github.hdlee73.everycorp.data.api.dto.ChartDto
 import io.github.hdlee73.everycorp.data.api.dto.CorpItemDto
 import io.github.hdlee73.everycorp.data.api.dto.DebtSecuritiesDto
@@ -113,6 +114,8 @@ class CorpRepository(private val api: EveryCorpApi, private val kind: KindClient
 
     suspend fun screeningCapital(year: Int, reprtCode: String): Result<CapitalScreeningDto> =
         apiCall { api.screeningCapital(year, reprtCode) }
+
+    suspend fun screeningConvertible(year: Int): Result<ConvertibleScreeningDto> = apiCall { api.screeningConvertible(year) }
 
     suspend fun news(corpCode: String): Result<NewsDto> = apiCall { api.news(corpCode) }
 

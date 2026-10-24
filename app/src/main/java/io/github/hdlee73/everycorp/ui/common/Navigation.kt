@@ -16,6 +16,7 @@ enum class CompanyTab(val label: String) {
 enum class ScreeningKind(val label: String) {
     Audit("감사의견 비적정"),
     Capital("자본잠식"),
+    Convertible("CB·BW"),
 }
 
 sealed interface Dest {

@@ -502,6 +502,29 @@ data class CapitalScreeningDto(
     val items: List<CapitalScreenItemDto> = emptyList(),
 )
 
+@Serializable
+data class ConvertibleScreenItemDto(
+    @SerialName("corp_code") val corpCode: String,
+    @SerialName("corp_name") val corpName: String,
+    @SerialName("stock_code") val stockCode: String = "",
+    val period: String = "",
+    @SerialName("cb_amount") val cbAmount: Long = 0,
+    @SerialName("bw_amount") val bwAmount: Long = 0,
+    val total: Long = 0,
+    val count: Int = 0,
+    @SerialName("next_maturity") val nextMaturity: String = "",
+)
+
+@Serializable
+data class ConvertibleScreeningDto(
+    val status: String = "empty",
+    val progress: ScreeningProgressDto = ScreeningProgressDto(),
+    @SerialName("updated_at") val updatedAt: Long? = null,
+    val year: Int = 0,
+    val checked: Int = 0,
+    val items: List<ConvertibleScreenItemDto> = emptyList(),
+)
+
 /** 감사의견 목록 행을 눌렀을 때 열 DART 감사보고서 주소. found=false면 사업보고서 본문 주소. */
 @Serializable
 data class AuditLinkDto(val url: String, val title: String = "", val found: Boolean = false)

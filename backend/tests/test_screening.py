@@ -46,3 +46,21 @@ def test_current_term_items_drops_prior_terms():
     # 당기 표기가 없으면 첫 기수만
     plain = [{"term": "A", "opinion": "적정", "auditor": "x", "scope": ""}, {"term": "B", "opinion": "적정", "auditor": "y", "scope": ""}]
     assert [i["auditor"] for i in sc.current_term_items(plain)] == ["x"]
+
+
+def _bond(kind, mtd, repy="N", amt="10,000,000,000"):
+    return {"scrits_knd_nm": kind, "isu_de": "2024.03.05", "mtd": mtd, "facvalu_totamt": amt,
+            "intrt": "0.00", "repy_at": repy, "stlm_dt": "2025-12-31"}
+
+
+def test_parse_and_outstanding_convertibles():
+    rows = sc.parse_convertible([
+        _bond("무기명식 이권부 무보증 전환사채", "2029.03.05"),
+        _bond("제3회 신주인수권부사채", "2026.01.01"),
+        _bond("제4회 전환사채", "2030-01-01", repy="Y"),
+        _bond("회사채", "2030.01.01"),
+    ])
+    assert [r["kind"] for r in rows] == ["CB", "BW", "CB"]
+    assert rows[0]["maturity"] == "20290305" and rows[0]["amount"] == 10_000_000_000
+    live = sc.outstanding_convertibles(rows, "20261024")
+    assert [r["kind"] for r in live] == ["CB"]  # BW는 만기 지남, 두 번째 CB는 상환됨

@@ -5,6 +5,7 @@ import io.github.hdlee73.everycorp.data.api.dto.AuditReportsResponse
 import io.github.hdlee73.everycorp.data.api.dto.AuditLinkDto
 import io.github.hdlee73.everycorp.data.api.dto.AuditScreeningDto
 import io.github.hdlee73.everycorp.data.api.dto.CapitalScreeningDto
+import io.github.hdlee73.everycorp.data.api.dto.ConvertibleScreeningDto
 import io.github.hdlee73.everycorp.data.api.dto.ChartDto
 import io.github.hdlee73.everycorp.data.api.dto.CorpSearchResponse
 import io.github.hdlee73.everycorp.data.api.dto.DebtSecuritiesDto
@@ -95,4 +96,7 @@ interface EveryCorpApi {
 
     @GET("api/v1/screening/capital-impairment")
     suspend fun screeningCapital(@Query("year") year: Int, @Query("reprt_code") reprtCode: String = "11011"): CapitalScreeningDto
+
+    @GET("api/v1/screening/convertible-bonds")
+    suspend fun screeningConvertible(@Query("year") year: Int): ConvertibleScreeningDto
 }

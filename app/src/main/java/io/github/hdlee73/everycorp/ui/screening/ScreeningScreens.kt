@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.hdlee73.everycorp.data.api.dto.AuditScreeningDto
 import io.github.hdlee73.everycorp.data.api.dto.CapitalScreeningDto
+import io.github.hdlee73.everycorp.data.api.dto.ConvertibleScreeningDto
 import io.github.hdlee73.everycorp.data.api.dto.CorpItemDto
 import io.github.hdlee73.everycorp.ui.AppViewModel
 import io.github.hdlee73.everycorp.ui.common.Dest
@@ -87,10 +88,10 @@ fun ScreeningScreen(vm: AppViewModel) {
                 }
                 PillChip("${year}년 ${REPORTS.first { it.first == reprt }.second} 보기", onClick = { vm.openScreeningResult(ScreeningKind.Capital, year, reprt) }, selected = true)
             }
-            SectionCard {
+            SectionCard(Modifier.clickable { vm.openScreeningResult(ScreeningKind.Convertible, year) }) {
                 Text("CB·BW 발행잔액", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "상장사 중 전환사채·신주인수권부사채가 남아 있는 회사. 일괄 조회 가능 여부를 서버에서 확인한 뒤 제공합니다(준비 중).",
+                    "상장사 중 전환사채·신주인수권부사채가 상환되지 않고 만기 전인 회사 · 사업보고서 채무증권 발행실적 기준(권면총액, 억원).",
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -133,6 +134,20 @@ private fun capitalTable(d: CapitalScreeningDto) = ResultTable(
     "단위 억원 · 자본총계 < 자본금 · 연결재무제표 우선(없으면 별도). 완전잠식은 빨강, 부분잠식은 파랑.",
 )
 
+private fun convertibleTable(d: ConvertibleScreeningDto) = ResultTable(
+    d.status, d.progress.done, d.progress.total, d.checked, d.updatedAt,
+    listOf("결산", "회사명", "CB", "BW", "합계", "가까운 만기", "건수"), listOf(84.dp, 150.dp, 72.dp, 72.dp, 76.dp, 92.dp, 48.dp),
+    d.items.map {
+        TableRow(
+            corpOf(it.corpCode, it.corpName, it.stockCode),
+            listOf(period(it.period), it.corpName, eok(it.cbAmount), eok(it.bwAmount), eok(it.total),
+                it.nextMaturity.let { m -> if (m.length == 8) "${m.take(4)}.${m.substring(4, 6)}.${m.takeLast(2)}" else m }, it.count.toString()),
+            4, StockColors.up,
+        )
+    },
+    "단위 억원 · 발행 당시 권면총액 기준이라 전환·조기상환이 반영된 실제 잔액과 다를 수 있습니다. 상환 표시가 없고 만기가 지나지 않은 건만 합산.",
+)
+
 @Composable
 fun ScreeningResultScreen(vm: AppViewModel, d: Dest.ScreeningResult) {
     // 서버가 수집 중이면 완료될 때까지 몇 초마다 다시 불러온다.
@@ -142,6 +157,7 @@ fun ScreeningResultScreen(vm: AppViewModel, d: Dest.ScreeningResult) {
             val r = when (d.kind) {
                 ScreeningKind.Audit -> vm.repository.screeningAudit(d.year).map(::auditTable)
                 ScreeningKind.Capital -> vm.repository.screeningCapital(d.year, d.reprt).map(::capitalTable)
+                ScreeningKind.Convertible -> vm.repository.screeningConvertible(d.year).map(::convertibleTable)
             }
             val t = r.getOrNull()
             if (t == null) { value = UiState.Error(r.exceptionOrNull()?.message ?: "오류가 발생했습니다."); return@produceState }
@@ -153,6 +169,7 @@ fun ScreeningResultScreen(vm: AppViewModel, d: Dest.ScreeningResult) {
     val title = when (d.kind) {
         ScreeningKind.Audit -> "감사의견 비적정 · ${d.year}년"
         ScreeningKind.Capital -> "자본잠식 · ${d.year}년 ${REPORTS.first { it.first == d.reprt }.second}"
+        ScreeningKind.Convertible -> "CB·BW · ${d.year}년"
     }
     Column(Modifier.fillMaxSize()) {
         GradientTopBar(title = title, onBack = { vm.back() })
