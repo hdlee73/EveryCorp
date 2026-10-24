@@ -35,10 +35,19 @@ import io.github.hdlee73.everycorp.data.api.dto.ChartPointDto
  * - [high]/[low]는 52주 최고/최저 기준선으로 점선과 가격·일자 라벨을 그래프 안에 표시.
  */
 @Composable
-fun PriceLineChart(points: List<ChartPointDto>, high: Long?, low: Long?, lineColor: Color, modifier: Modifier = Modifier, highDate: String? = null, lowDate: String? = null) {
+fun PriceLineChart(points: List<ChartPointDto>, high: Long?, low: Long?, lineColor: Color, modifier: Modifier = Modifier, highDate: String? = null, lowDate: String? = null, markers: List<ChartMarker> = emptyList()) {
     val data = remember(points) { points.filter { it.close != null } }
     if (data.size < 2) return
     var selected by remember(data) { mutableStateOf<Int?>(null) }
+    var selectedMarker by remember(data, markers) { mutableStateOf<ChartMarker?>(null) }
+    // 공시 마커: (마커, 차트상 위치). 차트 범위 밖 공시는 뺀다.
+    val placed = remember(data, markers) {
+        val dates = data.map { it.date.replace("-", "") }
+        markers.mapNotNull { m -> markerIndex(dates, m.date)?.let { m to it } }
+    }
+    fun nearestMarker(px: Float, width: Float, tolPx: Float): ChartMarker? =
+        placed.minByOrNull { kotlin.math.abs(width * it.second / (data.size - 1) - px) }
+            ?.takeIf { kotlin.math.abs(width * it.second / (data.size - 1) - px) <= tolPx }?.first
     val gridColor = MaterialTheme.colorScheme.outlineVariant
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
 
@@ -49,15 +58,28 @@ fun PriceLineChart(points: List<ChartPointDto>, high: Long?, low: Long?, lineCol
 
     Column(modifier) {
         val sel = selected?.let { data.getOrNull(it) }
+        val sm = selectedMarker
         Text(
-            if (sel != null) "${Fmt.date(sel.date)}  ${Fmt.price(sel.close)}원" else "차트를 눌러 일별 종가 확인",
+            when {
+                sm != null -> "${Fmt.date(sm.date)}  [${sm.kind.label}] ${sm.title}"
+                sel != null -> "${Fmt.date(sel.date)}  ${Fmt.price(sel.close)}원"
+                placed.isNotEmpty() -> "차트를 눌러 일별 종가 확인 · 점을 누르면 공시 제목"
+                else -> "차트를 눌러 일별 종가 확인"
+            },
             style = MaterialTheme.typography.labelMedium,
-            color = labelColor,
+            color = sm?.kind?.color ?: labelColor,
+            maxLines = 2,
         )
         Canvas(
             Modifier.fillMaxWidth().height(200.dp)
-                .pointerInput(data) { detectTapGestures { o -> selected = indexAt(o.x, size.width.toFloat(), data.size) } }
-                .pointerInput(data) { detectDragGestures(onDragEnd = {}, onDrag = { c, _ -> selected = indexAt(c.position.x, size.width.toFloat(), data.size) }) },
+                .pointerInput(data, placed) { detectTapGestures { o ->
+                    selected = indexAt(o.x, size.width.toFloat(), data.size)
+                    selectedMarker = nearestMarker(o.x, size.width.toFloat(), 28f)
+                } }
+                .pointerInput(data, placed) { detectDragGestures(onDragEnd = {}, onDrag = { c, _ ->
+                    selected = indexAt(c.position.x, size.width.toFloat(), data.size)
+                    selectedMarker = nearestMarker(c.position.x, size.width.toFloat(), 10f)
+                }) },
         ) {
             fun x(i: Int) = size.width * i / (data.size - 1)
             fun y(v: Float) = size.height * (1f - (v - minV) / span)
@@ -93,6 +115,11 @@ fun PriceLineChart(points: List<ChartPointDto>, high: Long?, low: Long?, lineCol
             }
             drawPath(fill, Brush.verticalGradient(listOf(lineColor.copy(alpha = 0.18f), Color.Transparent)))
             drawPath(line, lineColor, style = Stroke(width = 4f))
+            placed.forEach { (m, i) ->
+                val on = m == selectedMarker
+                drawLine(m.kind.color.copy(alpha = if (on) 0.9f else 0.35f), Offset(x(i), y(closes[i])), Offset(x(i), size.height), strokeWidth = if (on) 3f else 1.5f)
+                drawCircle(m.kind.color, radius = if (on) 11f else 7f, center = Offset(x(i), y(closes[i])))
+            }
             selected?.let { i ->
                 drawLine(labelColor, Offset(x(i), 0f), Offset(x(i), size.height), strokeWidth = 2f)
                 drawCircle(lineColor, radius = 9f, center = Offset(x(i), y(closes[i])))

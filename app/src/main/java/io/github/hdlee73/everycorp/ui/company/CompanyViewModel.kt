@@ -38,7 +38,9 @@ import io.github.hdlee73.everycorp.data.repo.DisclosureCategory
 import io.github.hdlee73.everycorp.data.repo.DisclosurePeriod
 import io.github.hdlee73.everycorp.data.repo.DisclosureSource
 import io.github.hdlee73.everycorp.ui.common.CompanyTab
+import io.github.hdlee73.everycorp.ui.common.ChartMarker
 import io.github.hdlee73.everycorp.ui.common.UiState
+import io.github.hdlee73.everycorp.ui.common.toMarkers
 import io.github.hdlee73.everycorp.ui.common.toUiState
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -51,6 +53,9 @@ sealed interface PdfUi {
 }
 
 /** 기업 하나의 5개 탭 데이터. 탭을 처음 열 때 한 번만 불러온다. */
+/** 차트 공시 마커용으로 불러올 DART 공시 페이지 수(페이지당 50건). */
+private const val MARKER_PAGES = 3
+
 class CompanyViewModel(
     val corp: CorpItemDto,
     private val repo: CorpRepository,
@@ -60,6 +65,8 @@ class CompanyViewModel(
     var reports by mutableStateOf<UiState<AuditReportsResponse>>(UiState.Idle); private set
     var debt by mutableStateOf<UiState<DebtSecuritiesDto>>(UiState.Idle); private set
     var chart by mutableStateOf<UiState<ChartDto>>(UiState.Idle); private set
+    /** 주가 차트에 찍는 최근 1년 공시(정기·주요사항·지분). 실패해도 차트는 그대로 보인다. */
+    var markers by mutableStateOf<List<ChartMarker>>(emptyList()); private set
     var quote by mutableStateOf<UiState<QuoteDto>>(UiState.Idle); private set
     var shareholders by mutableStateOf<UiState<ShareholdersDto>>(UiState.Idle); private set
     var news by mutableStateOf<UiState<NewsDto>>(UiState.Idle); private set
@@ -152,7 +159,19 @@ class CompanyViewModel(
             .onFailure { if (intraday !is UiState.Success) intraday = UiState.Error(it.message ?: "당일 추이를 불러오지 못했습니다.") }
     }
 
-    fun loadChart() { chart = UiState.Loading; viewModelScope.launch { chart = repo.chart(corp.corpCode).toUiState() } }
+    fun loadChart() {
+        chart = UiState.Loading
+        viewModelScope.launch { chart = repo.chart(corp.corpCode).toUiState() }
+        viewModelScope.launch {
+            val all = mutableListOf<DisclosureDto>()
+            for (p in 1..MARKER_PAGES) {
+                val r = repo.disclosures(corp.corpCode, DisclosurePeriod.Y1, DisclosureSource.Dart, page = p).getOrNull() ?: break
+                all += r.items
+                if (!r.hasNext) break
+            }
+            markers = toMarkers(all)
+        }
+    }
 
     /** 현재가 폴링 결과 반영. 실패해도 이전 값은 남겨 화면이 깜박이지 않게 한다. */
     fun onQuote(r: Result<QuoteDto>) {
