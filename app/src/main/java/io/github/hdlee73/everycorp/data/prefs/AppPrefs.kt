@@ -4,6 +4,8 @@ import android.content.Context
 import io.github.hdlee73.everycorp.data.api.NetworkModule
 import io.github.hdlee73.everycorp.data.api.dto.CorpItemDto
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
 
 /** 목록(관심기업·최근 검색)을 JSON 문자열로 바꾸고 되돌리는 순수 로직. */
 object CorpListCodec {
@@ -19,6 +21,15 @@ object CorpListCodec {
         (listOf(item) + list.filterNot { it.corpCode == item.corpCode }).take(max)
 }
 
+object GroupCodec {
+    private val serializer = MapSerializer(String.serializer(), String.serializer())
+
+    fun encode(m: Map<String, String>): String = NetworkModule.json.encodeToString(serializer, m)
+
+    fun decode(raw: String?): Map<String, String> =
+        if (raw.isNullOrBlank()) emptyMap() else runCatching { NetworkModule.json.decodeFromString(serializer, raw) }.getOrDefault(emptyMap())
+}
+
 /** 관심기업·최근 검색·마지막으로 본 버전. 사용자 기기에만 저장된다. */
 class AppPrefs(context: Context) {
     private val p = context.applicationContext.getSharedPreferences("everycorp", Context.MODE_PRIVATE)
@@ -26,6 +37,16 @@ class AppPrefs(context: Context) {
     var favorites: List<CorpItemDto>
         get() = CorpListCodec.decode(p.getString("favorites", null))
         set(v) = p.edit().putString("favorites", CorpListCodec.encode(v)).apply()
+
+    /** 관심기업 그룹 이름 목록(표시 순서). */
+    var groupNames: List<String>
+        get() = p.getString("group_names", null)?.split('\n')?.filter { it.isNotBlank() } ?: emptyList()
+        set(v) = p.edit().putString("group_names", v.joinToString("\n")).apply()
+
+    /** corpCode → 그룹 이름. 그룹이 없는 기업은 들어 있지 않다. */
+    var groupOf: Map<String, String>
+        get() = GroupCodec.decode(p.getString("group_of", null))
+        set(v) = p.edit().putString("group_of", GroupCodec.encode(v)).apply()
 
     var recents: List<CorpItemDto>
         get() = CorpListCodec.decode(p.getString("recents", null))

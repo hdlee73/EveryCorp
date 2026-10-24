@@ -3,6 +3,8 @@ package io.github.hdlee73.everycorp.data.repo
 import io.github.hdlee73.everycorp.data.api.EveryCorpApi
 import io.github.hdlee73.everycorp.data.api.NetworkModule
 import io.github.hdlee73.everycorp.data.api.dto.AuditReportsResponse
+import io.github.hdlee73.everycorp.data.api.dto.AuditScreeningDto
+import io.github.hdlee73.everycorp.data.api.dto.CapitalScreeningDto
 import io.github.hdlee73.everycorp.data.api.dto.ChartDto
 import io.github.hdlee73.everycorp.data.api.dto.CorpItemDto
 import io.github.hdlee73.everycorp.data.api.dto.DebtSecuritiesDto
@@ -96,6 +98,15 @@ class CorpRepository(private val api: EveryCorpApi, private val kind: KindClient
             Result.failure(java.io.IOException("KIND 공시를 불러오지 못했습니다. (${e.message ?: "네트워크 오류"})"))
         }
     }
+
+    /** 알림 탭용: 최근 DART 공시 몇 건만. */
+    suspend fun recentDisclosures(corpCode: String, size: Int = 5): Result<List<DisclosureDto>> =
+        apiCall { api.disclosures(corpCode, years = 1, source = "dart", size = size).items }
+
+    suspend fun screeningAudit(year: Int): Result<AuditScreeningDto> = apiCall { api.screeningAudit(year) }
+
+    suspend fun screeningCapital(year: Int, reprtCode: String): Result<CapitalScreeningDto> =
+        apiCall { api.screeningCapital(year, reprtCode) }
 
     suspend fun news(corpCode: String): Result<NewsDto> = apiCall { api.news(corpCode) }
 

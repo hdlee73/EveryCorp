@@ -12,9 +12,22 @@ enum class CompanyTab(val label: String) {
     News("뉴스"),
 }
 
+/** 스크리닝 종류. */
+enum class ScreeningKind(val label: String) {
+    Audit("감사의견 비적정"),
+    Capital("자본잠식"),
+}
+
 sealed interface Dest {
     data object Home : Dest
     data object Info : Dest
+    data object Favorites : Dest
+    data object Screening : Dest
+    data object Alerts : Dest
+    data object More : Dest
+
+    /** 스크리닝 결과 표. [reprt]는 DART 보고서 코드(자본잠식만 사업/반기/분기 선택). */
+    data class ScreeningResult(val kind: ScreeningKind, val year: Int, val reprt: String = "11011") : Dest
 
     /** ETF 상세(탭 없는 한 화면). */
     data class Etf(val item: EtfItemDto) : Dest
@@ -36,6 +49,12 @@ data class NavState(val stack: List<Dest> = listOf(Dest.Home)) {
 
     /** 어느 화면에서든 한 번에 첫 화면(검색)으로. 이미 첫 화면이면 그대로. */
     fun goHome(): NavState = if (stack.size == 1) this else NavState()
+
+    /** 하단 바 탭 전환: 첫 화면(검색) 위에 해당 탭만 쌓아 뒤로가기는 검색으로 돌아간다. */
+    fun openTab(dest: Dest): NavState = if (dest == Dest.Home) NavState() else NavState(listOf(Dest.Home, dest))
+
+    fun openScreeningResult(kind: ScreeningKind, year: Int, reprt: String = "11011"): NavState =
+        copy(stack = stack + Dest.ScreeningResult(kind, year, reprt))
 
     fun openEtf(item: EtfItemDto): NavState = copy(stack = stack + Dest.Etf(item))
 

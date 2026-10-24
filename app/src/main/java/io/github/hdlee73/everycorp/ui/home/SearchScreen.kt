@@ -17,10 +17,6 @@ import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -55,7 +51,6 @@ fun SearchScreen(vm: AppViewModel) {
         LargeTitle(
             title = "Every Corp",
             subtitle = "기업개황 · 감사보고서 · 공시 · 주가 · 채권을 한곳에서",
-            trailing = { IconButton(onClick = vm::openInfo) { Icon(Icons.Filled.Info, contentDescription = "앱 정보") } },
         )
         SearchPill(
             value = vm.query, onValueChange = vm::onQuery, placeholder = "기업명 또는 초성 (예: 삼성전자, ㅅㅅㅈㅈ)",

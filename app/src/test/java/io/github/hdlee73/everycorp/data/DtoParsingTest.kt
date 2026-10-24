@@ -2,6 +2,8 @@ package io.github.hdlee73.everycorp.data
 
 import io.github.hdlee73.everycorp.data.api.NetworkModule
 import io.github.hdlee73.everycorp.data.api.dto.AuditReportsResponse
+import io.github.hdlee73.everycorp.data.api.dto.AuditScreeningDto
+import io.github.hdlee73.everycorp.data.api.dto.CapitalScreeningDto
 import io.github.hdlee73.everycorp.data.api.dto.ChartDto
 import io.github.hdlee73.everycorp.data.api.dto.CorpSearchResponse
 import io.github.hdlee73.everycorp.data.api.dto.DebtSecuritiesDto
@@ -18,6 +20,22 @@ import org.junit.Test
 /** docs/API_SPEC.md 의 JSON 예시가 DTO 로 그대로 읽히는지 확인(서버-앱 계약 테스트). */
 class DtoParsingTest {
     private val json = NetworkModule.json
+
+    @Test fun screening() {
+        val a = json.decodeFromString<AuditScreeningDto>(
+            """{"status":"collecting","progress":{"done":10,"total":2600},"updated_at":1,"year":2025,"checked":10,
+              "items":[{"corp_code":"1","corp_name":"예시","stock_code":"","period":"2025-12","opinion":"한정","auditor":"가나다","scope":""}]}""",
+        )
+        assertEquals("collecting", a.status)
+        assertEquals(2600, a.progress.total)
+        assertEquals("한정", a.items[0].opinion)
+        val c = json.decodeFromString<CapitalScreeningDto>(
+            """{"status":"ready","year":2025,"report_name":"사업보고서","items":[{"corp_code":"2","corp_name":"예시바이오","period":"2025-12",
+              "assets":18800000000,"liabilities":20500000000,"equity":-1700000000,"capital":4000000000,"kind":"완전잠식","fs_div":"CFS"}]}""",
+        )
+        assertEquals(-1_700_000_000L, c.items[0].equity)
+        assertEquals("완전잠식", c.items[0].kind)
+    }
 
     @Test fun search() {
         val r = json.decodeFromString<CorpSearchResponse>(
