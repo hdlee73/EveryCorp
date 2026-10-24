@@ -28,6 +28,9 @@ _MULTI_BATCH = 100
 _AUDIT_CONCURRENCY = 4
 _SAVE_EVERY = 200
 
+# 저장 형식 버전. 올리면 기존 저장본을 버리고 다시 수집한다(v2: 당기 감사의견만, 접수번호 포함).
+_SCHEMA = 2
+
 _jobs: dict[str, asyncio.Task] = {}
 _progress: dict[str, tuple[int, int]] = {}
 
@@ -42,6 +45,23 @@ def is_clean_opinion(opinion: str) -> bool:
 def is_flagged_opinion(opinion: str) -> bool:
     o = (opinion or "").strip()
     return o not in ("", "-") and not is_clean_opinion(o)
+
+
+def current_term_items(items: list[dict]) -> list[dict]:
+    """감사의견 표는 당기·전기·전전기 행이 함께 온다. 그중 당기(해당 결산연도) 행만 남긴다.
+
+    '당기' 표기가 없으면 DART가 최신 기수부터 내려주므로 첫 기수의 행을 쓴다.
+    같은 (의견, 감사인, 구분)은 하나로 합친다.
+    """
+    cur = [i for i in items if "당기" in i.get("term", "")] or [i for i in items if items and i.get("term") == items[0].get("term")]
+    seen: set[tuple] = set()
+    out = []
+    for i in cur:
+        k = (i["opinion"], i["auditor"], i["scope"])
+        if k not in seen:
+            seen.add(k)
+            out.append(i)
+    return out
 
 
 def _amount(s: object) -> int | None:
@@ -149,8 +169,8 @@ async def _collect_capital(key: str, year: int, reprt: str) -> None:
 
 # ───────── 감사의견 수집 ─────────
 
-async def _annual_filings(year: int) -> dict[str, str]:
-    """결산연도 year의 사업보고서(A001) 제출 법인(비상장 포함) → {corp_code: 'YYYY-MM'}.
+async def _annual_filings(year: int) -> dict[str, tuple[str, str]]:
+    """결산연도 year의 사업보고서(A001) 제출 법인(비상장 포함) → {corp_code: ('YYYY-MM', 접수번호)}.
 
     list.json은 corp_code 없이 조회하면 기간이 3개월로 제한되므로 월 단위로 훑는다.
     제출은 결산 이후(12월 결산이면 이듬해 3월 전후)라서 year 1월 ~ year+1 12월을 본다.
@@ -184,7 +204,7 @@ async def _annual_filings(year: int) -> dict[str, str]:
                     break
                 page += 1
             await asyncio.sleep(0.1)
-    return {cc: v[0] for cc, v in out.items()}
+    return out
 
 
 async def _opinion_for(corp_code: str, period: str) -> list[dict] | None:
@@ -195,7 +215,7 @@ async def _opinion_for(corp_code: str, period: str) -> list[dict] | None:
                                              bsns_year=str(year), reprt_code=dart_client.REPRT_ANNUAL)
         except dart_client.DartNoData:
             continue
-        items = summarize_opinions(res.get("list", []))
+        items = current_term_items(summarize_opinions(res.get("list", [])))
         if items:
             return [{"opinion": i["opinion"], "auditor": i["auditor"], "scope": i["scope"]} for i in items]
     return None
@@ -203,10 +223,11 @@ async def _opinion_for(corp_code: str, period: str) -> list[dict] | None:
 
 async def _collect_audit(key: str, year: int) -> None:
     prev = _load(key)
-    records: dict[str, dict] = dict(prev.get("records", {})) if prev.get("year") == year else {}
+    keep = prev.get("year") == year and prev.get("v") == _SCHEMA
+    records: dict[str, dict] = dict(prev.get("records", {})) if keep else {}
     filings = await _annual_filings(year)
     todo = [cc for cc in filings if cc not in records]
-    data = {"year": year, "records": records, "total": len(filings), "complete": False,
+    data = {"v": _SCHEMA, "year": year, "records": records, "total": len(filings), "complete": False,
             "updated_at": int(time.time())}
     _progress[key] = (len(filings) - len(todo), len(filings))
     sem = asyncio.Semaphore(_AUDIT_CONCURRENCY)
@@ -214,11 +235,11 @@ async def _collect_audit(key: str, year: int) -> None:
     async def one(cc: str) -> None:
         async with sem:
             try:
-                ops = await _opinion_for(cc, filings[cc])
+                ops = await _opinion_for(cc, filings[cc][0])
             except Exception as e:  # noqa: BLE001
                 log.warning("audit opinion %s failed: %s", cc, e)
                 return
-            records[cc] = {"period": filings[cc], "opinions": ops or []}
+            records[cc] = {"period": filings[cc][0], "rcept_no": filings[cc][1], "opinions": ops or []}
 
     for i in range(0, len(todo), _SAVE_EVERY):
         await asyncio.gather(*(one(cc) for cc in todo[i:i + _SAVE_EVERY]))
@@ -253,10 +274,13 @@ def _status(key: str, data: dict) -> dict:
 async def audit_nonclean(year: int, refresh: bool = False) -> dict:
     key = f"audit_{year}"
     data = _load(key)
+    if data.get("v") != _SCHEMA:
+        data = {}  # 이전 형식 저장본은 쓰지 않고 새로 수집한다
     stale = not data.get("complete") or (refresh and time.time() - data.get("updated_at", 0) > 24 * 3600)
     if stale:
         _ensure_job(key, lambda: _collect_audit(key, year))
-        data = _load(key) or data
+        fresh = _load(key)
+        data = fresh if fresh.get("v") == _SCHEMA else data
     items = []
     for cc, rec in data.get("records", {}).items():
         flagged = [o for o in rec.get("opinions", []) if is_flagged_opinion(o["opinion"])]
@@ -265,7 +289,7 @@ async def audit_nonclean(year: int, refresh: bool = False) -> dict:
         name, stock = _name(cc)
         for o in flagged:
             items.append({"corp_code": cc, "corp_name": name, "stock_code": stock, "period": rec["period"],
-                          "opinion": o["opinion"], "auditor": o["auditor"], "scope": o["scope"]})
+                          "rcept_no": rec.get("rcept_no", ""), "opinion": o["opinion"], "auditor": o["auditor"], "scope": o["scope"]})
     items.sort(key=lambda x: (x["period"], x["corp_name"]))
     return {**_status(key, data), "year": year, "checked": len(data.get("records", {})), "items": items}
 
@@ -288,3 +312,21 @@ async def capital_impairment(year: int, reprt: str = dart_client.REPRT_ANNUAL, r
     items.sort(key=lambda x: (x["equity"] if x["equity"] is not None else 0))
     return {**_status(key, data), "year": year, "reprt_code": reprt, "report_name": REPRT_NAMES.get(reprt, reprt),
             "checked": len(data.get("records", {})), "items": items}
+
+
+async def audit_report_link(rcp_no: str) -> dict:
+    """사업보고서 접수번호 → 그 보고서에 첨부된 감사보고서 뷰어 주소(연결 우선). 첨부를 못 찾으면 보고서 본문 주소."""
+    from ..parsers import dart_viewer as dv
+    from .reports_service import fetch_viewer_html
+
+    main = {"url": dv.viewer_url(rcp_no), "title": "사업보고서", "found": False}
+    try:
+        docs = [d for d in dv.parse_attachments(await fetch_viewer_html(rcp_no))
+                if dv.is_audit_or_review(d.title) and dv.classify(d.title)[0] == "AUDIT"]
+    except Exception as e:  # noqa: BLE001
+        log.warning("audit link %s failed: %s", rcp_no, e)
+        return main
+    if not docs:
+        return main
+    best = max(docs, key=lambda d: dv.classify(d.title)[1])
+    return {"url": dv.viewer_url(best.rcp_no, best.dcm_no), "title": best.title, "found": True}

@@ -30,3 +30,19 @@ def test_impairment_kind():
     assert sc.impairment_kind(20, 50) == "부분잠식"
     assert sc.impairment_kind(50, 50) is None
     assert sc.impairment_kind(None, 50) is None and sc.impairment_kind(10, 0) is None
+
+
+def test_current_term_items_drops_prior_terms():
+    rows = [
+        {"term": "제 12 기 (당기)", "opinion": "한정의견", "auditor": "성현회계법인", "scope": ""},
+        {"term": "제 11 기 (전기)", "opinion": "한정의견", "auditor": "성현회계법인", "scope": ""},
+        {"term": "제 10 기 (전전기)", "opinion": "한정의견", "auditor": "성현회계법인", "scope": ""},
+    ]
+    assert len(sc.current_term_items(rows)) == 1
+    two = [{"term": "당기", "opinion": "의견거절", "auditor": "신한", "scope": "연결"},
+           {"term": "당기", "opinion": "의견거절", "auditor": "한울", "scope": "별도"},
+           {"term": "전기", "opinion": "적정", "auditor": "한울", "scope": ""}]
+    assert [i["auditor"] for i in sc.current_term_items(two)] == ["신한", "한울"]
+    # 당기 표기가 없으면 첫 기수만
+    plain = [{"term": "A", "opinion": "적정", "auditor": "x", "scope": ""}, {"term": "B", "opinion": "적정", "auditor": "y", "scope": ""}]
+    assert [i["auditor"] for i in sc.current_term_items(plain)] == ["x"]

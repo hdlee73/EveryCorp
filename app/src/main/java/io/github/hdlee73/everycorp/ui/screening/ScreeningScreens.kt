@@ -22,11 +22,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -46,8 +48,10 @@ import io.github.hdlee73.everycorp.ui.common.SectionLabel
 import io.github.hdlee73.everycorp.ui.common.TabHeader
 import io.github.hdlee73.everycorp.ui.common.UiState
 import io.github.hdlee73.everycorp.ui.common.UiStateContent
+import io.github.hdlee73.everycorp.ui.common.openInAppBrowser
 import io.github.hdlee73.everycorp.ui.theme.StockColors
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 private val REPORTS = listOf("11011" to "사업보고서", "11012" to "반기보고서", "11013" to "1분기", "11014" to "3분기")
@@ -95,7 +99,7 @@ fun ScreeningScreen(vm: AppViewModel) {
 }
 
 /** 결과 표 한 줄. [corp]를 누르면 기업 화면으로 이동한다. */
-private data class TableRow(val corp: CorpItemDto, val cells: List<String>, val tintColumn: Int = -1, val tint: Color = Color.Unspecified)
+private data class TableRow(val corp: CorpItemDto, val cells: List<String>, val tintColumn: Int = -1, val tint: Color = Color.Unspecified, val rceptNo: String = "")
 
 private data class ResultTable(
     val status: String, val done: Int, val total: Int, val checked: Int, val updatedAt: Long?,
@@ -111,14 +115,14 @@ private fun eok(v: Long?) = Fmt.eok(v?.toDouble())
 
 private fun auditTable(d: AuditScreeningDto) = ResultTable(
     d.status, d.progress.done, d.progress.total, d.checked, d.updatedAt,
-    listOf("결산", "회사명", "감사의견", "감사인", "구분"), listOf(64.dp, 150.dp, 90.dp, 130.dp, 90.dp),
-    d.items.map { TableRow(corpOf(it.corpCode, it.corpName, it.stockCode), listOf(period(it.period), it.corpName, it.opinion, it.auditor, it.scope), 2, StockColors.up) },
-    "한정·부적정·의견거절만 표시합니다. 연결·별도 중 하나라도 비적정이면 포함됩니다.",
+    listOf("결산", "회사명", "감사의견", "감사인", "구분"), listOf(84.dp, 150.dp, 90.dp, 130.dp, 90.dp),
+    d.items.map { TableRow(corpOf(it.corpCode, it.corpName, it.stockCode), listOf(period(it.period), it.corpName, it.opinion, it.auditor, it.scope), 2, StockColors.up, it.rceptNo) },
+    "당기 감사의견이 한정·부적정·의견거절인 회사만 표시합니다. 행을 누르면 DART 감사보고서가 열립니다.",
 )
 
 private fun capitalTable(d: CapitalScreeningDto) = ResultTable(
     d.status, d.progress.done, d.progress.total, d.checked, d.updatedAt,
-    listOf("결산", "회사명", "자산", "부채", "자기자본", "자본금", "구분"), listOf(64.dp, 150.dp, 72.dp, 72.dp, 80.dp, 72.dp, 76.dp),
+    listOf("결산", "회사명", "자산", "부채", "자기자본", "자본금", "구분"), listOf(84.dp, 150.dp, 72.dp, 72.dp, 80.dp, 72.dp, 76.dp),
     d.items.map {
         TableRow(
             corpOf(it.corpCode, it.corpName, it.stockCode),
@@ -158,6 +162,22 @@ fun ScreeningResultScreen(vm: AppViewModel, d: Dest.ScreeningResult) {
 
 @Composable
 private fun ResultBody(vm: AppViewModel, t: ResultTable) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var opening by remember { mutableStateOf(false) }
+    // 감사의견 행은 DART 감사보고서로, 그 밖의 행은 기업 화면으로 연결한다.
+    val onRow: (TableRow) -> Unit = { r ->
+        if (r.rceptNo.isBlank()) vm.openCompany(r.corp)
+        else if (!opening) {
+            opening = true
+            scope.launch {
+                vm.repository.screeningAuditLink(r.rceptNo)
+                    .onSuccess { openInAppBrowser(context, it.url) }
+                    .onFailure { vm.openCompany(r.corp) }
+                opening = false
+            }
+        }
+    }
     Column(Modifier.fillMaxSize()) {
         val collecting = t.status != "ready"
         Text(
@@ -178,7 +198,7 @@ private fun ResultBody(vm: AppViewModel, t: ResultTable) {
                     }
                 }
                 itemsIndexed(t.rows, key = { i, r -> "$i${r.corp.corpCode}" }) { _, r ->
-                    Row(Modifier.fillMaxWidth().clickable { vm.openCompany(r.corp) }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().clickable { onRow(r) }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                         r.cells.forEachIndexed { i, c ->
                             Cell(c, t.widths[i], i, color = if (i == r.tintColumn) r.tint else MaterialTheme.colorScheme.onSurface, bold = i == r.tintColumn)
                         }

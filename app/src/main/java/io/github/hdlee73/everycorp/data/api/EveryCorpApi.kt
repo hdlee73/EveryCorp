@@ -2,6 +2,7 @@ package io.github.hdlee73.everycorp.data.api
 
 import io.github.hdlee73.everycorp.data.api.dto.AppMetaDto
 import io.github.hdlee73.everycorp.data.api.dto.AuditReportsResponse
+import io.github.hdlee73.everycorp.data.api.dto.AuditLinkDto
 import io.github.hdlee73.everycorp.data.api.dto.AuditScreeningDto
 import io.github.hdlee73.everycorp.data.api.dto.CapitalScreeningDto
 import io.github.hdlee73.everycorp.data.api.dto.ChartDto
@@ -84,6 +85,9 @@ interface EveryCorpApi {
 
     @GET("api/v1/screening/audit-opinion")
     suspend fun screeningAudit(@Query("year") year: Int): AuditScreeningDto
+
+    @GET("api/v1/screening/audit-link")
+    suspend fun screeningAuditLink(@Query("rcp_no") rcpNo: String): AuditLinkDto
 
     @GET("api/v1/screening/capital-impairment")
     suspend fun screeningCapital(@Query("year") year: Int, @Query("reprt_code") reprtCode: String = "11011"): CapitalScreeningDto
