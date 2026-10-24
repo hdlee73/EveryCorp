@@ -28,6 +28,7 @@ import io.github.hdlee73.everycorp.ui.common.EmptyBox
 import io.github.hdlee73.everycorp.ui.common.Fmt
 import io.github.hdlee73.everycorp.ui.common.IntradaySparkline
 import io.github.hdlee73.everycorp.ui.common.LabelValue
+import io.github.hdlee73.everycorp.ui.common.MarkerKind
 import io.github.hdlee73.everycorp.ui.common.StatGrid
 import io.github.hdlee73.everycorp.ui.common.VolumeBarChart
 import io.github.hdlee73.everycorp.ui.common.UiState
@@ -58,12 +59,23 @@ fun StockTab(vm: CompanyViewModel) {
             SectionCard(title = "최근 1년 (일별 종가·거래량)") {
                 if (ch.points.size < 2) Text("차트 데이터가 부족합니다.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 else {
-                    PriceLineChart(ch.points, ch.range52w.high, ch.range52w.low, color, highDate = ch.range52w.highDate, lowDate = ch.range52w.lowDate)
+                    PriceLineChart(ch.points, ch.range52w.high, ch.range52w.low, color, highDate = ch.range52w.highDate, lowDate = ch.range52w.lowDate, markers = vm.markers)
+                    if (vm.markers.isNotEmpty()) MarkerLegend()
                     Text("거래량", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     VolumeBarChart(ch.points, Modifier.fillMaxWidth().height(72.dp))
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun MarkerLegend() {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        MarkerKind.entries.forEach { k ->
+            Text("● ${k.label}", style = MaterialTheme.typography.labelSmall, color = k.color)
+        }
+        Text("공시일 기준", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
