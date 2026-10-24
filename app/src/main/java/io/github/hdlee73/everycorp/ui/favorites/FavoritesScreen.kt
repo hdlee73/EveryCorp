@@ -32,7 +32,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import io.github.hdlee73.everycorp.ui.ExportState
 import androidx.compose.ui.unit.dp
 import io.github.hdlee73.everycorp.data.api.dto.CorpItemDto
 import io.github.hdlee73.everycorp.ui.AppViewModel
@@ -63,11 +65,16 @@ fun FavoritesScreen(vm: AppViewModel) {
                 PillChip("$g ${vm.favorites.count { vm.groupOf[it.corpCode] == g }}", onClick = { selected = g }, selected = selected == g)
             }
             PillChip("＋ 그룹", onClick = { adding = true })
-            PillChip(if (comparing) "비교 취소" else "기업 비교", onClick = { comparing = !comparing; picked = emptyList() }, selected = comparing)
+            PillChip(if (comparing) "선택 취소" else "비교·PDF", onClick = { comparing = !comparing; picked = emptyList() }, selected = comparing)
         }
         if (comparing) Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("비교할 기업을 2~4곳 고르세요 (${picked.size}/4)", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            TextButton(onClick = { vm.openCompare(picked); comparing = false; picked = emptyList() }, enabled = picked.size in 2..4) { Text("비교하기") }
+            val context = LocalContext.current
+            Text("기업을 고르세요 (${picked.size}/8)", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            TextButton(onClick = { vm.openCompare(picked); comparing = false; picked = emptyList() }, enabled = picked.size in 2..4) { Text("비교(2~4)") }
+            TextButton(
+                onClick = { vm.exportBatchPdf(context.applicationContext, picked); comparing = false; picked = emptyList() },
+                enabled = picked.isNotEmpty() && vm.pdfExport !is ExportState.Working,
+            ) { Text("요약 PDF") }
         }
         if (shown.isEmpty()) {
             EmptyBox(
@@ -79,7 +86,7 @@ fun FavoritesScreen(vm: AppViewModel) {
             items(shown, key = { it.corpCode }) { corp ->
                 FavoriteRow(
                     vm, corp, picking = comparing, picked = corp in picked,
-                    onPick = { picked = if (corp in picked) picked - corp else if (picked.size < 4) picked + corp else picked },
+                    onPick = { picked = if (corp in picked) picked - corp else if (picked.size < 8) picked + corp else picked },
                 )
             }
         }

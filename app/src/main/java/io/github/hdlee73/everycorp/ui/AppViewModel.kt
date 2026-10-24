@@ -29,6 +29,13 @@ sealed interface InstallState {
     data object NeedPermission : InstallState
 }
 
+sealed interface ExportState {
+    data object Idle : ExportState
+    data class Working(val label: String) : ExportState
+    data class Done(val uri: android.net.Uri, val label: String) : ExportState
+    data class Failed(val message: String) : ExportState
+}
+
 /** 앱 전체 상태: 화면 이동, 검색, 즐겨찾기·최근, 업데이트. */
 class AppViewModel(private val c: AppContainer) : ViewModel() {
     var nav by mutableStateOf(NavState())
@@ -50,6 +57,9 @@ class AppViewModel(private val c: AppContainer) : ViewModel() {
     var groupNames by mutableStateOf(c.prefs.groupNames)
         private set
     var groupOf by mutableStateOf(c.prefs.groupOf)
+        private set
+
+    var pdfExport by mutableStateOf<ExportState>(ExportState.Idle)
         private set
 
     var updateStatus by mutableStateOf(UpdateStatus())
@@ -124,6 +134,66 @@ class AppViewModel(private val c: AppContainer) : ViewModel() {
         favorites = if (isFavorite(corp)) favorites.filterNot { it.corpCode == corp.corpCode }
         else CorpListCodec.pushFront(favorites, corp, 50)
         c.prefs.favorites = favorites
+    }
+
+    // ───── PDF 만들기(비교 리포트·일괄 PDF) ─────
+    fun clearPdfExport() { pdfExport = ExportState.Idle }
+
+    private fun now() = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy.MM.dd HH:mm"))
+
+    private fun appLine() = "Every Corp v${BuildConfig.VERSION_NAME} · 만든이 ${BuildConfig.AUTHOR_NAME} (${BuildConfig.AUTHOR_EMAIL})"
+
+    private suspend fun savePdf(context: android.content.Context, name: String, write: (java.io.OutputStream) -> Unit): android.net.Uri =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val dir = java.io.File(context.cacheDir, "reports").apply { mkdirs() }
+            val file = java.io.File(dir, io.github.hdlee73.everycorp.data.pdf.PdfSupport.safeFileName(name, "report"))
+            file.outputStream().use(write)
+            androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.files", file)
+        }
+
+    fun exportComparePdf(context: android.content.Context, cols: List<io.github.hdlee73.everycorp.ui.compare.CompareColumn>) {
+        if (pdfExport is ExportState.Working || cols.isEmpty()) return
+        pdfExport = ExportState.Working("비교 리포트")
+        val app = context.applicationContext
+        viewModelScope.launch {
+            pdfExport = try {
+                val uri = savePdf(app, "비교리포트_" + cols.joinToString("_") { it.name }.take(60)) {
+                    io.github.hdlee73.everycorp.data.report.ComparePdfWriter.write(cols, now(), appLine(), it)
+                }
+                ExportState.Done(uri, "비교 리포트")
+            } catch (e: Exception) {
+                ExportState.Failed(e.message ?: "PDF를 만들지 못했습니다.")
+            }
+        }
+    }
+
+    /** 기업마다 요약(개황·재무·채권·주가·감사의견)을 모아 한 PDF 파일로 만든다. 기업당 데이터를 차례로 불러오므로 시간이 걸린다. */
+    fun exportBatchPdf(context: android.content.Context, corps: List<CorpItemDto>) {
+        if (pdfExport is ExportState.Working || corps.isEmpty()) return
+        pdfExport = ExportState.Working("일괄 요약")
+        val app = context.applicationContext
+        val repo = c.repository
+        viewModelScope.launch {
+            pdfExport = try {
+                val inputs = corps.map { corp ->
+                    val listed = corp.isListed
+                    io.github.hdlee73.everycorp.data.report.SummaryPdfInput(
+                        corpName = corp.corpName, badge = corp.badge,
+                        overview = repo.overview(corp.corpCode).getOrNull(),
+                        debt = repo.debtSecurities(corp.corpCode).getOrNull(),
+                        quote = if (listed) repo.quote(corp.corpCode).getOrNull() else null,
+                        chart = if (listed) repo.chart(corp.corpCode).getOrNull() else null,
+                        auditReports = repo.auditReports(corp.corpCode).getOrNull()?.reports,
+                        appName = "Every Corp", versionName = BuildConfig.VERSION_NAME,
+                        author = "${BuildConfig.AUTHOR_NAME} (${BuildConfig.AUTHOR_EMAIL})", generatedAt = now(),
+                    )
+                }
+                val uri = savePdf(app, "일괄요약_${corps.size}곳") { io.github.hdlee73.everycorp.data.report.SummaryPdfWriter().writeAll(inputs, it) }
+                ExportState.Done(uri, "일괄 요약")
+            } catch (e: Exception) {
+                ExportState.Failed(e.message ?: "PDF를 만들지 못했습니다.")
+            }
+        }
     }
 
     // ───── 관심기업 그룹 ─────

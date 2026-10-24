@@ -8,7 +8,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.platform.LocalContext
+import io.github.hdlee73.everycorp.ui.ExportState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -40,7 +48,14 @@ fun CompareScreen(vm: AppViewModel, d: Dest.Compare) {
         )
     }
     Column(Modifier.fillMaxSize()) {
-        GradientTopBar(title = "기업 비교", onBack = { vm.back() })
+        val context = LocalContext.current
+        val cols = (state as? UiState.Success)?.data
+        GradientTopBar(title = "기업 비교", onBack = { vm.back() }, trailing = {
+            if (vm.pdfExport is ExportState.Working) CircularProgressIndicator(Modifier.padding(12.dp).size(24.dp), strokeWidth = 2.dp)
+            else if (cols != null) IconButton(onClick = { vm.exportComparePdf(context.applicationContext, cols) }) {
+                Icon(Icons.Filled.PictureAsPdf, contentDescription = "비교 리포트 PDF")
+            }
+        })
         UiStateContent(state, onRetry = null, modifier = Modifier.padding(16.dp)) { cols ->
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 SectionCard {
