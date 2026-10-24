@@ -202,7 +202,17 @@ class SummaryPdfWriter {
         y += 4f
     }
 
-    fun write(input: SummaryPdfInput, out: OutputStream) {
+    fun write(input: SummaryPdfInput, out: OutputStream) = writeAll(listOf(input), out)
+
+    /** 기업마다 새 쪽에서 시작해 한 PDF 파일로 묶는다(일괄 PDF). */
+    fun writeAll(inputs: List<SummaryPdfInput>, out: OutputStream) {
+        inputs.forEach { draw(it) }
+        finishPage()
+        doc.writeTo(out)
+        doc.close()
+    }
+
+    private fun draw(input: SummaryPdfInput) {
         newPage()
         text(input.corpName, h1, gap = 4f)
         val ov = input.overview
@@ -285,9 +295,6 @@ class SummaryPdfWriter {
         y += 14f
         text("제공 정보는 지연되거나 오류가 있을 수 있으며 투자 판단의 책임은 이용자에게 있습니다. 출처: DART, 한국거래소/키움증권/네이버 금융, 공공데이터포털.", small)
         text("${input.appName} v${input.versionName} · 만든이 ${input.author}", small)
-        finishPage()
-        doc.writeTo(out)
-        doc.close()
     }
 
     private companion object {

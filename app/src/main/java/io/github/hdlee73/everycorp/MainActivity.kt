@@ -37,6 +37,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.hdlee73.everycorp.data.update.UpdateWorker
 import io.github.hdlee73.everycorp.data.watch.DisclosureWatchWorker
 import io.github.hdlee73.everycorp.ui.AppViewModel
+import io.github.hdlee73.everycorp.ui.PdfExportEffect
 import io.github.hdlee73.everycorp.ui.UpdateDialogs
 import io.github.hdlee73.everycorp.ui.common.Dest
 import io.github.hdlee73.everycorp.ui.alerts.AlertsScreen
@@ -130,4 +131,5 @@ private fun Root() {
         }
     }
     UpdateDialogs(vm)
+    PdfExportEffect(vm)
 }
