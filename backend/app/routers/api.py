@@ -115,6 +115,12 @@ async def screening_audit(year: int = _YEAR, refresh: bool = False) -> dict:
     return await screening_service.audit_nonclean(year, refresh)
 
 
+@router.get("/screening/audit-link")
+async def screening_audit_link(rcp_no: str = Query(..., pattern=r"^\d{14}$")) -> dict:
+    """감사의견 목록의 행을 눌렀을 때 열 DART 감사보고서 주소."""
+    return await screening_service.audit_report_link(rcp_no)
+
+
 @router.get("/screening/capital-impairment")
 async def screening_capital(year: int = _YEAR, reprt_code: Literal["11011", "11012", "11013", "11014"] = "11011",
                             refresh: bool = False) -> dict:

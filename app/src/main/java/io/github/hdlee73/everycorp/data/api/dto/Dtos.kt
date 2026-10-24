@@ -459,6 +459,7 @@ data class AuditScreenItemDto(
     @SerialName("corp_name") val corpName: String,
     @SerialName("stock_code") val stockCode: String = "",
     val period: String = "",
+    @SerialName("rcept_no") val rceptNo: String = "",
     val opinion: String = "",
     val auditor: String = "",
     val scope: String = "",
@@ -500,3 +501,7 @@ data class CapitalScreeningDto(
     val checked: Int = 0,
     val items: List<CapitalScreenItemDto> = emptyList(),
 )
+
+/** 감사의견 목록 행을 눌렀을 때 열 DART 감사보고서 주소. found=false면 사업보고서 본문 주소. */
+@Serializable
+data class AuditLinkDto(val url: String, val title: String = "", val found: Boolean = false)
