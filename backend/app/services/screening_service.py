@@ -108,6 +108,40 @@ def impairment_kind(equity: int | None, capital: int | None) -> str | None:
     return "부분잠식" if equity < capital else None
 
 
+_CB_KINDS = (("전환사채", "CB"), ("신주인수권부사채", "BW"))
+_REPAID = {"y", "상환", "상환완료", "완료"}
+
+
+def _digits(s: object) -> str:
+    return re.sub(r"\D", "", str(s or ""))
+
+
+def parse_convertible(rows: list[dict]) -> list[dict]:
+    """채무증권 발행실적(detScritsIsuAcmslt) → 전환사채·신주인수권부사채 행만(증권종류 이름에 포함 여부로 판별).
+
+    권면총액(amount)은 발행 당시 총액이라 일부 전환·상환이 반영된 실제 잔액이 아닐 수 있다.
+    """
+    out = []
+    for r in rows:
+        name = (r.get("scrits_knd_nm") or "").replace(" ", "")
+        kind = next((k for word, k in _CB_KINDS if word in name), None)
+        if not kind:
+            continue
+        out.append({
+            "kind": kind, "scrits": (r.get("scrits_knd_nm") or "").strip(), "issued": _digits(r.get("isu_de")),
+            "maturity": _digits(r.get("mtd")), "amount": _amount(r.get("facvalu_totamt")),
+            "rate": (r.get("intrt") or "").strip(), "repaid": (r.get("repy_at") or "").strip(),
+            "stlm_dt": (r.get("stlm_dt") or "").strip(),
+        })
+    return out
+
+
+def outstanding_convertibles(rows: list[dict], today: str) -> list[dict]:
+    """상환되지 않았고 만기(YYYYMMDD)가 today 이후이거나 비어 있는 CB·BW."""
+    return [x for x in rows
+            if x["repaid"].lower() not in _REPAID and (not x["maturity"] or x["maturity"] >= today)]
+
+
 # ───────── 저장소 ─────────
 
 def _dir() -> str:
@@ -163,6 +197,39 @@ async def _collect_capital(key: str, year: int, reprt: str) -> None:
         _progress[key] = (n, len(batches))
         await asyncio.sleep(0.2)
     data["complete"] = True
+    data["updated_at"] = int(time.time())
+    _save(key, data)
+
+
+# ───────── CB·BW 수집 ─────────
+
+async def _collect_convertible(key: str, year: int) -> None:
+    prev = _load(key)
+    keep = prev.get("year") == year
+    records: dict[str, list] = dict(prev.get("records", {})) if keep else {}
+    codes = _listed_codes()
+    todo = [cc for cc in codes if cc not in records]
+    data = {"year": year, "records": records, "total": len(codes), "complete": False, "updated_at": int(time.time())}
+    _progress[key] = (len(codes) - len(todo), len(codes))
+    sem = asyncio.Semaphore(_AUDIT_CONCURRENCY)
+
+    async def one(cc: str) -> None:
+        async with sem:
+            try:
+                res = await dart_client.get_json("detScritsIsuAcmslt.json", corp_code=cc, bsns_year=str(year),
+                                                 reprt_code=dart_client.REPRT_ANNUAL)
+                records[cc] = parse_convertible(res.get("list", []))
+            except dart_client.DartNoData:
+                records[cc] = []
+            except Exception as e:  # noqa: BLE001
+                log.warning("convertible %s failed: %s", cc, e)
+
+    for i in range(0, len(todo), _SAVE_EVERY):
+        await asyncio.gather(*(one(cc) for cc in todo[i:i + _SAVE_EVERY]))
+        data["updated_at"] = int(time.time())
+        _progress[key] = (len(records), len(codes))
+        _save(key, data)
+    data["complete"] = len(records) >= len(codes)
     data["updated_at"] = int(time.time())
     _save(key, data)
 
@@ -312,6 +379,30 @@ async def capital_impairment(year: int, reprt: str = dart_client.REPRT_ANNUAL, r
     items.sort(key=lambda x: (x["equity"] if x["equity"] is not None else 0))
     return {**_status(key, data), "year": year, "reprt_code": reprt, "report_name": REPRT_NAMES.get(reprt, reprt),
             "checked": len(data.get("records", {})), "items": items}
+
+
+async def convertible_bonds(year: int, refresh: bool = False) -> dict:
+    """CB·BW 미상환(상환 표시 없음 + 만기 전) 상장사. 금액은 발행 권면총액(원) 기준이라 실제 잔액과 다를 수 있다."""
+    key = f"convertible_{year}"
+    data = _load(key)
+    if not data.get("complete") or (refresh and time.time() - data.get("updated_at", 0) > 24 * 3600):
+        _ensure_job(key, lambda: _collect_convertible(key, year))
+        data = _load(key) or data
+    today = date.today().strftime("%Y%m%d")
+    items = []
+    for cc, rows in data.get("records", {}).items():
+        live = outstanding_convertibles(rows, today)
+        if not live:
+            continue
+        name, stock = _name(cc)
+        cb = sum(x["amount"] or 0 for x in live if x["kind"] == "CB")
+        bw = sum(x["amount"] or 0 for x in live if x["kind"] == "BW")
+        items.append({"corp_code": cc, "corp_name": name, "stock_code": stock, "period": live[0]["stlm_dt"],
+                      "cb_amount": cb, "bw_amount": bw, "total": cb + bw, "count": len(live),
+                      "next_maturity": min((x["maturity"] for x in live if x["maturity"]), default=""),
+                      "bonds": [{k: x[k] for k in ("kind", "issued", "maturity", "amount", "rate")} for x in live]})
+    items.sort(key=lambda x: -x["total"])
+    return {**_status(key, data), "year": year, "checked": len(data.get("records", {})), "items": items}
 
 
 async def audit_report_link(rcp_no: str) -> dict:

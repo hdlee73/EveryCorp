@@ -135,6 +135,12 @@ async def screening_capital(year: int = _YEAR, reprt_code: Literal["11011", "110
     return await screening_service.capital_impairment(year, reprt_code, refresh)
 
 
+@router.get("/screening/convertible-bonds")
+async def screening_convertible(year: int = _YEAR, refresh: bool = False) -> dict:
+    """CB·BW 미상환 추정 상장사(채무증권 발행실적 기준, 권면총액 원 단위)."""
+    return await screening_service.convertible_bonds(year, refresh)
+
+
 @router.get("/reports/pdf")
 async def pdf_proxy(rcp_no: str = Query(..., pattern=r"^\d{14}$"), dcm_no: str = Query(..., pattern=r"^\d{5,12}$")):
     """DART PDF 중계(폴백). 직접 다운로드가 막힐 때 앱이 사용한다.
