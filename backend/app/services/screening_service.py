@@ -35,8 +35,8 @@ _fails: dict[str, int] = {}
 _cooldown: dict[str, float] = {}
 _SAVE_EVERY = 200
 
-# 저장 형식 버전. 올리면 기존 저장본을 버리고 다시 수집한다(v2: 당기 감사의견만, 접수번호 포함).
-_SCHEMA = 2
+# 저장 형식 버전. 올리면 기존 저장본을 버리고 다시 수집한다(v3: 최신 기수만 당기로 봄).
+_SCHEMA = 3
 
 _jobs: dict[str, asyncio.Task] = {}
 _progress: dict[str, tuple[int, int]] = {}
@@ -54,13 +54,23 @@ def is_flagged_opinion(opinion: str) -> bool:
     return o not in ("", "-") and not is_clean_opinion(o)
 
 
-def current_term_items(items: list[dict]) -> list[dict]:
-    """감사의견 표는 당기·전기·전전기 행이 함께 온다. 그중 당기(해당 결산연도) 행만 남긴다.
+def _term_no(term: str) -> int:
+    m = re.search(r"제\s*(\d+)\s*기", term or "")
+    return int(m.group(1)) if m else -1
 
-    '당기' 표기가 없으면 DART가 최신 기수부터 내려주므로 첫 기수의 행을 쓴다.
+
+def current_term_items(items: list[dict]) -> list[dict]:
+    """감사의견 표는 당기·전기·전전기 행이 함께 온다. 그중 해당 결산연도(당기) 행만 남긴다.
+
+    DART는 지난 기수에도 '(당기)'를 붙여 내려주는 경우가 있어(예: 제30기 당기·제29기 당기),
+    '당기' 글자가 아니라 가장 큰 기수 번호를 당기로 본다. 기수 번호가 없으면 '당기' 표기, 그것도 없으면 첫 기수.
     같은 (의견, 감사인, 구분)은 하나로 합친다.
     """
-    cur = [i for i in items if "당기" in i.get("term", "")] or [i for i in items if items and i.get("term") == items[0].get("term")]
+    top = max((_term_no(i.get("term", "")) for i in items), default=-1)
+    if top >= 0:
+        cur = [i for i in items if _term_no(i.get("term", "")) == top]
+    else:
+        cur = [i for i in items if "당기" in i.get("term", "")] or [i for i in items if items and i.get("term") == items[0].get("term")]
     seen: set[tuple] = set()
     out = []
     for i in cur:
@@ -115,38 +125,8 @@ def impairment_kind(equity: int | None, capital: int | None) -> str | None:
     return "부분잠식" if equity < capital else None
 
 
-_CB_KINDS = (("전환사채", "CB"), ("신주인수권부사채", "BW"))
-_REPAID = {"y", "상환", "상환완료", "완료"}
-
-
 def _digits(s: object) -> str:
     return re.sub(r"\D", "", str(s or ""))
-
-
-def parse_convertible(rows: list[dict]) -> list[dict]:
-    """채무증권 발행실적(detScritsIsuAcmslt) → 전환사채·신주인수권부사채 행만(증권종류 이름에 포함 여부로 판별).
-
-    권면총액(amount)은 발행 당시 총액이라 일부 전환·상환이 반영된 실제 잔액이 아닐 수 있다.
-    """
-    out = []
-    for r in rows:
-        name = (r.get("scrits_knd_nm") or "").replace(" ", "")
-        kind = next((k for word, k in _CB_KINDS if word in name), None)
-        if not kind:
-            continue
-        out.append({
-            "kind": kind, "scrits": (r.get("scrits_knd_nm") or "").strip(), "issued": _digits(r.get("isu_de")),
-            "maturity": _digits(r.get("mtd")), "amount": _amount(r.get("facvalu_totamt")),
-            "rate": (r.get("intrt") or "").strip(), "repaid": (r.get("repy_at") or "").strip(),
-            "stlm_dt": (r.get("stlm_dt") or "").strip(),
-        })
-    return out
-
-
-def outstanding_convertibles(rows: list[dict], today: str) -> list[dict]:
-    """상환되지 않았고 만기(YYYYMMDD)가 today 이후이거나 비어 있는 CB·BW."""
-    return [x for x in rows
-            if x["repaid"].lower() not in _REPAID and (not x["maturity"] or x["maturity"] >= today)]
 
 
 # ───────── 저장소 ─────────
@@ -214,41 +194,169 @@ async def _collect_capital(key: str, year: int, reprt: str) -> None:
 
 # ───────── CB·BW 수집 ─────────
 
+_CB_LOOKBACK = 8  # 발행결정 공시를 거슬러 볼 햇수(CB·BW 만기는 대개 5년 이내)
+_DECISION_APIS = (("cvbdIsDecsn.json", "CB"), ("bdwtIsDecsn.json", "BW"))
+_DECISION_WORDS = (("전환사채권발행결정", "CB"), ("신주인수권부사채권발행결정", "BW"))
+_REPORT_NODE = (("CB", "미상환전환사채"), ("BW", "미상환신주인수권부사채"))
+
+
+def _cb_as_of(year: int) -> date:
+    return min(date.today(), date(year, 12, 31))
+
+
+async def _decision_candidates(since: date, until: date) -> set[str]:
+    """주요사항보고서 중 CB·BW 발행결정을 낸 상장사. corp_code 없는 list.json은 3개월 제한이라 월 단위로 훑는다."""
+    listed = set(_listed_codes())
+    out: set[str] = set()
+    y, m = since.year, since.month
+    while date(y, m, 1) <= until:
+        first = date(y, m, 1)
+        nxt = date(y + (m == 12), m % 12 + 1, 1)
+        end = min(date.fromordinal(nxt.toordinal() - 1), until)
+        page = 1
+        while page <= 60:
+            try:
+                data = await dart_client.get_json(
+                    "list.json", bgn_de=first.strftime("%Y%m%d"), end_de=end.strftime("%Y%m%d"),
+                    pblntf_detail_ty="B001", page_no=page, page_count=100)
+            except dart_client.DartNoData:
+                break
+            for it in data.get("list", []):
+                nm = (it.get("report_nm") or "").replace(" ", "")
+                if it.get("corp_code") in listed and any(w in nm for w, _ in _DECISION_WORDS):
+                    out.add(it["corp_code"])
+            if page >= int(data.get("total_page", 1)):
+                break
+            page += 1
+        await asyncio.sleep(_BG_PAUSE)
+        y, m = nxt.year, nxt.month
+    return out
+
+
+async def _decision_bonds(cc: str, since: date, until: date) -> list[dict]:
+    from ..parsers import convertible as cv
+
+    bonds: list[dict] = []
+    for api, kind in _DECISION_APIS:
+        try:
+            res = await dart_client.get_json(api, corp_code=cc, bgn_de=since.strftime("%Y%m%d"),
+                                             end_de=until.strftime("%Y%m%d"))
+        except dart_client.DartNoData:
+            continue
+        bonds += cv.parse_decisions(res.get("list", []), kind)
+    return bonds
+
+
+async def _report_balances(cc: str, year: int) -> dict | None:
+    """결산연도 year 사업보고서의 '미상환 전환사채·신주인수권부사채 발행현황' 표 → {CB, BW, period, rcp_no}(못 읽은 종류는 None)."""
+    from ..parsers import convertible as cv
+    from ..parsers import dart_viewer as dv
+    from ..http import get_client
+    from .reports_service import fetch_viewer_html
+
+    try:
+        data = await dart_client.get_json("list.json", corp_code=cc, bgn_de=f"{year}0101",
+                                          end_de=min(date.today(), date(year + 1, 12, 31)).strftime("%Y%m%d"),
+                                          pblntf_detail_ty="A001", page_count=100)
+    except dart_client.DartNoData:
+        return None
+    best = None
+    for it in data.get("list", []):
+        pm = _PERIOD_RE.search(it.get("report_nm", ""))
+        if pm and int(pm.group(1)) == year and (best is None or it["rcept_no"] > best[1]):
+            best = (f"{pm.group(1)}-{pm.group(2)}", it["rcept_no"])
+    if not best:
+        return None
+    nodes = dv.parse_nodes(await fetch_viewer_html(best[1]))
+    out: dict = {"CB": None, "BW": None, "period": best[0], "rcp_no": best[1]}
+    for kind, word in _REPORT_NODE:
+        node = next((n for n in nodes if word in re.sub(r"\s", "", n.get("text", ""))), None)
+        if not node:
+            continue
+        r = await get_client().get(f"{dv.DART_HOST}/report/viewer.do", params={
+            "rcpNo": node.get("rcpNo") or best[1], "dcmNo": node.get("dcmNo"), "eleId": node.get("eleId"),
+            "offset": node.get("offset"), "length": node.get("length"), "dtd": node.get("dtd")})
+        if r.status_code == 200:
+            out[kind] = cv.parse_balance_table(r.text)
+    return out
+
+
 async def _collect_convertible(key: str, year: int) -> None:
+    """1) 발행결정 공시로 후보 상장사를 찾고 2) 발행 건(권면총액·만기)을 모은 뒤 3) 사업보고서 미상환 표로 잔액을 확인한다."""
+    from ..parsers import convertible as cv
+
     prev = _load(key)
-    keep = prev.get("year") == year
-    records: dict[str, list] = dict(prev.get("records", {})) if keep else {}
-    codes = _listed_codes()
-    todo = [cc for cc in codes if cc not in records]
-    data = {"year": year, "records": records, "total": len(codes), "complete": False, "updated_at": int(time.time())}
-    _progress[key] = (len(codes) - len(todo), len(codes))
+    keep = prev.get("year") == year and prev.get("v") == _SCHEMA
+    records: dict[str, dict] = dict(prev.get("records", {})) if keep else {}
+    cands: list[str] = list(prev.get("cands", [])) if keep else []
+    until = _cb_as_of(year)
+    since = date(until.year - _CB_LOOKBACK, until.month, 1)
+    data = {"v": _SCHEMA, "year": year, "records": records, "cands": cands, "cands_done": bool(keep and prev.get("cands_done")),
+            "total": len(cands), "complete": False, "updated_at": int(time.time())}
+    _progress[key] = (len(records), max(len(cands), 1))
+    if not data["cands_done"]:
+        cands[:] = sorted(await _decision_candidates(since, until))
+        if _tripped(key):
+            return
+        data.update(cands_done=True, total=len(cands))
+        _save(key, data)
+    todo = [cc for cc in cands if cc not in records]
+    _progress[key] = (len(cands) - len(todo), len(cands))
     sem = asyncio.Semaphore(_AUDIT_CONCURRENCY)
+    today = until.strftime("%Y%m%d")
 
     async def one(cc: str) -> None:
         async with sem:
             if _tripped(key):
                 return
             try:
-                res = await dart_client.get_json("detScritsIsuAcmslt.json", corp_code=cc, bsns_year=str(year),
-                                                 reprt_code=dart_client.REPRT_ANNUAL)
-                records[cc] = parse_convertible(res.get("list", []))
-                _note(key, True)
-            except dart_client.DartNoData:
-                records[cc] = []
+                bonds = await _decision_bonds(cc, since, until)
+                rec: dict = {"bonds": bonds, "report": None}
+                if cv.live_decisions(bonds, today):  # 만기 전 발행 건이 있는 회사만 보고서를 확인
+                    rec["report"] = await _report_balances(cc, year)
+                records[cc] = rec
                 _note(key, True)
             except Exception as e:  # noqa: BLE001
                 log.warning("convertible %s failed: %s", cc, e)
                 _note(key, False)
             await asyncio.sleep(_BG_PAUSE)
 
-    for i in range(0, len(todo), _SAVE_EVERY):
-        await asyncio.gather(*(one(cc) for cc in todo[i:i + _SAVE_EVERY]))
+    for i in range(0, len(todo), 50):
+        await asyncio.gather(*(one(cc) for cc in todo[i:i + 50]))
         data["updated_at"] = int(time.time())
-        _progress[key] = (len(records), len(codes))
+        _progress[key] = (len(records), len(cands))
         _save(key, data)
-    data["complete"] = len(records) >= len(codes)
+    data["complete"] = all(cc in records for cc in cands)
     data["updated_at"] = int(time.time())
     _save(key, data)
+
+
+def convertible_item(rec: dict, today: str) -> dict | None:
+    """수집 기록 → 화면 항목. 사업보고서 미상환 표가 읽히면 그 잔액을, 아니면 발행결정 기준 추정(권면총액)을 쓴다."""
+    from ..parsers import convertible as cv
+
+    live = cv.live_decisions(rec.get("bonds", []), today)
+    rep = rec.get("report") or {}
+    amounts: dict[str, int] = {}
+    source = "발행결정 추정"
+    for kind in ("CB", "BW"):
+        est = sum(b["amount"] for b in live if b["kind"] == kind)
+        got = rep.get(kind)
+        if got is None:
+            amounts[kind] = est
+            continue
+        # 보고서 기준일 이후에 납입된 발행 건은 보고서에 없으므로 추정으로 더한다.
+        after = sum(b["amount"] for b in live if b["kind"] == kind and _digits(b["issued"])[:6] > _digits(rep.get("period"))[:6])
+        amounts[kind] = got + after
+        source = "사업보고서"
+    total = amounts["CB"] + amounts["BW"]
+    if total <= 0:
+        return None
+    return {"cb_amount": amounts["CB"], "bw_amount": amounts["BW"], "total": total, "count": len(live), "source": source,
+            "period": rep.get("period", ""), "rcp_no": rep.get("rcp_no", ""),
+            "next_maturity": min((b["maturity"] for b in live if b["maturity"]), default=""),
+            "bonds": [{"kind": b["kind"], "issued": b["issued"], "maturity": b["maturity"], "amount": b["amount"], "rate": ""}
+                      for b in sorted(live, key=lambda b: b["maturity"] or "99999999")]}
 
 
 # ───────── 감사의견 수집 ─────────
@@ -429,27 +537,23 @@ async def capital_impairment(year: int, reprt: str = dart_client.REPRT_ANNUAL, s
 
 
 async def convertible_bonds(year: int, start: bool = False, refresh: bool = False) -> dict:
-    """CB·BW 미상환(상환 표시 없음 + 만기 전) 상장사. 금액은 발행 권면총액(원) 기준이라 실제 잔액과 다를 수 있다."""
-    key = f"convertible_{year}"
+    """CB·BW 잔액이 있는 상장사. 발행결정 공시로 후보를 찾고 사업보고서 미상환 표로 잔액을 확인한다(못 읽으면 권면총액 추정)."""
+    key = f"cbbw_{year}"
     data = _load(key)
     if start and (not data.get("complete") or (refresh and time.time() - data.get("updated_at", 0) > 24 * 3600)):
         _ensure_job(key, lambda: _collect_convertible(key, year))
         data = _load(key) or data
-    today = date.today().strftime("%Y%m%d")
+    today = _cb_as_of(year).strftime("%Y%m%d")
     items = []
-    for cc, rows in data.get("records", {}).items():
-        live = outstanding_convertibles(rows, today)
-        if not live:
+    for cc, rec in data.get("records", {}).items():
+        it = convertible_item(rec, today)
+        if not it:
             continue
         name, stock = _name(cc)
-        cb = sum(x["amount"] or 0 for x in live if x["kind"] == "CB")
-        bw = sum(x["amount"] or 0 for x in live if x["kind"] == "BW")
-        items.append({"corp_code": cc, "corp_name": name, "stock_code": stock, "period": live[0]["stlm_dt"],
-                      "cb_amount": cb, "bw_amount": bw, "total": cb + bw, "count": len(live),
-                      "next_maturity": min((x["maturity"] for x in live if x["maturity"]), default=""),
-                      "bonds": [{k: x[k] for k in ("kind", "issued", "maturity", "amount", "rate")} for x in live]})
+        items.append({"corp_code": cc, "corp_name": name, "stock_code": stock, **it})
     items.sort(key=lambda x: -x["total"])
-    return {**_status(key, data), "year": year, "checked": len(data.get("records", {})), "items": items}
+    return {**_status(key, data), "year": year, "checked": len(data.get("records", {})), "candidates": len(data.get("cands", [])),
+            "items": items}
 
 
 def auditor_in_text(auditor: str, text: str) -> bool:

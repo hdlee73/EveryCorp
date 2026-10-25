@@ -48,22 +48,24 @@ def test_current_term_items_drops_prior_terms():
     assert [i["auditor"] for i in sc.current_term_items(plain)] == ["x"]
 
 
-def _bond(kind, mtd, repy="N", amt="10,000,000,000"):
-    return {"scrits_knd_nm": kind, "isu_de": "2024.03.05", "mtd": mtd, "facvalu_totamt": amt,
-            "intrt": "0.00", "repy_at": repy, "stlm_dt": "2025-12-31"}
+
+def test_convertible_item_prefers_report_balance():
+    rec = {"bonds": [
+        {"kind": "CB", "tm": "3", "issued": "20230301", "maturity": "20280301", "amount": 10_000_000_000},
+        {"kind": "BW", "tm": "1", "issued": "20200101", "maturity": "20250101", "amount": 5_000_000_000},  # 만기 지남
+        {"kind": "CB", "tm": "4", "issued": "20260601", "maturity": "20310601", "amount": 3_000_000_000},  # 보고서 이후 납입
+    ], "report": {"CB": 7_000_000_000, "BW": 0, "period": "2025-12", "rcp_no": "20260310000001"}}
+    it = sc.convertible_item(rec, "20261024")
+    assert it["source"] == "사업보고서"
+    assert it["cb_amount"] == 10_000_000_000 and it["bw_amount"] == 0  # 보고서 7십억 + 이후 발행 3십억
+    assert it["next_maturity"] == "20280301" and it["count"] == 2
 
 
-def test_parse_and_outstanding_convertibles():
-    rows = sc.parse_convertible([
-        _bond("무기명식 이권부 무보증 전환사채", "2029.03.05"),
-        _bond("제3회 신주인수권부사채", "2026.01.01"),
-        _bond("제4회 전환사채", "2030-01-01", repy="Y"),
-        _bond("회사채", "2030.01.01"),
-    ])
-    assert [r["kind"] for r in rows] == ["CB", "BW", "CB"]
-    assert rows[0]["maturity"] == "20290305" and rows[0]["amount"] == 10_000_000_000
-    live = sc.outstanding_convertibles(rows, "20261024")
-    assert [r["kind"] for r in live] == ["CB"]  # BW는 만기 지남, 두 번째 CB는 상환됨
+def test_convertible_item_falls_back_to_decisions():
+    rec = {"bonds": [{"kind": "BW", "tm": "1", "issued": "20260101", "maturity": "20300101", "amount": 2_000_000_000}], "report": None}
+    it = sc.convertible_item(rec, "20261024")
+    assert it["source"] == "발행결정 추정" and it["bw_amount"] == 2_000_000_000
+    assert sc.convertible_item({"bonds": [], "report": None}, "20261024") is None
 
 
 def test_job_pauses_after_repeated_failures():
@@ -103,14 +105,14 @@ def test_collection_only_starts_on_request(tmp_path, monkeypatch):
         started.append(key)
 
     monkeypatch.setattr(sc, "_collect_convertible", fake_collect)
-    sc._jobs.pop("convertible_2099", None)
+    sc._jobs.pop("cbbw_2099", None)
 
     async def run():
         r = await sc.convertible_bonds(2099)
         assert r["status"] == "empty" and started == []
         await sc.convertible_bonds(2099, start=True)
         await asyncio.sleep(0.05)
-        assert started == ["convertible_2099"]
+        assert started == ["cbbw_2099"]
 
     asyncio.run(run())
 
@@ -120,3 +122,12 @@ def test_auditor_in_text_ignores_registration_and_spaces():
     assert sc.auditor_in_text("동진공인회계사감사반(제387호)", "동진공인회계사 감사반")
     assert not sc.auditor_in_text("서현회계법인", "정안회계법인 대표이사")
     assert sc.auditor_in_text("", "아무 글")
+
+
+def test_current_term_uses_latest_term_number():
+    rows = [
+        {"term": "제30기\n(당기)", "auditor": "정안회계법인", "opinion": "의견거절", "scope": ""},
+        {"term": "제29기\n(당기)", "auditor": "서현회계법인", "opinion": "의견거절", "scope": ""},
+        {"term": "제28기\n(전기)", "auditor": "서현회계법인", "opinion": "적정의견", "scope": ""},
+    ]
+    assert [i["auditor"] for i in sc.current_term_items(rows)] == ["정안회계법인"]
