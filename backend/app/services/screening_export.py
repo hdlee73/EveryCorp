@@ -54,6 +54,10 @@ def _id_cols(it: dict, crno: dict[str, str]) -> list:
     return [it["corp_code"], crno.get(it["corp_code"], ""), it.get("stock_code", ""), it["corp_name"]]
 
 
+def _ymd(s: str) -> str:
+    return f"{s[:4]}-{s[4:6]}-{s[6:8]}" if len(s) >= 8 and s[:8].isdigit() else (s or "")
+
+
 _ID_HEAD = ["DART 고유번호", "법인등록번호", "종목코드", "회사명"]
 
 
@@ -81,20 +85,21 @@ async def build(kind: str, year: int, reprt: str = "11011") -> tuple[bytes, str]
         data = await sc.convertible_bonds(year)
         title = f"CB_BW_잔액_{year}"
         crno = await _crnos([i["corp_code"] for i in data["items"]])
-        ws.title = "CB·BW 잔액"
-        _sheet(ws, _ID_HEAD + ["잔액 기준", "보고서 결산", "CB 잔액(원)", "BW 잔액(원)", "합계(원)", "가까운 만기", "건수"],
-               [_id_cols(i, crno) + [i["source"], i["period"], i["cb_amount"], i["bw_amount"], i["total"], i["next_maturity"], i["count"]]
-                for i in data["items"]])
-        extra = wb.create_sheet("발행 내역(발행결정 기준)")
-        _sheet(extra, _ID_HEAD + ["구분", "납입일", "만기일", "권면총액(원)"],
-               [_id_cols(i, crno) + [b["kind"], b["issued"], b["maturity"], b["amount"]] for i in data["items"] for b in i["bonds"]])
+        ws.title = "회차별 미상환 잔액"
+        _sheet(ws, _ID_HEAD + ["구분(CB/BW)", "회차", "종류", "발행일", "만기일", "미상환 잔액(권면액, 원)", "기준일", "근거"],
+               [_id_cols(i, crno) + [b["kind"], b["tm"], b["name"], _ymd(b["issued"]), _ymd(b["maturity"]), b["amount"],
+                                     _ymd(i["base_date"]), b["basis"]] for i in data["items"] for b in i["bonds"]])
+        extra = wb.create_sheet("회사별 합계")
+        _sheet(extra, _ID_HEAD + ["기준일", "보고서 결산", "CB 잔액(원)", "BW 잔액(원)", "합계(원)", "가까운 만기", "회차 수", "잔액 근거"],
+               [_id_cols(i, crno) + [_ymd(i["base_date"]), i["period"], i["cb_amount"], i["bw_amount"], i["total"],
+                                     _ymd(i["next_maturity"]), i["count"], i["source"]] for i in data["items"]])
     else:
         raise ValueError(kind)
     note = wb.create_sheet("안내")
     for line in (f"Every Corp 스크리닝 내보내기 · {title}",
                  f"만든 시각 {datetime.now():%Y-%m-%d %H:%M} · 수집 상태 {data['status']} (ready가 아니면 일부 결과)",
                  "법인등록번호는 DART 기업개황 기준이며 조회하지 못하면 비어 있습니다.",
-                 "CB·BW 잔액 기준이 '발행결정 추정'이면 발행 당시 권면총액이라 전환·상환이 반영되지 않았습니다."):
+                 "CB·BW 잔액 기준이 '발행결정 추정'이면 발행 당시 권면총액이라 전환·상환이 반영되지 않았습니다. '정기보고서'는 기준일 현재 미상환 사채 표입니다."):
         note.append([line])
     note.column_dimensions["A"].width = 100
     buf = io.BytesIO()

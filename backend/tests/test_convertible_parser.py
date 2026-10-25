@@ -14,19 +14,19 @@ TABLE = """
 
 
 def test_parse_balance_table_uses_unredeemed_column_total():
-    assert cv.parse_balance_table(TABLE) == 12_000_000_000
+    assert cv.parse_balance_table(TABLE)["total"] == 12_000_000_000
 
 
 def test_parse_balance_table_sums_rows_and_unit():
     html = TABLE.replace("(단위 : 원, 주)", "(단위 : 백만원)")
     html = html[:html.index("<tr><td>합계")] + "</table>"
     html = html.replace("10,000,000,000", "10,000").replace("7,000,000,000", "7,000").replace("5,000,000,000", "5,000")
-    assert cv.parse_balance_table(html) == 12_000 * 1_000_000
+    assert cv.parse_balance_table(html)["total"] == 12_000 * 1_000_000
 
 
 def test_parse_balance_table_none_when_unknown():
     assert cv.parse_balance_table("<table><tr><th>a</th></tr><tr><td>1</td></tr></table>") is None
-    assert cv.parse_balance_table("<p>해당사항 없음</p>") == 0
+    assert cv.parse_balance_table("<p>해당사항 없음</p>")["total"] == 0
 
 
 def test_parse_decisions_dedupes_corrections():
@@ -57,7 +57,11 @@ KMW = """
 
 def test_parse_report_node_kmw_layout():
     # 2026-10 케이엠더블유 반기보고서 화면 구조(머리글 2줄·병합, 합 계 행, 단위 백만원)
-    assert cv.parse_report_node(KMW) == {"CB": 700 * 1_000_000, "BW": 0}
+    out = cv.parse_report_node(KMW)
+    assert out["CB"]["total"] == 700 * 1_000_000 and out["BW"]["total"] == 0 and out["BW"]["rows"] == []
+    assert out["CB"]["base_date"] == "20260630"
+    assert out["CB"]["rows"] == [{"name": "10회차 무기명식 무이권부 무보증 사모 전환사채", "tm": "10회", "issued": "20240708",
+                                  "maturity": "20280708", "amount": 700 * 1_000_000}]
 
 
 def test_parse_report_node_without_headings():

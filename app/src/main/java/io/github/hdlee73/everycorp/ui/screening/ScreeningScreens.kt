@@ -104,7 +104,7 @@ fun ScreeningScreen(vm: AppViewModel) {
 }
 
 /** 결과 표 한 줄. [corp]를 누르면 기업 화면으로 이동한다. */
-private data class TableRow(val corp: CorpItemDto, val cells: List<String>, val tintColumn: Int = -1, val tint: Color = Color.Unspecified, val rceptNo: String = "", val auditor: String = "")
+private data class TableRow(val corp: CorpItemDto, val cells: List<String>, val tintColumn: Int = -1, val tint: Color = Color.Unspecified, val rceptNo: String = "", val auditor: String = "", val detail: List<String> = emptyList())
 
 private data class ResultTable(
     val status: String, val done: Int, val total: Int, val checked: Int, val updatedAt: Long?,
@@ -116,6 +116,8 @@ private fun corpOf(code: String, name: String, stock: String) =
     CorpItemDto(corpCode = code, corpName = name, stockCode = stock.ifBlank { null }, listing = if (stock.isNotBlank()) "LISTED" else "UNLISTED")
 
 private fun period(p: String) = p.replace('-', '.')
+
+private fun ymd(s: String) = if (s.length >= 8) "${s.take(4)}.${s.substring(4, 6)}.${s.substring(6, 8)}" else s
 
 private fun eok(v: Long?) = Fmt.eok(v?.toDouble())
 
@@ -141,17 +143,20 @@ private fun capitalTable(d: CapitalScreeningDto) = ResultTable(
 
 private fun convertibleTable(d: ConvertibleScreeningDto) = ResultTable(
     d.status, d.progress.done, d.progress.total, d.checked, d.updatedAt,
-    listOf("결산", "회사명", "CB", "BW", "합계", "가까운 만기", "건수", "기준"), listOf(84.dp, 150.dp, 72.dp, 72.dp, 76.dp, 92.dp, 48.dp, 56.dp),
+    listOf("기준일", "회사명", "CB", "BW", "합계", "가까운 만기", "건수", "근거"), listOf(88.dp, 150.dp, 72.dp, 72.dp, 76.dp, 92.dp, 48.dp, 56.dp),
     d.items.map {
         TableRow(
             corpOf(it.corpCode, it.corpName, it.stockCode),
-            listOf(period(it.period), it.corpName, eok(it.cbAmount), eok(it.bwAmount), eok(it.total),
+            listOf(ymd(it.baseDate).ifBlank { period(it.period) }, it.corpName, eok(it.cbAmount), eok(it.bwAmount), eok(it.total),
                 it.nextMaturity.let { m -> if (m.length == 8) "${m.take(4)}.${m.substring(4, 6)}.${m.takeLast(2)}" else m }, it.count.toString(),
                 if (it.source == "정기보고서") "보고서" else "추정"),
             4, StockColors.up,
+            detail = it.bonds.map { b ->
+                "${b.kind} ${b.tm.ifBlank { b.name.ifBlank { "-" } }} · 발행 ${ymd(b.issued).ifBlank { "-" }} · 만기 ${ymd(b.maturity).ifBlank { "-" }} · 미상환 ${eok(b.amount)}억${if (b.basis == "정기보고서") "" else " (추정)"}"
+            },
         )
     },
-    "단위 억원 · 기준 '보고서'는 최근 정기보고서의 미상환 사채 표, '추정'은 발행결정 권면총액(전환·조기상환 미반영)입니다. 보고서 이후 납입분은 추정으로 더했습니다.",
+    "단위 억원 · 근거 '보고서'는 최근 정기보고서의 기준일 현재 미상환 사채 표, '추정'은 발행결정 권면총액(전환·조기상환 미반영)입니다. 행을 누르면 회차·발행일·만기일·미상환 잔액을 봅니다.",
 ).copy(paused = d.paused)
 
 @Composable
@@ -191,6 +196,7 @@ private fun ResultBody(vm: AppViewModel, t: ResultTable, d: Dest.ScreeningResult
     val scope = rememberCoroutineScope()
     var opening by remember { mutableStateOf(false) }
     var exporting by remember { mutableStateOf(false) }
+    var detail by remember { mutableStateOf<TableRow?>(null) }
     val exportExcel: () -> Unit = {
         if (!exporting) {
             exporting = true
@@ -218,7 +224,8 @@ private fun ResultBody(vm: AppViewModel, t: ResultTable, d: Dest.ScreeningResult
     }
     // 감사의견 행은 DART 감사보고서로, 그 밖의 행은 기업 화면으로 연결한다.
     val onRow: (TableRow) -> Unit = { r ->
-        if (r.rceptNo.isBlank()) vm.openCompany(r.corp)
+        if (r.detail.isNotEmpty()) detail = r
+        else if (r.rceptNo.isBlank()) vm.openCompany(r.corp)
         else if (!opening) {
             opening = true
             scope.launch {
@@ -228,6 +235,15 @@ private fun ResultBody(vm: AppViewModel, t: ResultTable, d: Dest.ScreeningResult
                 opening = false
             }
         }
+    }
+    detail?.let { r ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { detail = null },
+            title = { Text(r.corp.corpName) },
+            text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) { r.detail.forEach { Text(it, style = MaterialTheme.typography.bodyMedium) } } },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { detail = null; vm.openCompany(r.corp) }) { Text("기업 보기") } },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { detail = null }) { Text("닫기") } },
+        )
     }
     Column(Modifier.fillMaxSize()) {
         val collecting = t.status != "ready"
