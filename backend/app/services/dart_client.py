@@ -7,7 +7,10 @@
 """
 from __future__ import annotations
 
+import asyncio
 from typing import Any
+
+import httpx
 
 from ..config import get_settings
 from ..errors import ApiError, UpstreamError
@@ -41,10 +44,19 @@ async def get_json(path: str, **params: Any) -> dict:
     """DART JSON API 호출. 000이 아니면 예외(013은 DartNoData)."""
     params = {k: v for k, v in params.items() if v is not None}
     params["crtfc_key"] = _key()
-    r = await get_client().get(f"{BASE}/{path}", params=params)
-    if r.status_code != 200:
-        raise UpstreamError("DART", f"HTTP {r.status_code}")
-    data = r.json()
+    r = None
+    for attempt in range(2):  # 일시적 네트워크 오류·HTML 응답은 한 번 더 시도
+        try:
+            r = await get_client().get(f"{BASE}/{path}", params=params)
+            if r.status_code == 200:
+                data = r.json()
+                break
+            err = f"HTTP {r.status_code}"
+        except (httpx.HTTPError, ValueError) as e:
+            err = f"{type(e).__name__} {e}"[:120]
+        if attempt == 1:
+            raise UpstreamError("DART", err)
+        await asyncio.sleep(1)
     status = data.get("status")
     if status == OK:
         return data
