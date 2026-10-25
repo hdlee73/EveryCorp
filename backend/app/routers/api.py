@@ -117,9 +117,9 @@ _YEAR = Query(..., ge=2015, le=2100, description="결산(사업)연도")
 
 
 @router.get("/screening/audit-opinion")
-async def screening_audit(year: int = _YEAR, refresh: bool = False) -> dict:
+async def screening_audit(year: int = _YEAR, start: bool = False, refresh: bool = False) -> dict:
     """감사의견 비적정(한정·부적정·의견거절) 상장사. 서버가 모아 저장한 결과이며 수집 중이면 status=collecting."""
-    return await screening_service.audit_nonclean(year, refresh)
+    return await screening_service.audit_nonclean(year, start, refresh)
 
 
 @router.get("/screening/audit-link")
@@ -130,15 +130,15 @@ async def screening_audit_link(rcp_no: str = Query(..., pattern=r"^\d{14}$")) ->
 
 @router.get("/screening/capital-impairment")
 async def screening_capital(year: int = _YEAR, reprt_code: Literal["11011", "11012", "11013", "11014"] = "11011",
-                            refresh: bool = False) -> dict:
+                            start: bool = False, refresh: bool = False) -> dict:
     """자본잠식(자본총계 < 자본금) 상장사. 금액 단위는 원."""
-    return await screening_service.capital_impairment(year, reprt_code, refresh)
+    return await screening_service.capital_impairment(year, reprt_code, start, refresh)
 
 
 @router.get("/screening/convertible-bonds")
-async def screening_convertible(year: int = _YEAR, refresh: bool = False) -> dict:
+async def screening_convertible(year: int = _YEAR, start: bool = False, refresh: bool = False) -> dict:
     """CB·BW 미상환 추정 상장사(채무증권 발행실적 기준, 권면총액 원 단위)."""
-    return await screening_service.convertible_bonds(year, refresh)
+    return await screening_service.convertible_bonds(year, start, refresh)
 
 
 @router.get("/reports/pdf")

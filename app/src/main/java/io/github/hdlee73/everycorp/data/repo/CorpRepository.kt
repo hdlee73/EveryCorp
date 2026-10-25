@@ -108,14 +108,14 @@ class CorpRepository(private val api: EveryCorpApi, private val kind: KindClient
 
     suspend fun stakeChanges(corpCode: String): Result<StakeChangesDto> = apiCall { api.stakeChanges(corpCode) }
 
-    suspend fun screeningAudit(year: Int): Result<AuditScreeningDto> = apiCall { api.screeningAudit(year) }
+    suspend fun screeningAudit(year: Int, start: Boolean = false): Result<AuditScreeningDto> = apiCall { api.screeningAudit(year, start) }
 
     suspend fun screeningAuditLink(rcpNo: String): Result<AuditLinkDto> = apiCall { api.screeningAuditLink(rcpNo) }
 
-    suspend fun screeningCapital(year: Int, reprtCode: String): Result<CapitalScreeningDto> =
-        apiCall { api.screeningCapital(year, reprtCode) }
+    suspend fun screeningCapital(year: Int, reprtCode: String, start: Boolean = false): Result<CapitalScreeningDto> =
+        apiCall { api.screeningCapital(year, reprtCode, start) }
 
-    suspend fun screeningConvertible(year: Int): Result<ConvertibleScreeningDto> = apiCall { api.screeningConvertible(year) }
+    suspend fun screeningConvertible(year: Int, start: Boolean = false): Result<ConvertibleScreeningDto> = apiCall { api.screeningConvertible(year, start) }
 
     suspend fun news(corpCode: String): Result<NewsDto> = apiCall { api.news(corpCode) }
 

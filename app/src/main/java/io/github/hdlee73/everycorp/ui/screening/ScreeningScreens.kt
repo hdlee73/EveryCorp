@@ -66,6 +66,10 @@ fun ScreeningScreen(vm: AppViewModel) {
     Column(Modifier.fillMaxSize()) {
         TabHeader("스크리닝", "조건에 맞는 회사를 결산연도별로 모아 봅니다")
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                "스크리닝은 서버가 DART에서 전체 상장사(감사의견은 비상장 포함)를 하나씩 조회해 모으는 작업이라 처음엔 수십 분 이상 걸리고 서버 부담이 큽니다. 그래서 결과 화면에서 \"수집 시작\"을 눌렀을 때만 수집하며, 한 번 모은 결과는 서버에 저장되어 다음부터 바로 보입니다. 앱을 꺼도 수집은 계속됩니다.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             SectionLabel("결산(사업)연도")
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 years.forEach { y -> PillChip("${y}년", onClick = { year = y }, selected = year == y) }
@@ -105,6 +109,7 @@ private data class TableRow(val corp: CorpItemDto, val cells: List<String>, val 
 private data class ResultTable(
     val status: String, val done: Int, val total: Int, val checked: Int, val updatedAt: Long?,
     val headers: List<String>, val widths: List<Dp>, val rows: List<TableRow>, val note: String,
+    val paused: Boolean = false,
 )
 
 private fun corpOf(code: String, name: String, stock: String) =
@@ -119,7 +124,7 @@ private fun auditTable(d: AuditScreeningDto) = ResultTable(
     listOf("결산", "회사명", "감사의견", "감사인", "구분"), listOf(84.dp, 150.dp, 90.dp, 130.dp, 90.dp),
     d.items.map { TableRow(corpOf(it.corpCode, it.corpName, it.stockCode), listOf(period(it.period), it.corpName, it.opinion, it.auditor, it.scope), 2, StockColors.up, it.rceptNo) },
     "당기 감사의견이 한정·부적정·의견거절인 회사만 표시합니다. 행을 누르면 DART 감사보고서가 열립니다.",
-)
+).copy(paused = d.paused)
 
 private fun capitalTable(d: CapitalScreeningDto) = ResultTable(
     d.status, d.progress.done, d.progress.total, d.checked, d.updatedAt,
@@ -132,7 +137,7 @@ private fun capitalTable(d: CapitalScreeningDto) = ResultTable(
         )
     },
     "단위 억원 · 자본총계 < 자본금 · 연결재무제표 우선(없으면 별도). 완전잠식은 빨강, 부분잠식은 파랑.",
-)
+).copy(paused = d.paused)
 
 private fun convertibleTable(d: ConvertibleScreeningDto) = ResultTable(
     d.status, d.progress.done, d.progress.total, d.checked, d.updatedAt,
@@ -146,23 +151,25 @@ private fun convertibleTable(d: ConvertibleScreeningDto) = ResultTable(
         )
     },
     "단위 억원 · 발행 당시 권면총액 기준이라 전환·조기상환이 반영된 실제 잔액과 다를 수 있습니다. 상환 표시가 없고 만기가 지나지 않은 건만 합산.",
-)
+).copy(paused = d.paused)
 
 @Composable
 fun ScreeningResultScreen(vm: AppViewModel, d: Dest.ScreeningResult) {
     // 서버가 수집 중이면 완료될 때까지 몇 초마다 다시 불러온다.
-    val state by produceState<UiState<ResultTable>>(UiState.Loading, d) {
-        value = UiState.Loading
+    // 수집은 사용자가 "수집 시작"을 눌러야 시작된다. 누르기 전에는 저장된 결과만 한 번 읽는다.
+    var started by remember(d) { mutableStateOf(false) }
+    val state by produceState<UiState<ResultTable>>(UiState.Loading, d, started) {
         while (true) {
             val r = when (d.kind) {
-                ScreeningKind.Audit -> vm.repository.screeningAudit(d.year).map(::auditTable)
-                ScreeningKind.Capital -> vm.repository.screeningCapital(d.year, d.reprt).map(::capitalTable)
-                ScreeningKind.Convertible -> vm.repository.screeningConvertible(d.year).map(::convertibleTable)
+                ScreeningKind.Audit -> vm.repository.screeningAudit(d.year, started).map(::auditTable)
+                ScreeningKind.Capital -> vm.repository.screeningCapital(d.year, d.reprt, started).map(::capitalTable)
+                ScreeningKind.Convertible -> vm.repository.screeningConvertible(d.year, started).map(::convertibleTable)
             }
             val t = r.getOrNull()
             if (t == null) { value = UiState.Error(r.exceptionOrNull()?.message ?: "오류가 발생했습니다."); return@produceState }
             value = UiState.Success(t)
-            if (t.status == "ready") return@produceState
+            if (t.status == "ready" || t.paused) return@produceState
+            if (t.status != "collecting" && !started) return@produceState
             delay(5_000)
         }
     }
@@ -173,12 +180,12 @@ fun ScreeningResultScreen(vm: AppViewModel, d: Dest.ScreeningResult) {
     }
     Column(Modifier.fillMaxSize()) {
         GradientTopBar(title = title, onBack = { vm.back() })
-        UiStateContent(state, onRetry = null) { t -> ResultBody(vm, t) }
+        UiStateContent(state, onRetry = null) { t -> ResultBody(vm, t, onStart = { started = true }) }
     }
 }
 
 @Composable
-private fun ResultBody(vm: AppViewModel, t: ResultTable) {
+private fun ResultBody(vm: AppViewModel, t: ResultTable, onStart: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var opening by remember { mutableStateOf(false) }
@@ -197,11 +204,25 @@ private fun ResultBody(vm: AppViewModel, t: ResultTable) {
     }
     Column(Modifier.fillMaxSize()) {
         val collecting = t.status != "ready"
+        val running = t.status == "collecting"
         Text(
-            if (collecting) "서버가 DART에서 수집 중입니다 (${t.done}/${t.total}). 완료되면 자동으로 갱신되며, 그 전 결과는 일부입니다."
-            else "${t.checked}개 법인 확인 · ${t.rows.size}건 · ${t.note}",
+            when {
+                running -> "서버가 DART에서 수집 중입니다 (${t.done}/${t.total}). 앱을 꺼도 서버에서 계속되고, 그 전 결과는 일부입니다."
+                t.paused -> "DART 연결이 계속 실패해 서버가 수집을 잠시 멈췄습니다. 30분쯤 뒤 다시 눌러 주세요. 지금 보이는 건 일부입니다."
+                collecting -> "아직 전체를 수집하지 않았습니다. 보이는 결과는 일부입니다."
+                else -> "${t.checked}개 법인 확인 · ${t.rows.size}건 · ${t.note}"
+            },
             Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (collecting && !running && !t.paused) {
+            Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "수집은 서버가 DART에서 전체 상장사를 조회하는 작업이라 오래 걸리고 호출을 많이 씁니다. 필요할 때만 시작해 주세요.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                PillChip(if (t.checked > 0) "이어서 수집" else "수집 시작", onClick = onStart, selected = true)
+            }
+        }
         if (t.rows.isEmpty()) {
             EmptyBox(if (collecting) "아직 집계된 항목이 없습니다." else "해당하는 회사가 없습니다.", Modifier.padding(horizontal = 16.dp))
             return
