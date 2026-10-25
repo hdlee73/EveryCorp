@@ -47,6 +47,8 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 
 sealed interface PdfUi {
+    /** 사용자가 고른 위치에 저장을 마쳤다. */
+    data class Saved(val uri: Uri) : PdfUi
     data class Downloading(val viaProxy: Boolean) : PdfUi
     data class Done(val uri: Uri) : PdfUi
     data class Failed(val message: String) : PdfUi
@@ -80,7 +82,7 @@ class CompanyViewModel(
     fun clearSummaryPdf() { summaryPdf = null }
 
     /** 필요한 데이터를 (아직 없으면) 불러와 A4 PDF 로 만들고 캐시 폴더에 저장한다. */
-    fun exportSummaryPdf(context: Context) {
+    fun exportSummaryPdf(context: Context, target: Uri? = null) {
         if (summaryPdf is PdfUi.Downloading) return
         summaryPdf = PdfUi.Downloading(false)
         viewModelScope.launch {
@@ -96,6 +98,14 @@ class CompanyViewModel(
                     author = "${BuildConfig.AUTHOR_NAME} (${BuildConfig.AUTHOR_EMAIL})",
                     generatedAt = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy.MM.dd HH:mm")),
                 )
+                if (target != null) {  // 사용자가 고른 위치에 바로 쓴다
+                    withContext(Dispatchers.IO) {
+                        val out = context.contentResolver.openOutputStream(target) ?: error("선택한 위치에 저장할 수 없습니다.")
+                        out.use { SummaryPdfWriter().write(input, it) }
+                    }
+                    summaryPdf = PdfUi.Saved(target)
+                    return@launch
+                }
                 val uri = withContext(Dispatchers.IO) {
                     val dir = File(context.cacheDir, "reports").apply { mkdirs() }
                     val file = File(dir, PdfSupport.safeFileName("${corp.corpName}_요약", "summary"))
@@ -129,7 +139,7 @@ class CompanyViewModel(
     private val showKind get() = source != DisclosureSource.Dart && corp.isListed
 
     private val kindItems: List<DisclosureDto>
-        get() = if (showKind) DisclosureMerge.filterKind(kindAll, search, category == DisclosureCategory.Periodic) else emptyList()
+        get() = if (showKind && category != DisclosureCategory.Major) DisclosureMerge.filterKind(kindAll, search, category == DisclosureCategory.Periodic) else emptyList()
 
     /** 화면에 보이는 공시(DART + KIND, 최신순). */
     val items: List<DisclosureDto> get() = DisclosureMerge.merge(if (showDart) dartItems else emptyList(), kindItems)
@@ -165,7 +175,7 @@ class CompanyViewModel(
         viewModelScope.launch {
             val all = mutableListOf<DisclosureDto>()
             for (p in 1..MARKER_PAGES) {
-                val r = repo.disclosures(corp.corpCode, DisclosurePeriod.Y1, DisclosureSource.Dart, page = p).getOrNull() ?: break
+                val r = repo.disclosures(corp.corpCode, DisclosurePeriod.Y1, DisclosureSource.Dart, category = DisclosureCategory.Major, page = p).getOrNull() ?: break
                 all += r.items
                 if (!r.hasNext) break
             }
@@ -223,14 +233,23 @@ class CompanyViewModel(
     }
 
     // ───── PDF ─────
-    fun download(report: AuditReportDto) {
+    /** [target]이 있으면 받은 PDF를 사용자가 고른 위치로 복사하고 임시 파일은 지운다. */
+    fun download(report: AuditReportDto, target: Uri? = null, resolver: android.content.ContentResolver? = null) {
         if (pdfStates[report.id] is PdfUi.Downloading) return
         pdfStates[report.id] = PdfUi.Downloading(false)
         viewModelScope.launch {
             pdf.download(report).collect { e ->
                 pdfStates[report.id] = when (e) {
                     is PdfEvent.Started -> PdfUi.Downloading(e.viaProxy)
-                    is PdfEvent.Done -> PdfUi.Done(e.uri)
+                    is PdfEvent.Done -> if (target != null && resolver != null) {
+                        runCatching {
+                            withContext(Dispatchers.IO) {
+                                resolver.openInputStream(e.uri)!!.use { input -> resolver.openOutputStream(target)!!.use { input.copyTo(it) } }
+                            }
+                            pdf.discard(e.downloadId)
+                            PdfUi.Done(target)
+                        }.getOrElse { PdfUi.Failed("선택한 위치에 저장하지 못했습니다. (${it.message ?: "오류"})") }
+                    } else PdfUi.Done(e.uri)
                     is PdfEvent.Failed -> PdfUi.Failed(e.message)
                 }
             }

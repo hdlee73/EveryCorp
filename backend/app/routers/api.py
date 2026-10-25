@@ -199,7 +199,7 @@ async def disclosures(
     source: Literal["all", "dart", "kind"] = "all",
     dedupe: bool = False,
     q: str | None = Query(None, max_length=50),
-    category: Literal["all", "periodic"] = "all",
+    category: Literal["all", "periodic", "major"] = "all",
     page: int = Query(1, ge=1),
     size: int = Query(50, ge=10, le=100),
 ) -> dict:

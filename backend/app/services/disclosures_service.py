@@ -101,6 +101,14 @@ def is_periodic_title(title: str) -> bool:
     return bool(_PERIODIC_TITLE_RE.match(title.strip()))
 
 
+_MAJOR_TITLE_RE = re.compile(r"^(\[[^\]]+\]\s*)*주요사항보고서")
+
+
+def is_major_title(title: str) -> bool:
+    """주요사항보고서(예: 주요사항보고서(유상증자결정), [기재정정] 접두어 허용)."""
+    return bool(_MAJOR_TITLE_RE.match(title.strip()))
+
+
 async def get_disclosures(corp_code: str, years: int, source: str, dedupe: bool, page: int, size: int, q: str | None,
                           category: str = "all") -> dict:
     data = await _collect(corp_code, years)
@@ -109,6 +117,8 @@ async def get_disclosures(corp_code: str, years: int, source: str, dedupe: bool,
     items = merge_disclosures(dart, kind, dedupe)
     if category == "periodic":
         items = [x for x in items if is_periodic_title(x["title"])]
+    elif category == "major":
+        items = [x for x in items if is_major_title(x["title"])]
     if q:
         ql = q.strip().lower()
         items = [x for x in items if ql in x["title"].lower()]

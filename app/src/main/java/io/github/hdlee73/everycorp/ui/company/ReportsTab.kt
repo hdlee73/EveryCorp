@@ -1,6 +1,8 @@
 package io.github.hdlee73.everycorp.ui.company
 
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.github.hdlee73.everycorp.data.api.dto.AuditReportDto
 import io.github.hdlee73.everycorp.data.pdf.PdfDownloader
+import io.github.hdlee73.everycorp.data.pdf.PdfSupport
 import io.github.hdlee73.everycorp.ui.common.EmptyBox
 import io.github.hdlee73.everycorp.ui.common.Fmt
 import io.github.hdlee73.everycorp.ui.common.SectionCard
@@ -43,6 +46,10 @@ fun ReportsTab(vm: CompanyViewModel) {
 private fun ReportCard(vm: CompanyViewModel, rep: AuditReportDto) {
     val context = LocalContext.current
     val state = vm.pdfStates[rep.id]
+    // 버튼을 누르면 먼저 저장할 위치·파일 이름을 고르게 한다.
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
+        if (uri != null) vm.download(rep, uri, context.contentResolver)
+    }
     SectionCard {
         Text(rep.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Text(
@@ -64,7 +71,7 @@ private fun ReportCard(vm: CompanyViewModel, rep: AuditReportDto) {
                     if (intent != null) context.startActivity(intent) else Toast.makeText(context, "PDF 뷰어 앱이 없습니다. Download/EveryCorp 폴더에 저장되었습니다.", Toast.LENGTH_LONG).show()
                 }) { Text("PDF 열기") }
                 is PdfUi.Downloading -> Button(onClick = {}, enabled = false) { Text(if (state.viaProxy) "서버 경유 받는 중…" else "받는 중…") }
-                else -> Button(onClick = { vm.download(rep) }) { Text("PDF 다운로드") }
+                else -> Button(onClick = { pick.launch(PdfSupport.safeFileName(rep.fileName, rep.title)) }) { Text("PDF 저장") }
             }
             OutlinedButton(onClick = { openInAppBrowser(context, rep.viewerUrl) }) { Text("DART 원문") }
         }

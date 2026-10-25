@@ -43,7 +43,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FilterAlt
-import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
@@ -75,7 +74,8 @@ import io.github.hdlee73.everycorp.ui.compare.CompareScreen
 import io.github.hdlee73.everycorp.ui.favorites.FavoritesScreen
 import io.github.hdlee73.everycorp.ui.home.SearchScreen
 import io.github.hdlee73.everycorp.ui.info.AppInfoScreen
-import io.github.hdlee73.everycorp.ui.more.MoreScreen
+import io.github.hdlee73.everycorp.ui.common.LocalOpenMenu
+import io.github.hdlee73.everycorp.ui.common.ScreeningKind
 import io.github.hdlee73.everycorp.ui.screening.ScreeningResultScreen
 import io.github.hdlee73.everycorp.ui.screening.ScreeningScreen
 import io.github.hdlee73.everycorp.ui.theme.EveryCorpTheme
@@ -94,14 +94,13 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/** 왼쪽 서랍 메뉴 항목. 앱 정보 화면은 더보기 묶음에 속한다. */
-private enum class MenuItem(val label: String, val icon: ImageVector, val dest: Dest, val palette: HeroPalette) {
-    Search("기업 검색", Icons.Filled.Search, Dest.Home, HeroPalettes.Sky),
-    Favorites("관심", Icons.Filled.Star, Dest.Favorites, HeroPalettes.Rose),
-    Screening("스크리닝", Icons.Filled.FilterAlt, Dest.Screening, HeroPalettes.Indigo),
-    Alerts("알림", Icons.Filled.Notifications, Dest.Alerts, HeroPalettes.Coral),
-    More("더보기", Icons.Filled.MoreHoriz, Dest.More, HeroPalettes.Slate),
-    Info("앱 정보", Icons.Filled.Info, Dest.Info, HeroPalettes.Slate);
+/** 왼쪽 서랍 메뉴 항목과 한 줄 기능 요약. */
+private enum class MenuItem(val label: String, val summary: String, val icon: ImageVector, val dest: Dest, val palette: HeroPalette) {
+    Search("기업 검색", "기업·ETF를 찾아 개황, 감사보고서, 공시, 주가, 채권, 뉴스를 봅니다", Icons.Filled.Search, Dest.Home, HeroPalettes.Sky),
+    Favorites("관심", "관심기업을 그룹으로 모아 보고 비교·일괄 PDF를 만듭니다", Icons.Filled.Star, Dest.Favorites, HeroPalettes.Rose),
+    Screening("스크리닝", "조건에 맞는 회사를 모아 보고 엑셀로 내보냅니다", Icons.Filled.FilterAlt, Dest.Screening, HeroPalettes.Indigo),
+    Alerts("알림", "관심기업의 새 공시를 확인합니다", Icons.Filled.Notifications, Dest.Alerts, HeroPalettes.Coral),
+    Info("앱 정보", "버전·만든이, 업데이트 확인과 자동 업데이트·공시 알림 설정", Icons.Filled.Info, Dest.Info, HeroPalettes.Slate);
 
     companion object {
         fun of(d: Dest): MenuItem? = entries.firstOrNull { it.dest == d }
@@ -153,16 +152,25 @@ private fun Root() {
                         Text("Every Corp", style = MaterialTheme.typography.headlineSmall)
                         Text("v${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    listOf(
-                        null to listOf(MenuItem.Search, MenuItem.Favorites, MenuItem.Screening, MenuItem.Alerts),
-                        "더보기" to listOf(MenuItem.More, MenuItem.Info),
-                    ).forEachIndexed { index, (title, items) ->
-                        if (index > 0) HorizontalDivider(Modifier.padding(horizontal = 28.dp, vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
-                        if (title != null) Text(title, Modifier.padding(start = 28.dp, top = 4.dp, bottom = 4.dp), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        items.forEach { m ->
+                    MenuItem.entries.forEach { m ->
+                        if (m == MenuItem.Info) HorizontalDivider(Modifier.padding(horizontal = 28.dp, vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                        NavigationDrawerItem(
+                            icon = { Icon(m.icon, contentDescription = null) },
+                            label = {
+                                Column(Modifier.padding(vertical = 4.dp)) {
+                                    Text(m.label)
+                                    Text(m.summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            },
+                            selected = item == m, onClick = { go(m) }, modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
+                        )
+                        // 스크리닝 아래에 하부 메뉴: 누르면 해당 목록(최근 결산연도)을 바로 연다.
+                        if (m == MenuItem.Screening) ScreeningKind.entries.forEach { k ->
                             NavigationDrawerItem(
-                                icon = { Icon(m.icon, contentDescription = null) }, label = { Text(m.label) },
-                                selected = item == m, onClick = { go(m) }, modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
+                                label = { Text(k.label, style = MaterialTheme.typography.bodyMedium) },
+                                selected = (top as? Dest.ScreeningResult)?.kind == k,
+                                onClick = { vm.openScreeningPage(k); scope.launch { drawerState.close() } },
+                                modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding).padding(start = 40.dp),
                             )
                         }
                     }
@@ -170,7 +178,10 @@ private fun Root() {
             }
         },
     ) {
-        CompositionLocalProvider(LocalHeroPalette provides (item?.palette ?: LocalHeroPalette.current)) {
+        CompositionLocalProvider(
+            LocalHeroPalette provides (item?.palette ?: LocalHeroPalette.current),
+            LocalOpenMenu provides { scope.launch { drawerState.open() } },
+        ) {
             Column(Modifier.fillMaxSize()) {
                 if (showMenuBar) {
                     Spacer(Modifier.fillMaxWidth().background(AppColors.heroStart).windowInsetsTopHeight(WindowInsets.statusBars))
@@ -188,7 +199,6 @@ private fun Root() {
                         Dest.Favorites -> FavoritesScreen(vm)
                         Dest.Screening -> ScreeningScreen(vm)
                         Dest.Alerts -> AlertsScreen(vm)
-                        Dest.More -> MoreScreen(vm)
                         is Dest.Compare -> CompareScreen(vm, d)
                         is Dest.ScreeningResult -> ScreeningResultScreen(vm, d)
                         is Dest.Company -> CompanyScreen(vm, d)

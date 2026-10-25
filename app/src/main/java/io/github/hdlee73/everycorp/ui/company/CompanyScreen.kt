@@ -61,6 +61,10 @@ fun CompanyScreen(app: AppViewModel, dest: Dest.Company) {
 
     val context = LocalContext.current
     val summary = vm.summaryPdf
+    // 요약 PDF 버튼: 저장할 위치를 먼저 고른 뒤 그 위치에 만든다.
+    val pickSummary = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/pdf"),
+    ) { uri -> if (uri != null) vm.exportSummaryPdf(context.applicationContext, uri) }
     LaunchedEffect(summary) {
         when (summary) {
             is PdfUi.Done -> {
@@ -68,6 +72,11 @@ fun CompanyScreen(app: AppViewModel, dest: Dest.Company) {
                     .putExtra(Intent.EXTRA_STREAM, summary.uri)
                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 context.startActivity(Intent.createChooser(send, "요약 PDF 공유·열기").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                vm.clearSummaryPdf()
+            }
+            is PdfUi.Saved -> {
+                Toast.makeText(context, "선택한 위치에 요약 PDF를 저장했습니다.", Toast.LENGTH_SHORT).show()
+                io.github.hdlee73.everycorp.data.pdf.PdfDownloader.viewIntent(context, summary.uri)?.let { context.startActivity(it) }
                 vm.clearSummaryPdf()
             }
             is PdfUi.Failed -> { Toast.makeText(context, summary.message, Toast.LENGTH_LONG).show(); vm.clearSummaryPdf() }
@@ -85,7 +94,7 @@ fun CompanyScreen(app: AppViewModel, dest: Dest.Company) {
                     if (summary is PdfUi.Downloading) {
                         CircularProgressIndicator(Modifier.padding(12.dp).size(24.dp), strokeWidth = 2.dp)
                     } else {
-                        IconButton(onClick = { vm.exportSummaryPdf(context.applicationContext) }) {
+                        IconButton(onClick = { pickSummary.launch(io.github.hdlee73.everycorp.data.pdf.PdfSupport.safeFileName("${corp.corpName}_요약", "summary")) }) {
                             Icon(Icons.Filled.PictureAsPdf, contentDescription = "요약 PDF 만들기")
                         }
                     }

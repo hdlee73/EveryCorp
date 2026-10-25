@@ -35,7 +35,7 @@ enum class DisclosurePeriod(val years: Int, val label: String) {
 
 /** 공시 종류 칩. 정기보고서 = 사업·반기·분기보고서. */
 enum class DisclosureCategory(val param: String, val label: String) {
-    All("all", "전체 공시"), Periodic("periodic", "정기보고서")
+    All("all", "전체 공시"), Periodic("periodic", "정기보고서"), Major("major", "주요사항보고서")
 }
 
 enum class DisclosureSource(val param: String, val label: String) {
