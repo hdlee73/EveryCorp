@@ -56,7 +56,7 @@ def test_convertible_item_prefers_report_balance():
         {"kind": "CB", "tm": "4", "issued": "20260601", "maturity": "20310601", "amount": 3_000_000_000},  # 보고서 이후 납입
     ], "report": {"CB": 7_000_000_000, "BW": 0, "period": "2025-12", "rcp_no": "20260310000001"}}
     it = sc.convertible_item(rec, "20261024")
-    assert it["source"] == "사업보고서"
+    assert it["source"] == "정기보고서"
     assert it["cb_amount"] == 10_000_000_000 and it["bw_amount"] == 0  # 보고서 7십억 + 이후 발행 3십억
     assert it["next_maturity"] == "20280301" and it["count"] == 2
 

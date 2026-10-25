@@ -197,7 +197,7 @@ async def _collect_capital(key: str, year: int, reprt: str) -> None:
 _CB_LOOKBACK = 8  # 발행결정 공시를 거슬러 볼 햇수(CB·BW 만기는 대개 5년 이내)
 _DECISION_APIS = (("cvbdIsDecsn.json", "CB"), ("bdwtIsDecsn.json", "BW"))
 _DECISION_WORDS = (("전환사채권발행결정", "CB"), ("신주인수권부사채권발행결정", "BW"))
-_REPORT_NODE = (("CB", "미상환전환사채"), ("BW", "미상환신주인수권부사채"))
+_REPORT_NODE_TITLE = "증권의발행을통한자금조달"  # 미상환 CB·BW 표는 이 목차 노드 한 개 안에 7-1-2, 7-1-3 소제목으로 들어 있다
 
 
 def _cb_as_of(year: int) -> date:
@@ -247,37 +247,48 @@ async def _decision_bonds(cc: str, since: date, until: date) -> list[dict]:
     return bonds
 
 
-async def _report_balances(cc: str, year: int) -> dict | None:
-    """결산연도 year 사업보고서의 '미상환 전환사채·신주인수권부사채 발행현황' 표 → {CB, BW, period, rcp_no}(못 읽은 종류는 None)."""
+_PERIODIC_RE = re.compile(r"(사업|반기|분기)보고서")
+
+
+async def _report_balances(cc: str, as_of: date) -> dict | None:
+    """as_of 이전의 가장 최근 정기보고서(사업·반기·분기)에서 '미상환 전환사채·신주인수권부사채 발행현황' 잔액을 읽는다.
+
+    → {CB, BW, period, rcp_no}. 못 읽은 종류는 None(0은 '해당사항 없음'으로 확인된 경우).
+    """
+    from ..http import get_client
     from ..parsers import convertible as cv
     from ..parsers import dart_viewer as dv
-    from ..http import get_client
     from .reports_service import fetch_viewer_html
 
     try:
-        data = await dart_client.get_json("list.json", corp_code=cc, bgn_de=f"{year}0101",
-                                          end_de=min(date.today(), date(year + 1, 12, 31)).strftime("%Y%m%d"),
-                                          pblntf_detail_ty="A001", page_count=100)
+        data = await dart_client.get_json("list.json", corp_code=cc, bgn_de=f"{as_of.year - 1}0101",
+                                          end_de=as_of.strftime("%Y%m%d"), pblntf_ty="A", page_count=100)
     except dart_client.DartNoData:
         return None
     best = None
     for it in data.get("list", []):
-        pm = _PERIOD_RE.search(it.get("report_nm", ""))
-        if pm and int(pm.group(1)) == year and (best is None or it["rcept_no"] > best[1]):
-            best = (f"{pm.group(1)}-{pm.group(2)}", it["rcept_no"])
+        nm = it.get("report_nm", "")
+        pm = _PERIOD_RE.search(nm)
+        if not (pm and _PERIODIC_RE.search(nm)):
+            continue
+        cand = (f"{pm.group(1)}-{pm.group(2)}", it["rcept_no"])
+        if cand[0] <= as_of.strftime("%Y-%m") and (best is None or cand > best):
+            best = cand
     if not best:
         return None
-    nodes = dv.parse_nodes(await fetch_viewer_html(best[1]))
+    nodes = [n for n in dv.parse_nodes(await fetch_viewer_html(best[1]))
+             if _REPORT_NODE_TITLE in re.sub(r"\s", "", n.get("text", ""))]
     out: dict = {"CB": None, "BW": None, "period": best[0], "rcp_no": best[1]}
-    for kind, word in _REPORT_NODE:
-        node = next((n for n in nodes if word in re.sub(r"\s", "", n.get("text", ""))), None)
-        if not node:
-            continue
+    for node in nodes:
         r = await get_client().get(f"{dv.DART_HOST}/report/viewer.do", params={
             "rcpNo": node.get("rcpNo") or best[1], "dcmNo": node.get("dcmNo"), "eleId": node.get("eleId"),
             "offset": node.get("offset"), "length": node.get("length"), "dtd": node.get("dtd")})
-        if r.status_code == 200:
-            out[kind] = cv.parse_balance_table(r.text)
+        if r.status_code != 200:
+            continue
+        bal = cv.parse_report_node(r.text)
+        if bal["CB"] is not None or bal["BW"] is not None:
+            out["CB"], out["BW"] = bal["CB"], bal["BW"]
+            break
     return out
 
 
@@ -313,7 +324,7 @@ async def _collect_convertible(key: str, year: int) -> None:
                 bonds = await _decision_bonds(cc, since, until)
                 rec: dict = {"bonds": bonds, "report": None}
                 if cv.live_decisions(bonds, today):  # 만기 전 발행 건이 있는 회사만 보고서를 확인
-                    rec["report"] = await _report_balances(cc, year)
+                    rec["report"] = await _report_balances(cc, until)
                 records[cc] = rec
                 _note(key, True)
             except Exception as e:  # noqa: BLE001
@@ -348,7 +359,7 @@ def convertible_item(rec: dict, today: str) -> dict | None:
         # 보고서 기준일 이후에 납입된 발행 건은 보고서에 없으므로 추정으로 더한다.
         after = sum(b["amount"] for b in live if b["kind"] == kind and _digits(b["issued"])[:6] > _digits(rep.get("period"))[:6])
         amounts[kind] = got + after
-        source = "사업보고서"
+        source = "정기보고서"
     total = amounts["CB"] + amounts["BW"]
     if total <= 0:
         return None

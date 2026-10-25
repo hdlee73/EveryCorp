@@ -517,7 +517,7 @@ data class ConvertibleScreenItemDto(
     val total: Long = 0,
     val count: Int = 0,
     @SerialName("next_maturity") val nextMaturity: String = "",
-    /** 잔액 근거: "사업보고서"(미상환 표) 또는 "발행결정 추정"(권면총액) */
+    /** 잔액 근거: "정기보고서"(미상환 표) 또는 "발행결정 추정"(권면총액) */
     val source: String = "",
 )
 

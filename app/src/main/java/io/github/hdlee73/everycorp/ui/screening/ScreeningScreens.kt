@@ -95,7 +95,7 @@ fun ScreeningScreen(vm: AppViewModel) {
             SectionCard(Modifier.clickable { vm.openScreeningResult(ScreeningKind.Convertible, year) }) {
                 Text("CB·BW 발행잔액", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "CB·BW 발행결정 공시를 낸 상장사를 찾고, 해당 연도 사업보고서의 미상환 전환사채·신주인수권부사채 표로 잔액을 확인합니다(억원). 표를 읽지 못하면 발행결정 권면총액으로 추정해 '추정'으로 표시합니다. DART 호출이 많아 처음 수집은 오래 걸립니다.",
+                    "CB·BW 발행결정 공시를 낸 상장사를 찾고, 가장 최근 정기보고서(사업·반기·분기)의 미상환 전환사채·신주인수권부사채 표로 잔액을 확인합니다(억원). 표를 읽지 못하면 발행결정 권면총액으로 추정해 '추정'으로 표시합니다. DART 호출이 많아 처음 수집은 오래 걸립니다.",
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -147,11 +147,11 @@ private fun convertibleTable(d: ConvertibleScreeningDto) = ResultTable(
             corpOf(it.corpCode, it.corpName, it.stockCode),
             listOf(period(it.period), it.corpName, eok(it.cbAmount), eok(it.bwAmount), eok(it.total),
                 it.nextMaturity.let { m -> if (m.length == 8) "${m.take(4)}.${m.substring(4, 6)}.${m.takeLast(2)}" else m }, it.count.toString(),
-                if (it.source == "사업보고서") "보고서" else "추정"),
+                if (it.source == "정기보고서") "보고서" else "추정"),
             4, StockColors.up,
         )
     },
-    "단위 억원 · 기준 '보고서'는 사업보고서 미상환 사채 표, '추정'은 발행결정 권면총액(전환·조기상환 미반영)입니다. 보고서 이후 납입분은 추정으로 더했습니다.",
+    "단위 억원 · 기준 '보고서'는 최근 정기보고서의 미상환 사채 표, '추정'은 발행결정 권면총액(전환·조기상환 미반영)입니다. 보고서 이후 납입분은 추정으로 더했습니다.",
 ).copy(paused = d.paused)
 
 @Composable

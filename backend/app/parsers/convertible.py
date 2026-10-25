@@ -120,3 +120,26 @@ def parse_balance_table(html: str) -> int | None:
     if not soup.find("table") or "해당사항" in re.sub(r"\s", "", soup.get_text()):
         return 0 if re.search(r"해당\s*사항\s*(이\s*)?없", soup.get_text()) else None
     return None
+
+
+_CB_HEAD = re.compile(r"미상환\s*전환사채\s*발행현황")
+_BW_HEAD = re.compile(r"미상환\s*신주인수권부사채\s*발행현황")
+_END_HEAD = re.compile(r"미상환\s*전환형\s*조건부")
+
+
+def parse_report_node(html: str) -> dict:
+    """'증권의 발행을 통한 자금조달에 관한 사항' 노드 HTML → {"CB": 원|None, "BW": 원|None}.
+
+    노드 안에서 '미상환 전환사채 발행현황' 소제목부터 '미상환 신주인수권부사채 발행현황' 직전까지가 CB,
+    그 뒤부터 '미상환 전환형 조건부자본증권' 직전(없으면 끝)까지가 BW 구간이다. 소제목 뒤 표 제목에도 같은 글이 한 번 더 나오므로
+    구간은 첫 소제목 기준으로 자른다.
+    """
+    cb = _CB_HEAD.search(html)
+    bw = _BW_HEAD.search(html, cb.end()) if cb else _BW_HEAD.search(html)
+    out = {"CB": None, "BW": None}
+    if cb:
+        out["CB"] = parse_balance_table(html[cb.start():bw.start() if bw else len(html)])
+    if bw:
+        end = _END_HEAD.search(html, bw.end())
+        out["BW"] = parse_balance_table(html[bw.start():end.start() if end else len(html)])
+    return out
