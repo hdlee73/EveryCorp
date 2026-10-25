@@ -64,3 +64,30 @@ def test_parse_and_outstanding_convertibles():
     assert rows[0]["maturity"] == "20290305" and rows[0]["amount"] == 10_000_000_000
     live = sc.outstanding_convertibles(rows, "20261024")
     assert [r["kind"] for r in live] == ["CB"]  # BW는 만기 지남, 두 번째 CB는 상환됨
+
+
+def test_job_pauses_after_repeated_failures():
+    import asyncio
+    import time
+
+    key = "t_breaker"
+    sc._cooldown.pop(key, None)
+
+    async def failing():
+        for _ in range(sc._MAX_FAILS):
+            sc._note(key, False)
+
+    async def run():
+        sc._ensure_job(key, failing)
+        await sc._jobs[key]
+        assert sc._cooldown[key] > time.time()
+        started = []
+
+        async def again():
+            started.append(1)
+
+        sc._ensure_job(key, again)  # 쉬는 동안은 다시 시작하지 않는다
+        assert started == []
+
+    asyncio.run(run())
+    sc._cooldown.pop(key, None)

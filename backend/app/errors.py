@@ -1,6 +1,11 @@
 """API 오류 형식: {"error": {"code": "...", "message": "..."}}"""
+import logging
+
 from fastapi import Request
 from fastapi.responses import JSONResponse
+
+
+log = logging.getLogger(__name__)
 
 
 class ApiError(Exception):
@@ -17,5 +22,7 @@ class UpstreamError(ApiError):
         super().__init__(502, "UPSTREAM_ERROR", f"[{source}] {message}")
 
 
-async def api_error_handler(_: Request, exc: ApiError) -> JSONResponse:
+async def api_error_handler(request: Request, exc: ApiError) -> JSONResponse:
+    if exc.status >= 500:
+        log.warning("%s %s -> %s %s", request.method, request.url.path, exc.status, exc.message)
     return JSONResponse(status_code=exc.status, content={"error": {"code": exc.code, "message": exc.message}})

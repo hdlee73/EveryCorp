@@ -27,6 +27,11 @@ _PERIOD_RE = re.compile(r"\((\d{4})\.(\d{2})\)")
 _MULTI_BATCH = 100
 _AUDIT_CONCURRENCY = 2  # 화면 요청이 DART 호출을 얻을 수 있도록 백그라운드 수집은 낮게 유지
 _BG_PAUSE = 0.2
+# DART가 연결을 끊는 상태(IP 차단·한도)에서 계속 두드리면 오래 막히므로, 연속 실패가 쌓이면 수집을 멈추고 쉰다.
+_MAX_FAILS = 15
+_COOLDOWN = 1800
+_fails: dict[str, int] = {}
+_cooldown: dict[str, float] = {}
 _SAVE_EVERY = 200
 
 # 저장 형식 버전. 올리면 기존 저장본을 버리고 다시 수집한다(v2: 당기 감사의견만, 접수번호 포함).
@@ -191,13 +196,17 @@ async def _collect_capital(key: str, year: int, reprt: str) -> None:
             res = await dart_client.get_json("fnlttMultiAcnt.json", corp_code=",".join(batch),
                                              bsns_year=str(year), reprt_code=reprt)
             data["records"].update(parse_multi_acnt(res.get("list", [])))
+            _note(key, True)
         except dart_client.DartNoData:
-            pass
+            _note(key, True)
         except Exception as e:  # noqa: BLE001  묶음 하나가 실패해도 나머지는 계속
             log.warning("capital batch %s failed: %s", n, e)
+            _note(key, False)
         _progress[key] = (n, len(batches))
+        if _tripped(key):
+            break
         await asyncio.sleep(0.2)
-    data["complete"] = True
+    data["complete"] = not _tripped(key)
     data["updated_at"] = int(time.time())
     _save(key, data)
 
@@ -216,14 +225,19 @@ async def _collect_convertible(key: str, year: int) -> None:
 
     async def one(cc: str) -> None:
         async with sem:
+            if _tripped(key):
+                return
             try:
                 res = await dart_client.get_json("detScritsIsuAcmslt.json", corp_code=cc, bsns_year=str(year),
                                                  reprt_code=dart_client.REPRT_ANNUAL)
                 records[cc] = parse_convertible(res.get("list", []))
+                _note(key, True)
             except dart_client.DartNoData:
                 records[cc] = []
+                _note(key, True)
             except Exception as e:  # noqa: BLE001
                 log.warning("convertible %s failed: %s", cc, e)
+                _note(key, False)
             await asyncio.sleep(_BG_PAUSE)
 
     for i in range(0, len(todo), _SAVE_EVERY):
@@ -303,10 +317,14 @@ async def _collect_audit(key: str, year: int) -> None:
 
     async def one(cc: str) -> None:
         async with sem:
+            if _tripped(key):
+                return
             try:
                 ops = await _opinion_for(cc, filings[cc][0])
+                _note(key, True)
             except Exception as e:  # noqa: BLE001
                 log.warning("audit opinion %s failed: %s", cc, e)
+                _note(key, False)
                 return
             records[cc] = {"period": filings[cc][0], "rcept_no": filings[cc][1], "opinions": ops or []}
             await asyncio.sleep(_BG_PAUSE)
@@ -323,11 +341,34 @@ async def _collect_audit(key: str, year: int) -> None:
 
 # ───────── 조회 ─────────
 
+def _note(key: str, ok: bool) -> None:
+    _fails[key] = 0 if ok else _fails.get(key, 0) + 1
+
+
+def _tripped(key: str) -> bool:
+    return _fails.get(key, 0) >= _MAX_FAILS
+
+
 def _ensure_job(key: str, coro_factory) -> bool:
     task = _jobs.get(key)
     if task and not task.done():
         return True
-    _jobs[key] = asyncio.create_task(coro_factory())
+    if time.time() < _cooldown.get(key, 0):
+        return False  # 직전에 연속 실패로 멈췄다. 앱이 계속 조회해도 쉬는 동안은 다시 시작하지 않는다.
+
+    async def run() -> None:
+        _fails[key] = 0
+        try:
+            await coro_factory()
+        except Exception as e:  # noqa: BLE001
+            log.warning("screening job %s crashed: %s", key, e)
+            _cooldown[key] = time.time() + _COOLDOWN
+            return
+        if _tripped(key):
+            log.warning("screening job %s stopped after %d consecutive DART failures; pausing %ds", key, _MAX_FAILS, _COOLDOWN)
+            _cooldown[key] = time.time() + _COOLDOWN
+
+    _jobs[key] = asyncio.create_task(run())
     return False
 
 
