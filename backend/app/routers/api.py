@@ -123,9 +123,9 @@ async def screening_audit(year: int = _YEAR, start: bool = False, refresh: bool 
 
 
 @router.get("/screening/audit-link")
-async def screening_audit_link(rcp_no: str = Query(..., pattern=r"^\d{14}$")) -> dict:
+async def screening_audit_link(rcp_no: str = Query(..., pattern=r"^\d{14}$"), auditor: str = Query("", max_length=80)) -> dict:
     """감사의견 목록의 행을 눌렀을 때 열 DART 감사보고서 주소."""
-    return await screening_service.audit_report_link(rcp_no)
+    return await screening_service.audit_report_link(rcp_no, auditor)
 
 
 @router.get("/screening/capital-impairment")
