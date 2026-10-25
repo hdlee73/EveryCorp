@@ -189,11 +189,20 @@ async def get_audit_reports(corp_code: str, years: int = 3) -> dict:
         dart_client.list_disclosures(corp_code, bgn_s, end_s, pblntf_ty="F", max_pages=5),
         dart_client.list_disclosures(corp_code, bgn_s, end_s, pblntf_ty="A", max_pages=5),
         get_period_opinions(corp_code, bgn),
+        return_exceptions=True,
     )
+    failed = 0
+    if isinstance(opinions, Exception):
+        opinions = {}
+    if isinstance(f_items, Exception) and isinstance(a_items, Exception):
+        raise f_items  # 둘 다 실패면 빈 목록으로 캐시하지 않고 오류로 알린다
+    if isinstance(f_items, Exception):
+        f_items, failed = [], failed + 1
+    if isinstance(a_items, Exception):
+        a_items, failed = [], failed + 1
     tasks = [_standalone(corp_name, it) for it in f_items] + [_attachments(corp_name, it) for it in a_items]
     results = await asyncio.gather(*tasks, return_exceptions=True)
     collected: list[dict] = []
-    failed = 0
     for r in results:
         if isinstance(r, Exception):
             failed += 1
