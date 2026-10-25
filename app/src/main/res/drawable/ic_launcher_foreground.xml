@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 공시 문서 + 파랑·빨강 막대 (안전 영역 66dp 안) -->
+<!-- 공시 문서(남색) + 파랑·빨강 막대, 흰 배경 위 (안전 영역 66dp 안) -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#FFFFFF" android:pathData="M41,29h26a5,5 0 0,1 5,5v40a5,5 0 0,1 -5,5h-26a5,5 0 0,1 -5,-5v-40a5,5 0 0,1 5,-5z" />
+    <path android:fillColor="#1F2A44" android:pathData="M41,29h26a5,5 0 0,1 5,5v40a5,5 0 0,1 -5,5h-26a5,5 0 0,1 -5,-5v-40a5,5 0 0,1 5,-5z" />
     <path android:fillColor="#CBD5E1" android:pathData="M42,36h24v3h-24zM42,42h16v3h-16z" />
     <path android:fillColor="#2F6BFF" android:pathData="M42,62h4v9h-4z" />
     <path android:fillColor="#E5333D" android:pathData="M49,56h4v15h-4zM56,51h4v20h-4z" />

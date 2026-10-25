@@ -184,7 +184,15 @@ fun <T> UiStateContent(state: UiState<T>, onRetry: (() -> Unit)?, modifier: Modi
 /** 화면 맨 위 머리말: 큰 제목과 한 줄 설명. */
 @Composable
 fun LargeTitle(title: String, modifier: Modifier = Modifier, subtitle: String? = null, trailing: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {}) {
-    Box(modifier.fillMaxWidth().background(AppColors.heroStart)) {
+    val shape = RoundedCornerShape(bottomStart = 26.dp, bottomEnd = 26.dp)
+    Box(
+        modifier.fillMaxWidth().clip(shape)
+            .background(Brush.verticalGradient(listOf(AppColors.heroStart, AppColors.heroEnd)))
+            .drawBehind {
+                drawCircle(Color.White.copy(alpha = 0.16f), radius = size.height * 0.95f, center = Offset(size.width * 0.96f, -size.height * 0.15f))
+                drawCircle(Color.White.copy(alpha = 0.08f), radius = size.height * 0.5f, center = Offset(size.width * 0.72f, size.height * 1.05f))
+            },
+    ) {
         Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 6.dp, top = 6.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.headlineMedium, color = AppColors.onHero, maxLines = 2)
@@ -198,7 +206,7 @@ fun LargeTitle(title: String, modifier: Modifier = Modifier, subtitle: String? =
 /** 상태 표시줄까지 이어지는 그라데이션 상단 바(뒤로가기 + 제목 + 오른쪽 동작). */
 @Composable
 fun GradientTopBar(title: String, onBack: (() -> Unit)?, modifier: Modifier = Modifier, badge: String? = null, trailing: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {}) {
-    Column(modifier.fillMaxWidth().background(AppColors.heroStart)) {
+    Column(modifier.fillMaxWidth().background(Brush.horizontalGradient(listOf(AppColors.heroStart, AppColors.heroEnd)))) {
         Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
         Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로", tint = AppColors.onHero) }
