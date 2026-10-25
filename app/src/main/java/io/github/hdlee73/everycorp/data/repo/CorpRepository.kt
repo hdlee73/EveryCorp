@@ -118,6 +118,10 @@ class CorpRepository(private val api: EveryCorpApi, private val kind: KindClient
 
     suspend fun screeningConvertible(year: Int, start: Boolean = false): Result<ConvertibleScreeningDto> = apiCall { api.screeningConvertible(year, start) }
 
+    /** 스크리닝 결과 엑셀 파일 내용. 서버가 법인등록번호를 DART에서 채우느라 시간이 걸릴 수 있다. */
+    suspend fun screeningExport(kind: String, year: Int, reprtCode: String = "11011"): Result<ByteArray> =
+        apiCall { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { api.screeningExport(kind, year, reprtCode).use { it.bytes() } } }
+
     suspend fun news(corpCode: String): Result<NewsDto> = apiCall { api.news(corpCode) }
 
     suspend fun debtSecurities(corpCode: String): Result<DebtSecuritiesDto> = apiCall { api.debtSecurities(corpCode) }

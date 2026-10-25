@@ -181,15 +181,41 @@ fun ScreeningResultScreen(vm: AppViewModel, d: Dest.ScreeningResult) {
     }
     Column(Modifier.fillMaxSize()) {
         GradientTopBar(title = title, onBack = { vm.back() })
-        UiStateContent(state, onRetry = null) { t -> ResultBody(vm, t, onStart = { started = true }) }
+        UiStateContent(state, onRetry = null) { t -> ResultBody(vm, t, d, onStart = { started = true }) }
     }
 }
 
 @Composable
-private fun ResultBody(vm: AppViewModel, t: ResultTable, onStart: () -> Unit) {
+private fun ResultBody(vm: AppViewModel, t: ResultTable, d: Dest.ScreeningResult, onStart: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var opening by remember { mutableStateOf(false) }
+    var exporting by remember { mutableStateOf(false) }
+    val exportExcel: () -> Unit = {
+        if (!exporting) {
+            exporting = true
+            android.widget.Toast.makeText(context, "엑셀을 만드는 중입니다. 법인등록번호를 조회해 시간이 걸릴 수 있습니다.", android.widget.Toast.LENGTH_SHORT).show()
+            scope.launch {
+                val kind = when (d.kind) { ScreeningKind.Audit -> "audit"; ScreeningKind.Capital -> "capital"; ScreeningKind.Convertible -> "convertible" }
+                vm.repository.screeningExport(kind, d.year, d.reprt)
+                    .onSuccess { bytes ->
+                        val name = "EveryCorp_${d.kind.label}_${d.year}".replace(Regex("[^0-9A-Za-z가-힣._-]"), "_") + ".xlsx"
+                        val uri = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            val dir = java.io.File(context.cacheDir, "reports").apply { mkdirs() }
+                            val file = java.io.File(dir, name).apply { writeBytes(bytes) }
+                            androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.files", file)
+                        }
+                        val send = android.content.Intent(android.content.Intent.ACTION_SEND)
+                            .setType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                            .putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                            .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        context.startActivity(android.content.Intent.createChooser(send, "엑셀 저장·공유").addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                    }
+                    .onFailure { android.widget.Toast.makeText(context, it.message ?: "엑셀을 만들지 못했습니다.", android.widget.Toast.LENGTH_LONG).show() }
+                exporting = false
+            }
+        }
+    }
     // 감사의견 행은 DART 감사보고서로, 그 밖의 행은 기업 화면으로 연결한다.
     val onRow: (TableRow) -> Unit = { r ->
         if (r.rceptNo.isBlank()) vm.openCompany(r.corp)
@@ -222,6 +248,11 @@ private fun ResultBody(vm: AppViewModel, t: ResultTable, onStart: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 PillChip(if (t.checked > 0) "이어서 수집" else "수집 시작", onClick = onStart, selected = true)
+            }
+        }
+        if (t.rows.isNotEmpty()) {
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                PillChip(if (exporting) "엑셀 만드는 중…" else "엑셀로 내보내기", onClick = exportExcel, selected = false)
             }
         }
         if (t.rows.isEmpty()) {

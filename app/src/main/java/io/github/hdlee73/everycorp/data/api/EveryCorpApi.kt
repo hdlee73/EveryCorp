@@ -18,9 +18,11 @@ import io.github.hdlee73.everycorp.data.api.dto.OverviewDto
 import io.github.hdlee73.everycorp.data.api.dto.QuoteDto
 import io.github.hdlee73.everycorp.data.api.dto.ShareholdersDto
 import io.github.hdlee73.everycorp.data.api.dto.StakeChangesDto
+import okhttp3.ResponseBody
 import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.Query
+import retrofit2.http.Streaming
 
 /** 백엔드 REST API(docs/API_SPEC.md). 모든 호출은 NetworkModule 의 인터셉터가 X-App-Token 헤더를 붙인다. */
 interface EveryCorpApi {
@@ -99,4 +101,9 @@ interface EveryCorpApi {
 
     @GET("api/v1/screening/convertible-bonds")
     suspend fun screeningConvertible(@Query("year") year: Int, @Query("start") start: Boolean = false): ConvertibleScreeningDto
+
+    /** 저장된 스크리닝 결과 엑셀(.xlsx). kind: audit | capital | convertible */
+    @Streaming
+    @GET("api/v1/screening/export")
+    suspend fun screeningExport(@Query("kind") kind: String, @Query("year") year: Int, @Query("reprt_code") reprtCode: String = "11011"): ResponseBody
 }

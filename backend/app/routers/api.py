@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hmac
+from urllib.parse import quote
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, Query
@@ -11,7 +12,7 @@ from ..config import get_settings
 from ..errors import ApiError, UpstreamError
 from ..http import get_client
 from ..parsers import dart_viewer as dv
-from ..services import app_meta, company_service, debt_service, disclosures_service, etf_service, market_service, news_service, price_service, reports_service, screening_service, shareholders_service, stake_service
+from ..services import app_meta, company_service, debt_service, disclosures_service, etf_service, market_service, news_service, price_service, reports_service, screening_export, screening_service, shareholders_service, stake_service
 from ..services.corp_index import corp_index
 
 
@@ -139,6 +140,15 @@ async def screening_capital(year: int = _YEAR, reprt_code: Literal["11011", "110
 async def screening_convertible(year: int = _YEAR, start: bool = False, refresh: bool = False) -> dict:
     """CB·BW 미상환 추정 상장사(채무증권 발행실적 기준, 권면총액 원 단위)."""
     return await screening_service.convertible_bonds(year, start, refresh)
+
+
+@router.get("/screening/export")
+async def screening_export_xlsx(kind: Literal["audit", "capital", "convertible"], year: int = _YEAR,
+                                reprt_code: Literal["11011", "11012", "11013", "11014"] = "11011") -> Response:
+    """저장된 스크리닝 결과를 엑셀로. DART 고유번호·법인등록번호 포함."""
+    body, name = await screening_export.build(kind, year, reprt_code)
+    return Response(body, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"})
 
 
 @router.get("/reports/pdf")
