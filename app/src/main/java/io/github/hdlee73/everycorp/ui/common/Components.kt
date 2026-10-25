@@ -44,6 +44,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -203,13 +204,18 @@ fun LargeTitle(title: String, modifier: Modifier = Modifier, subtitle: String? =
     }
 }
 
-/** 상태 표시줄까지 이어지는 그라데이션 상단 바(뒤로가기 + 제목 + 오른쪽 동작). */
+/** 왼쪽 서랍 메뉴를 여는 동작. 서랍이 있는 화면 안에서는 하위 화면 머리말의 뒤로 화살표 자리에 햄버거 버튼으로 나온다. */
+val LocalOpenMenu = androidx.compose.runtime.staticCompositionLocalOf<(() -> Unit)?> { null }
+
+/** 상태 표시줄까지 이어지는 그라데이션 상단 바(메뉴 버튼 + 제목 + 오른쪽 동작). 뒤로가기는 시스템 버튼·제스처가 직전 화면으로 보낸다. */
 @Composable
 fun GradientTopBar(title: String, onBack: (() -> Unit)?, modifier: Modifier = Modifier, badge: String? = null, trailing: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {}) {
     Column(modifier.fillMaxWidth().background(Brush.horizontalGradient(listOf(AppColors.heroStart, AppColors.heroEnd)))) {
         Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
         Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로", tint = AppColors.onHero) }
+            val openMenu = LocalOpenMenu.current
+            if (onBack != null && openMenu != null) IconButton(onClick = openMenu) { Icon(Icons.Filled.Menu, contentDescription = "메뉴 열기", tint = AppColors.onHero) }
+            else if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로", tint = AppColors.onHero) }
             else Spacer(Modifier.width(16.dp))
             // 회사명은 잘리지 않게 두 줄까지 보여 주고, 시장 배지는 이름 아래에 둔다.
             Column(Modifier.weight(1f).padding(vertical = 4.dp)) {

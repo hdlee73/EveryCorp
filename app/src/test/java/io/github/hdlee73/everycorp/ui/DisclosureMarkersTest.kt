@@ -9,11 +9,12 @@ import org.junit.Test
 
 class DisclosureMarkersTest {
     @Test fun classifiesByTitle() {
-        assertEquals(MarkerKind.Periodic, classifyDisclosure("분기보고서 (2026.03)"))
-        assertEquals(MarkerKind.Periodic, classifyDisclosure("[기재정정]사업보고서 (2025.12)"))
+        assertNull(classifyDisclosure("분기보고서 (2026.03)"))
+        assertNull(classifyDisclosure("[기재정정]사업보고서 (2025.12)"))
         assertEquals(MarkerKind.Major, classifyDisclosure("주요사항보고서(전환사채권발행결정)"))
-        assertEquals(MarkerKind.Stake, classifyDisclosure("주식등의대량보유상황보고서(일반)"))
-        assertEquals(MarkerKind.Stake, classifyDisclosure("임원ㆍ주요주주특정증권등소유상황보고서"))
+        assertEquals(MarkerKind.Major, classifyDisclosure("[기재정정]주요사항보고서(유상증자결정)"))
+        assertNull(classifyDisclosure("주식등의대량보유상황보고서(일반)"))
+        assertNull(classifyDisclosure("임원ㆍ주요주주특정증권등소유상황보고서"))
         assertNull(classifyDisclosure("연결감사보고서 (2025.12)"))
         assertNull(classifyDisclosure("기업설명회(IR)개최"))
     }

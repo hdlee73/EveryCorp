@@ -25,7 +25,6 @@ sealed interface Dest {
     data object Favorites : Dest
     data object Screening : Dest
     data object Alerts : Dest
-    data object More : Dest
 
     /** 관심기업 2~4곳 비교표. */
     data class Compare(val corps: List<CorpItemDto>) : Dest
@@ -61,6 +60,10 @@ data class NavState(val stack: List<Dest> = listOf(Dest.Home)) {
 
     fun openScreeningResult(kind: ScreeningKind, year: Int, reprt: String = "11011"): NavState =
         copy(stack = stack + Dest.ScreeningResult(kind, year, reprt))
+
+    /** 서랍 하부 메뉴: 첫 화면 → 스크리닝 → 해당 결과 순으로 쌓아 뒤로가기는 스크리닝 목록으로 돌아간다. */
+    fun openScreeningPage(kind: ScreeningKind, year: Int): NavState =
+        NavState(listOf(Dest.Home, Dest.Screening, Dest.ScreeningResult(kind, year)))
 
     fun openEtf(item: EtfItemDto): NavState = copy(stack = stack + Dest.Etf(item))
 

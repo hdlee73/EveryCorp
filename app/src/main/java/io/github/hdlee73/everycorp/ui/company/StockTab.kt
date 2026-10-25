@@ -75,7 +75,7 @@ private fun MarkerLegend() {
         MarkerKind.entries.forEach { k ->
             Text("● ${k.label}", style = MaterialTheme.typography.labelSmall, color = k.color)
         }
-        Text("공시일 기준", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("공시일 기준 · 점을 누르면 어떤 공시인지 표시", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

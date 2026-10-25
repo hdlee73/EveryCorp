@@ -3,28 +3,17 @@ package io.github.hdlee73.everycorp.ui.common
 import androidx.compose.ui.graphics.Color
 import io.github.hdlee73.everycorp.data.api.dto.DisclosureDto
 
-/** 주가 차트에 점으로 찍는 공시 종류. */
+/** 주가 차트에 점으로 찍는 공시 종류. 차트가 지저분해지지 않게 주요사항보고서만 찍는다. */
 enum class MarkerKind(val label: String, val color: Color) {
-    Periodic("정기", Color(0xFF2F6BFF)),
-    Major("주요사항", Color(0xFFE5372C)),
-    Stake("지분", Color(0xFFF59E0B)),
+    Major("주요사항보고서", Color(0xFFE5372C)),
 }
 
 /** [date]는 하이픈 없는 YYYYMMDD. */
 data class ChartMarker(val date: String, val kind: MarkerKind, val title: String)
 
-private val PERIODIC = Regex("(사업|반기|분기)보고서")
-
-/** 공시 제목 → 마커 종류. 차트가 지저분해지지 않게 세 종류 외의 공시는 null(표시 안 함). */
-fun classifyDisclosure(title: String): MarkerKind? {
-    val t = title.replace(" ", "")
-    return when {
-        "대량보유" in t || "주요주주특정증권" in t -> MarkerKind.Stake
-        PERIODIC.containsMatchIn(t) -> MarkerKind.Periodic
-        "주요사항보고서" in t -> MarkerKind.Major
-        else -> null
-    }
-}
+/** 공시 제목 → 마커 종류. 주요사항보고서(정정 접두어 허용)가 아니면 null(표시 안 함). */
+fun classifyDisclosure(title: String): MarkerKind? =
+    if (title.trim().replace(" ", "").replace(Regex("^(\\[[^\\]]+\\])+"), "").startsWith("주요사항보고서")) MarkerKind.Major else null
 
 fun toMarkers(items: List<DisclosureDto>): List<ChartMarker> =
     items.mapNotNull { d ->

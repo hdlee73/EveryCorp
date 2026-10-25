@@ -39,15 +39,18 @@ fun PriceLineChart(points: List<ChartPointDto>, high: Long?, low: Long?, lineCol
     val data = remember(points) { points.filter { it.close != null } }
     if (data.size < 2) return
     var selected by remember(data) { mutableStateOf<Int?>(null) }
-    var selectedMarker by remember(data, markers) { mutableStateOf<ChartMarker?>(null) }
+    var selectedMarkers by remember(data, markers) { mutableStateOf<List<ChartMarker>>(emptyList()) }
     // 공시 마커: (마커, 차트상 위치). 차트 범위 밖 공시는 뺀다.
     val placed = remember(data, markers) {
         val dates = data.map { it.date.replace("-", "") }
         markers.mapNotNull { m -> markerIndex(dates, m.date)?.let { m to it } }
     }
-    fun nearestMarker(px: Float, width: Float, tolPx: Float): ChartMarker? =
-        placed.minByOrNull { kotlin.math.abs(width * it.second / (data.size - 1) - px) }
-            ?.takeIf { kotlin.math.abs(width * it.second / (data.size - 1) - px) <= tolPx }?.first
+    // 같은 날 여러 건이면 모두 고른다(점이 겹치므로 한 건만 보이면 어떤 공시인지 알 수 없다).
+    fun markersNear(px: Float, width: Float, tolPx: Float): List<ChartMarker> {
+        val nearest = placed.minByOrNull { kotlin.math.abs(width * it.second / (data.size - 1) - px) }
+            ?.takeIf { kotlin.math.abs(width * it.second / (data.size - 1) - px) <= tolPx } ?: return emptyList()
+        return placed.filter { it.second == nearest.second }.map { it.first }
+    }
     val gridColor = MaterialTheme.colorScheme.outlineVariant
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
 
@@ -58,27 +61,27 @@ fun PriceLineChart(points: List<ChartPointDto>, high: Long?, low: Long?, lineCol
 
     Column(modifier) {
         val sel = selected?.let { data.getOrNull(it) }
-        val sm = selectedMarker
+        val sm = selectedMarkers
         Text(
             when {
-                sm != null -> "${Fmt.date(sm.date)}  [${sm.kind.label}] ${sm.title}"
+                sm.isNotEmpty() -> "${Fmt.date(sm.first().date)}  [${sm.first().kind.label}] ${sm.size}건\n" + sm.joinToString("\n") { "· ${it.title}" }
                 sel != null -> "${Fmt.date(sel.date)}  ${Fmt.price(sel.close)}원"
-                placed.isNotEmpty() -> "차트를 눌러 일별 종가 확인 · 점을 누르면 공시 제목"
+                placed.isNotEmpty() -> "차트를 눌러 일별 종가 확인 · 빨간 점을 누르면 주요사항보고서 내용"
                 else -> "차트를 눌러 일별 종가 확인"
             },
             style = MaterialTheme.typography.labelMedium,
-            color = sm?.kind?.color ?: labelColor,
-            maxLines = 2,
+            color = sm.firstOrNull()?.kind?.color ?: labelColor,
+            maxLines = 8,
         )
         Canvas(
             Modifier.fillMaxWidth().height(200.dp)
                 .pointerInput(data, placed) { detectTapGestures { o ->
                     selected = indexAt(o.x, size.width.toFloat(), data.size)
-                    selectedMarker = nearestMarker(o.x, size.width.toFloat(), 28f)
+                    selectedMarkers = markersNear(o.x, size.width.toFloat(), 28f)
                 } }
                 .pointerInput(data, placed) { detectDragGestures(onDragEnd = {}, onDrag = { c, _ ->
                     selected = indexAt(c.position.x, size.width.toFloat(), data.size)
-                    selectedMarker = nearestMarker(c.position.x, size.width.toFloat(), 10f)
+                    selectedMarkers = markersNear(c.position.x, size.width.toFloat(), 10f)
                 }) },
         ) {
             fun x(i: Int) = size.width * i / (data.size - 1)
@@ -116,7 +119,7 @@ fun PriceLineChart(points: List<ChartPointDto>, high: Long?, low: Long?, lineCol
             drawPath(fill, Brush.verticalGradient(listOf(lineColor.copy(alpha = 0.18f), Color.Transparent)))
             drawPath(line, lineColor, style = Stroke(width = 4f))
             placed.forEach { (m, i) ->
-                val on = m == selectedMarker
+                val on = m in selectedMarkers
                 drawLine(m.kind.color.copy(alpha = if (on) 0.9f else 0.35f), Offset(x(i), y(closes[i])), Offset(x(i), size.height), strokeWidth = if (on) 3f else 1.5f)
                 drawCircle(m.kind.color, radius = if (on) 11f else 7f, center = Offset(x(i), y(closes[i])))
             }

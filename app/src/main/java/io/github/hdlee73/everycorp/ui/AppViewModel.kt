@@ -105,6 +105,9 @@ class AppViewModel(private val c: AppContainer) : ViewModel() {
 
     fun openTab(dest: Dest) { nav = nav.openTab(dest) }
 
+    /** 서랍 하부 메뉴에서 연다. 결산연도는 가장 최근 사업연도(작년). */
+    fun openScreeningPage(kind: ScreeningKind) { nav = nav.openScreeningPage(kind, java.time.LocalDate.now().year - 1) }
+
     fun openScreeningResult(kind: ScreeningKind, year: Int, reprt: String = "11011") { nav = nav.openScreeningResult(kind, year, reprt) }
 
     fun openCompare(corps: List<CorpItemDto>) { nav = nav.openCompare(corps) }

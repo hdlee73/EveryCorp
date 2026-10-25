@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicLong
 sealed interface PdfEvent {
     /** 다운로드를 시작했다. [viaProxy]=true 면 직접 받기가 실패해 서버 중계로 다시 받는 중. */
     data class Started(val viaProxy: Boolean) : PdfEvent
-    data class Done(val uri: Uri, val fileName: String, val viaProxy: Boolean) : PdfEvent
+    data class Done(val uri: Uri, val fileName: String, val viaProxy: Boolean, val downloadId: Long) : PdfEvent
     data class Failed(val message: String) : PdfEvent
 }
 
@@ -54,7 +54,7 @@ class PdfDownloader(
                     val uri = successfulPdfUri(id)
                     when {
                         uri != null -> {
-                            trySend(PdfEvent.Done(uri, fileName, viaProxy.get()))
+                            trySend(PdfEvent.Done(uri, fileName, viaProxy.get(), id))
                             close()
                         }
                         !viaProxy.get() -> {
@@ -109,6 +109,9 @@ class PdfDownloader(
         }.getOrNull() ?: return null
         return if (PdfSupport.isPdf(head)) uri else null
     }
+
+    /** 받아 둔 임시 파일을 지운다(사용자가 고른 위치로 복사한 뒤). */
+    fun discard(downloadId: Long) { runCatching { dm.remove(downloadId) } }
 
     companion object {
         /** 저장된 PDF 를 기기의 PDF 뷰어로 연다. 뷰어 앱이 없으면 null(호출 쪽에서 안내). */
