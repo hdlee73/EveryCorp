@@ -47,7 +47,6 @@ fun SearchScreen(vm: AppViewModel) {
     val focus = remember { FocusRequester() }
     LaunchedEffect(vm.searchFocusTick) { if (vm.searchFocusTick > 0) runCatching { focus.requestFocus() } }
     Column(Modifier.fillMaxSize()) {
-        Spacer(Modifier.fillMaxWidth().background(AppColors.heroStart).windowInsetsTopHeight(WindowInsets.statusBars))
         LargeTitle(
             title = "Every Corp",
             subtitle = "기업개황 · 감사보고서 · 공시 · 주가 · 채권을 한곳에서",
