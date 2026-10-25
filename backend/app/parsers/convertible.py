@@ -79,15 +79,23 @@ def _grid(table) -> list[list[str]]:
     return [[x or "" for x in r] for r in grid if any(r)]
 
 
-def parse_balance_table(html: str) -> int | None:
-    """'미상환 전환사채(신주인수권부사채) 발행현황' 노드 HTML → 미상환 권면총액 합계(원).
+def _find_col(heads: list[str], *words: str) -> int | None:
+    return next((j for j, h in enumerate(heads) if any(w in h for w in words)), None)
 
-    표가 없고 '해당사항 없음'이면 0. 잔액 열이나 금액 단위를 못 찾으면 None(호출하는 쪽이 추정으로 대신한다).
+
+def parse_balance_table(html: str) -> dict | None:
+    """'미상환 전환사채(신주인수권부사채) 발행현황' 구간 HTML → {"total": 원, "base_date": YYYYMMDD|"", "rows": [...]}.
+
+    rows는 회차별 {name, tm, issued, maturity, amount(미상환 권면총액, 원)}. 표가 없고 '해당사항 없음'이면 total 0.
+    잔액 열이나 금액 단위를 못 찾으면 None(호출하는 쪽이 추정으로 대신한다).
     머리글 줄은 큰 금액 숫자가 없는 앞쪽 줄이고, 잔액 열은 머리글에 미상환·미전환·잔액이 있고 금액 단어(권면·총액)가 함께 있는 열이다.
     '합계' 행이 있으면 그 값을, 없으면 데이터 행을 더한다.
     """
     soup = BeautifulSoup(html, "html.parser")
-    unit = _unit(soup.get_text(" ", strip=True))
+    text = soup.get_text(" ", strip=True)
+    unit = _unit(text)
+    bm = re.search(r"기준일\s*[:：]?\s*(\d{4})\D+(\d{1,2})\D+(\d{1,2})", text)
+    base_date = f"{bm.group(1)}{int(bm.group(2)):02d}{int(bm.group(3)):02d}" if bm else ""
     for table in soup.find_all("table"):
         grid = _grid(table)
         n_head = 0
@@ -101,22 +109,48 @@ def parse_balance_table(html: str) -> int | None:
                     and "주식" not in h), None)
         if col is None:
             continue
-        total, acc, n = None, 0, 0
+        c_tm, c_iss, c_mat = _find_col(heads, "회차"), _find_col(heads, "발행일"), _find_col(heads, "만기일")
+
+        def cell(r, j):
+            return r[j] if j is not None and j < len(r) else ""
+
+        total, rows = None, []
         for r in grid[n_head:]:
-            if col >= len(r):
-                continue
-            v = to_int(r[col])
+            v = to_int(cell(r, col))
             if v is None:
                 continue
             if re.sub(r"\s", "", r[0]).startswith(("합계", "총계", "계")):
-                total = v
-            else:
-                acc += v
-                n += 1
+                total = v * unit
+            elif v > 0:
+                rows.append({"name": re.sub(r"\s+", " ", r[0]).strip(), "tm": cell(r, c_tm).strip(),
+                             "issued": digits(cell(r, c_iss)), "maturity": digits(cell(r, c_mat)), "amount": v * unit})
+        if total is None and rows:
+            total = sum(x["amount"] for x in rows)
         if total is not None:
-            return total * unit
-        if n:
-            return acc * unit
-    if not soup.find("table") or "해당사항" in re.sub(r"\s", "", soup.get_text()):
-        return 0 if re.search(r"해당\s*사항\s*(이\s*)?없", soup.get_text()) else None
+            return {"total": total, "base_date": base_date, "rows": rows}
+    if re.search(r"해당\s*사항\s*(이\s*)?없", text) and not soup.find("table"):
+        return {"total": 0, "base_date": base_date, "rows": []}
     return None
+
+
+_CB_HEAD = re.compile(r"미상환\s*전환사채\s*발행현황")
+_BW_HEAD = re.compile(r"미상환\s*신주인수권부사채\s*발행현황")
+_END_HEAD = re.compile(r"미상환\s*전환형\s*조건부")
+
+
+def parse_report_node(html: str) -> dict:
+    """'증권의 발행을 통한 자금조달에 관한 사항' 노드 HTML → {"CB": parse_balance_table 결과|None, "BW": …}.
+
+    노드 안에서 '미상환 전환사채 발행현황' 소제목부터 '미상환 신주인수권부사채 발행현황' 직전까지가 CB,
+    그 뒤부터 '미상환 전환형 조건부자본증권' 직전(없으면 끝)까지가 BW 구간이다. 소제목 뒤 표 제목에도 같은 글이 한 번 더 나오므로
+    구간은 첫 소제목 기준으로 자른다.
+    """
+    cb = _CB_HEAD.search(html)
+    bw = _BW_HEAD.search(html, cb.end()) if cb else _BW_HEAD.search(html)
+    out = {"CB": None, "BW": None}
+    if cb:
+        out["CB"] = parse_balance_table(html[cb.start():bw.start() if bw else len(html)])
+    if bw:
+        end = _END_HEAD.search(html, bw.end())
+        out["BW"] = parse_balance_table(html[bw.start():end.start() if end else len(html)])
+    return out

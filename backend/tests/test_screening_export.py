@@ -30,9 +30,11 @@ def test_export_convertible_has_bond_sheet(monkeypatch):
     import asyncio
 
     async def fake_cb(year, *a, **k):
-        return {"status": "partial", "items": [{"corp_code": "00000001", "corp_name": "A", "stock_code": "1", "source": "발행결정 추정",
-                                                "period": "", "cb_amount": 5, "bw_amount": 0, "total": 5, "next_maturity": "20300101", "count": 1,
-                                                "bonds": [{"kind": "CB", "issued": "20260101", "maturity": "20300101", "amount": 5, "rate": ""}]}]}
+        return {"status": "partial", "items": [{"corp_code": "00000001", "corp_name": "A", "stock_code": "1", "source": "정기보고서",
+                                                "period": "2026-06", "base_date": "20260630", "cb_amount": 5, "bw_amount": 0, "total": 5,
+                                                "next_maturity": "20300101", "count": 1,
+                                                "bonds": [{"kind": "CB", "tm": "10회", "name": "사모 CB", "issued": "20260101",
+                                                           "maturity": "20300101", "amount": 5, "basis": "정기보고서"}]}]}
 
     async def boom(cc):
         raise RuntimeError("x")
@@ -41,5 +43,7 @@ def test_export_convertible_has_bond_sheet(monkeypatch):
     monkeypatch.setattr(ex, "get_company", boom)
     body, _ = asyncio.run(ex.build("convertible", 2025))
     wb = load_workbook(io.BytesIO(body))
-    assert wb["발행 내역(발행결정 기준)"]["A2"].value == "00000001"
-    assert wb["CB·BW 잔액"]["B2"].value in (None, "")  # 법인등록번호 조회 실패는 빈칸
+    rows = list(wb["회차별 미상환 잔액"].values)
+    assert rows[1][0] == "00000001" and rows[1][1] in (None, "")  # 법인등록번호 조회 실패는 빈칸
+    assert rows[1][4:] == ("CB", "10회", "사모 CB", "2026-01-01", "2030-01-01", 5, "2026-06-30", "정기보고서")
+    assert wb["회사별 합계"]["A2"].value == "00000001"

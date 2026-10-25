@@ -507,6 +507,20 @@ data class CapitalScreeningDto(
 )
 
 @Serializable
+data class ConvertibleBondDto(
+    val kind: String = "",
+    /** 회차(예: "10회") */
+    val tm: String = "",
+    val name: String = "",
+    val issued: String = "",
+    val maturity: String = "",
+    /** 미상환 잔액(권면액, 원) */
+    val amount: Long = 0,
+    /** 정기보고서 | 발행결정 추정 */
+    val basis: String = "",
+)
+
+@Serializable
 data class ConvertibleScreenItemDto(
     @SerialName("corp_code") val corpCode: String,
     @SerialName("corp_name") val corpName: String,
@@ -517,8 +531,11 @@ data class ConvertibleScreenItemDto(
     val total: Long = 0,
     val count: Int = 0,
     @SerialName("next_maturity") val nextMaturity: String = "",
-    /** 잔액 근거: "사업보고서"(미상환 표) 또는 "발행결정 추정"(권면총액) */
+    /** 잔액 근거: "정기보고서"(미상환 표) 또는 "발행결정 추정"(권면총액) */
     val source: String = "",
+    /** 잔액 기준일(YYYYMMDD) */
+    @SerialName("base_date") val baseDate: String = "",
+    val bonds: List<ConvertibleBondDto> = emptyList(),
 )
 
 @Serializable

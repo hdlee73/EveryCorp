@@ -53,11 +53,14 @@ def test_convertible_item_prefers_report_balance():
     rec = {"bonds": [
         {"kind": "CB", "tm": "3", "issued": "20230301", "maturity": "20280301", "amount": 10_000_000_000},
         {"kind": "BW", "tm": "1", "issued": "20200101", "maturity": "20250101", "amount": 5_000_000_000},  # 만기 지남
-        {"kind": "CB", "tm": "4", "issued": "20260601", "maturity": "20310601", "amount": 3_000_000_000},  # 보고서 이후 납입
-    ], "report": {"CB": 7_000_000_000, "BW": 0, "period": "2025-12", "rcp_no": "20260310000001"}}
+        {"kind": "CB", "tm": "4", "issued": "20260801", "maturity": "20310801", "amount": 3_000_000_000},  # 보고서 이후 납입
+    ], "report": {"CB": {"total": 7_000_000_000, "base_date": "20260630", "rows": [
+        {"name": "3회차 CB", "tm": "3회", "issued": "20230301", "maturity": "20280301", "amount": 7_000_000_000}]},
+        "BW": {"total": 0, "base_date": "20260630", "rows": []}, "period": "2026-06", "rcp_no": "20260814000001"}}
     it = sc.convertible_item(rec, "20261024")
-    assert it["source"] == "사업보고서"
+    assert it["source"] == "정기보고서" and it["base_date"] == "20260630"
     assert it["cb_amount"] == 10_000_000_000 and it["bw_amount"] == 0  # 보고서 7십억 + 이후 발행 3십억
+    assert [(b["tm"], b["basis"]) for b in it["bonds"]] == [("3회", "정기보고서"), ("4", "발행결정 추정")]
     assert it["next_maturity"] == "20280301" and it["count"] == 2
 
 
