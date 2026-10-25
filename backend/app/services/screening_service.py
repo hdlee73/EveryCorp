@@ -343,6 +343,15 @@ async def _collect_convertible(key: str, year: int) -> None:
     _save(key, data)
 
 
+def _issue_amount(decisions: list[dict], row: dict) -> int | None:
+    """보고서 표의 한 회차와 같은 회차(회차 숫자 또는 납입일이 같은)의 발행결정 권면총액(원)."""
+    tm = _digits(row.get("tm"))
+    for b in decisions:
+        if (tm and _digits(b["tm"]) == tm) or (row.get("issued") and b["issued"][:8] == row["issued"][:8]):
+            return b["amount"] or None
+    return None
+
+
 def convertible_item(rec: dict, today: str) -> dict | None:
     """수집 기록 → 화면 항목(회차별 미상환 내역 포함).
 
@@ -369,9 +378,10 @@ def convertible_item(rec: dict, today: str) -> dict | None:
         rows = [r for r in got["rows"] if not r["maturity"] or r["maturity"][:8] >= today]
         if rows:
             out += [{"kind": kind, "tm": r["tm"], "name": r["name"], "issued": r["issued"], "maturity": r["maturity"],
-                     "amount": r["amount"], "basis": "정기보고서"} for r in rows]
+                     "amount": cv.rescale(r["amount"], _issue_amount(mine, r)), "basis": "정기보고서"} for r in rows]
         elif got["total"] > 0:  # 합계만 읽힌 경우
-            out.append({"kind": kind, "tm": "", "name": "", "issued": "", "maturity": "", "amount": got["total"], "basis": "정기보고서"})
+            out.append({"kind": kind, "tm": "", "name": "", "issued": "", "maturity": "", "amount": cv.rescale(got["total"], sum(b["amount"] for b in mine) or None),
+                        "basis": "정기보고서"})
         out += [{"kind": kind, "tm": b["tm"], "name": "", "issued": b["issued"], "maturity": b["maturity"],
                  "amount": b["amount"], "basis": "발행결정 추정"} for b in mine if _digits(b["issued"])[:6] > period6]
     cb = sum(b["amount"] for b in out if b["kind"] == "CB")

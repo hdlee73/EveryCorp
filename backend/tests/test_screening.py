@@ -134,3 +134,12 @@ def test_current_term_uses_latest_term_number():
         {"term": "제28기\n(전기)", "auditor": "서현회계법인", "opinion": "적정의견", "scope": ""},
     ]
     assert [i["auditor"] for i in sc.current_term_items(rows)] == ["정안회계법인"]
+
+
+def test_convertible_item_fixes_wrong_report_unit():
+    rec = {"bonds": [{"kind": "CB", "tm": "1", "issued": "20250101", "maturity": "20290101", "amount": 1_500_000_000}],
+           "report": {"CB": {"total": 150_000_000 * 100_000_000, "base_date": "20260630", "rows": [
+               {"name": "1회 CB", "tm": "1회", "issued": "20250101", "maturity": "20290101", "amount": 150_000_000 * 100_000_000}]},
+                      "BW": None, "period": "2026-06", "rcp_no": "1"}}
+    it = sc.convertible_item(rec, "20261024")
+    assert it["cb_amount"] == 150_000_000  # 억원으로 잘못 곱한 값을 되돌림(발행 15억 이하)
