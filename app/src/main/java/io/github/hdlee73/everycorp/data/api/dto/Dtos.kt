@@ -471,6 +471,8 @@ data class AuditScreeningDto(
     val status: String = "empty",
     val progress: ScreeningProgressDto = ScreeningProgressDto(),
     @SerialName("updated_at") val updatedAt: Long? = null,
+    /** 서버가 DART 연속 실패로 수집을 잠시 멈춘 상태 */
+    val paused: Boolean = false,
     val year: Int = 0,
     val checked: Int = 0,
     val items: List<AuditScreenItemDto> = emptyList(),
@@ -496,6 +498,8 @@ data class CapitalScreeningDto(
     val status: String = "empty",
     val progress: ScreeningProgressDto = ScreeningProgressDto(),
     @SerialName("updated_at") val updatedAt: Long? = null,
+    /** 서버가 DART 연속 실패로 수집을 잠시 멈춘 상태 */
+    val paused: Boolean = false,
     val year: Int = 0,
     @SerialName("report_name") val reportName: String = "",
     val checked: Int = 0,
@@ -520,6 +524,8 @@ data class ConvertibleScreeningDto(
     val status: String = "empty",
     val progress: ScreeningProgressDto = ScreeningProgressDto(),
     @SerialName("updated_at") val updatedAt: Long? = null,
+    /** 서버가 DART 연속 실패로 수집을 잠시 멈춘 상태 */
+    val paused: Boolean = false,
     val year: Int = 0,
     val checked: Int = 0,
     val items: List<ConvertibleScreenItemDto> = emptyList(),

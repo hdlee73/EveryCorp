@@ -91,3 +91,25 @@ def test_job_pauses_after_repeated_failures():
 
     asyncio.run(run())
     sc._cooldown.pop(key, None)
+
+
+def test_collection_only_starts_on_request(tmp_path, monkeypatch):
+    import asyncio
+
+    monkeypatch.setattr(sc, "_dir", lambda: str(tmp_path))
+    started = []
+
+    async def fake_collect(key, year):
+        started.append(key)
+
+    monkeypatch.setattr(sc, "_collect_convertible", fake_collect)
+    sc._jobs.pop("convertible_2099", None)
+
+    async def run():
+        r = await sc.convertible_bonds(2099)
+        assert r["status"] == "empty" and started == []
+        await sc.convertible_bonds(2099, start=True)
+        await asyncio.sleep(0.05)
+        assert started == ["convertible_2099"]
+
+    asyncio.run(run())

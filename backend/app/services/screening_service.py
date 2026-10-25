@@ -379,16 +379,17 @@ def _status(key: str, data: dict) -> dict:
         "status": "collecting" if running else ("ready" if data.get("complete") else "partial" if data else "empty"),
         "progress": {"done": done, "total": total},
         "updated_at": data.get("updated_at"),
+        "paused": time.time() < _cooldown.get(key, 0),
     }
 
 
-async def audit_nonclean(year: int, refresh: bool = False) -> dict:
+async def audit_nonclean(year: int, start: bool = False, refresh: bool = False) -> dict:
     key = f"audit_{year}"
     data = _load(key)
     if data.get("v") != _SCHEMA:
         data = {}  # 이전 형식 저장본은 쓰지 않고 새로 수집한다
     stale = not data.get("complete") or (refresh and time.time() - data.get("updated_at", 0) > 24 * 3600)
-    if stale:
+    if stale and start:
         _ensure_job(key, lambda: _collect_audit(key, year))
         fresh = _load(key)
         data = fresh if fresh.get("v") == _SCHEMA else data
@@ -405,10 +406,11 @@ async def audit_nonclean(year: int, refresh: bool = False) -> dict:
     return {**_status(key, data), "year": year, "checked": len(data.get("records", {})), "items": items}
 
 
-async def capital_impairment(year: int, reprt: str = dart_client.REPRT_ANNUAL, refresh: bool = False) -> dict:
+async def capital_impairment(year: int, reprt: str = dart_client.REPRT_ANNUAL, start: bool = False,
+                             refresh: bool = False) -> dict:
     key = f"capital_{year}_{reprt}"
     data = _load(key)
-    if not data.get("complete") or (refresh and time.time() - data.get("updated_at", 0) > 24 * 3600):
+    if start and (not data.get("complete") or (refresh and time.time() - data.get("updated_at", 0) > 24 * 3600)):
         _ensure_job(key, lambda: _collect_capital(key, year, reprt))
         data = _load(key) or data
     items = []
@@ -425,11 +427,11 @@ async def capital_impairment(year: int, reprt: str = dart_client.REPRT_ANNUAL, r
             "checked": len(data.get("records", {})), "items": items}
 
 
-async def convertible_bonds(year: int, refresh: bool = False) -> dict:
+async def convertible_bonds(year: int, start: bool = False, refresh: bool = False) -> dict:
     """CB·BW 미상환(상환 표시 없음 + 만기 전) 상장사. 금액은 발행 권면총액(원) 기준이라 실제 잔액과 다를 수 있다."""
     key = f"convertible_{year}"
     data = _load(key)
-    if not data.get("complete") or (refresh and time.time() - data.get("updated_at", 0) > 24 * 3600):
+    if start and (not data.get("complete") or (refresh and time.time() - data.get("updated_at", 0) > 24 * 3600)):
         _ensure_job(key, lambda: _collect_convertible(key, year))
         data = _load(key) or data
     today = date.today().strftime("%Y%m%d")
