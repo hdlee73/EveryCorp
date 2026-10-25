@@ -92,7 +92,7 @@ interface EveryCorpApi {
     suspend fun screeningAudit(@Query("year") year: Int, @Query("start") start: Boolean = false): AuditScreeningDto
 
     @GET("api/v1/screening/audit-link")
-    suspend fun screeningAuditLink(@Query("rcp_no") rcpNo: String): AuditLinkDto
+    suspend fun screeningAuditLink(@Query("rcp_no") rcpNo: String, @Query("auditor") auditor: String = ""): AuditLinkDto
 
     @GET("api/v1/screening/capital-impairment")
     suspend fun screeningCapital(@Query("year") year: Int, @Query("reprt_code") reprtCode: String = "11011", @Query("start") start: Boolean = false): CapitalScreeningDto

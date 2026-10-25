@@ -110,7 +110,8 @@ class CorpRepository(private val api: EveryCorpApi, private val kind: KindClient
 
     suspend fun screeningAudit(year: Int, start: Boolean = false): Result<AuditScreeningDto> = apiCall { api.screeningAudit(year, start) }
 
-    suspend fun screeningAuditLink(rcpNo: String): Result<AuditLinkDto> = apiCall { api.screeningAuditLink(rcpNo) }
+    suspend fun screeningAuditLink(rcpNo: String, auditor: String = ""): Result<AuditLinkDto> =
+        apiCall { api.screeningAuditLink(rcpNo, auditor) }
 
     suspend fun screeningCapital(year: Int, reprtCode: String, start: Boolean = false): Result<CapitalScreeningDto> =
         apiCall { api.screeningCapital(year, reprtCode, start) }

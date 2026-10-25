@@ -16,6 +16,7 @@ import time
 from datetime import date
 
 from ..config import get_settings
+from ..cache import cached
 from . import dart_client
 from .corp_index import corp_index
 from .reports_service import summarize_opinions
@@ -451,8 +452,39 @@ async def convertible_bonds(year: int, start: bool = False, refresh: bool = Fals
     return {**_status(key, data), "year": year, "checked": len(data.get("records", {})), "items": items}
 
 
-async def audit_report_link(rcp_no: str) -> dict:
-    """사업보고서 접수번호 → 그 보고서에 첨부된 감사보고서 뷰어 주소(연결 우선). 첨부를 못 찾으면 보고서 본문 주소."""
+def auditor_in_text(auditor: str, text: str) -> bool:
+    """감사보고서 본문에 감사인 이름이 들어 있는가. 괄호(등록번호 등)와 공백은 무시한다."""
+    name = re.sub(r"\(.*?\)|\s", "", auditor)
+    return not name or name in re.sub(r"\s", "", text)
+
+
+async def _doc_text(rcp_no: str, dcm_no: str) -> str:
+    """첨부 문서 첫 목차 노드의 본문 텍스트(감사보고서 서명부의 감사인 이름 확인용)."""
+    from ..http import get_client
+    from ..parsers import audit_notes as an
+    from ..parsers import dart_viewer as dv
+
+    r = await get_client().get(f"{dv.DART_HOST}/dsaf001/main.do", params={"rcpNo": rcp_no, "dcmNo": dcm_no})
+    nodes = dv.parse_nodes(r.text) if r.status_code == 200 else []
+    node = next((n for n in nodes if "감사" in n.get("text", "")), nodes[0] if nodes else None)
+    if not node:
+        raise ValueError("no node")
+    r = await get_client().get(f"{dv.DART_HOST}/report/viewer.do", params={
+        "rcpNo": node.get("rcpNo") or rcp_no, "dcmNo": node.get("dcmNo") or dcm_no, "eleId": node.get("eleId"),
+        "offset": node.get("offset"), "length": node.get("length"), "dtd": node.get("dtd")})
+    if r.status_code != 200:
+        raise ValueError(f"viewer {r.status_code}")
+    return an.html_to_text(r.text)
+
+
+@cached(ttl=7 * 24 * 3600)
+async def audit_report_link(rcp_no: str, auditor: str = "") -> dict:
+    """사업보고서 접수번호 → 그 보고서에 첨부된 감사보고서 뷰어 주소(연결 우선).
+
+    auditor가 주어지면 본문에 그 감사인 이름이 있는 문서를 고른다. 본문을 읽지 못한 문서는 판단 불가로 두고,
+    읽은 문서가 모두 다른 감사인이면 엉뚱한 보고서를 열지 않도록 사업보고서 본문 주소를 돌려준다.
+    첨부를 못 찾으면 사업보고서 본문 주소.
+    """
     from ..parsers import dart_viewer as dv
     from .reports_service import fetch_viewer_html
 
@@ -465,5 +497,18 @@ async def audit_report_link(rcp_no: str) -> dict:
         return main
     if not docs:
         return main
+    if auditor.strip():
+        match: list = []
+        unknown: list = []
+        for d in docs[:4]:
+            try:
+                if auditor_in_text(auditor, await _doc_text(d.rcp_no, d.dcm_no)):
+                    match.append(d)
+            except Exception as e:  # noqa: BLE001
+                log.warning("audit doc %s/%s unreadable: %s", d.rcp_no, d.dcm_no, e)
+                unknown.append(d)
+        docs = match or unknown
+        if not docs:
+            return {**main, "title": "사업보고서 (해당 감사인의 감사보고서를 첨부에서 찾지 못했습니다)"}
     best = max(docs, key=lambda d: dv.classify(d.title)[1])
     return {"url": dv.viewer_url(best.rcp_no, best.dcm_no), "title": best.title, "found": True}

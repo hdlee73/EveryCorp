@@ -113,3 +113,10 @@ def test_collection_only_starts_on_request(tmp_path, monkeypatch):
         assert started == ["convertible_2099"]
 
     asyncio.run(run())
+
+
+def test_auditor_in_text_ignores_registration_and_spaces():
+    assert sc.auditor_in_text("정안회계법인", "독립된 감사인의 감사보고서 ... 정안 회계법인 대표이사 홍길동")
+    assert sc.auditor_in_text("동진공인회계사감사반(제387호)", "동진공인회계사 감사반")
+    assert not sc.auditor_in_text("서현회계법인", "정안회계법인 대표이사")
+    assert sc.auditor_in_text("", "아무 글")

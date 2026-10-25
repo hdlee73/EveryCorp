@@ -104,7 +104,7 @@ fun ScreeningScreen(vm: AppViewModel) {
 }
 
 /** 결과 표 한 줄. [corp]를 누르면 기업 화면으로 이동한다. */
-private data class TableRow(val corp: CorpItemDto, val cells: List<String>, val tintColumn: Int = -1, val tint: Color = Color.Unspecified, val rceptNo: String = "")
+private data class TableRow(val corp: CorpItemDto, val cells: List<String>, val tintColumn: Int = -1, val tint: Color = Color.Unspecified, val rceptNo: String = "", val auditor: String = "")
 
 private data class ResultTable(
     val status: String, val done: Int, val total: Int, val checked: Int, val updatedAt: Long?,
@@ -122,7 +122,7 @@ private fun eok(v: Long?) = Fmt.eok(v?.toDouble())
 private fun auditTable(d: AuditScreeningDto) = ResultTable(
     d.status, d.progress.done, d.progress.total, d.checked, d.updatedAt,
     listOf("결산", "회사명", "감사의견", "감사인", "구분"), listOf(84.dp, 150.dp, 90.dp, 130.dp, 90.dp),
-    d.items.map { TableRow(corpOf(it.corpCode, it.corpName, it.stockCode), listOf(period(it.period), it.corpName, it.opinion, it.auditor, it.scope), 2, StockColors.up, it.rceptNo) },
+    d.items.map { TableRow(corpOf(it.corpCode, it.corpName, it.stockCode), listOf(period(it.period), it.corpName, it.opinion, it.auditor, it.scope), 2, StockColors.up, it.rceptNo, it.auditor) },
     "당기 감사의견이 한정·부적정·의견거절인 회사만 표시합니다. 행을 누르면 DART 감사보고서가 열립니다.",
 ).copy(paused = d.paused)
 
@@ -195,7 +195,7 @@ private fun ResultBody(vm: AppViewModel, t: ResultTable, onStart: () -> Unit) {
         else if (!opening) {
             opening = true
             scope.launch {
-                vm.repository.screeningAuditLink(r.rceptNo)
+                vm.repository.screeningAuditLink(r.rceptNo, r.auditor)
                     .onSuccess { openInAppBrowser(context, it.url) }
                     .onFailure { vm.openCompany(r.corp) }
                 opening = false
