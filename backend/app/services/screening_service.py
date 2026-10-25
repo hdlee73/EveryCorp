@@ -25,7 +25,8 @@ log = logging.getLogger(__name__)
 REPRT_NAMES = {"11011": "사업보고서", "11012": "반기보고서", "11013": "1분기보고서", "11014": "3분기보고서"}
 _PERIOD_RE = re.compile(r"\((\d{4})\.(\d{2})\)")
 _MULTI_BATCH = 100
-_AUDIT_CONCURRENCY = 4
+_AUDIT_CONCURRENCY = 2  # 화면 요청이 DART 호출을 얻을 수 있도록 백그라운드 수집은 낮게 유지
+_BG_PAUSE = 0.2
 _SAVE_EVERY = 200
 
 # 저장 형식 버전. 올리면 기존 저장본을 버리고 다시 수집한다(v2: 당기 감사의견만, 접수번호 포함).
@@ -223,6 +224,7 @@ async def _collect_convertible(key: str, year: int) -> None:
                 records[cc] = []
             except Exception as e:  # noqa: BLE001
                 log.warning("convertible %s failed: %s", cc, e)
+            await asyncio.sleep(_BG_PAUSE)
 
     for i in range(0, len(todo), _SAVE_EVERY):
         await asyncio.gather(*(one(cc) for cc in todo[i:i + _SAVE_EVERY]))
@@ -307,6 +309,7 @@ async def _collect_audit(key: str, year: int) -> None:
                 log.warning("audit opinion %s failed: %s", cc, e)
                 return
             records[cc] = {"period": filings[cc][0], "rcept_no": filings[cc][1], "opinions": ops or []}
+            await asyncio.sleep(_BG_PAUSE)
 
     for i in range(0, len(todo), _SAVE_EVERY):
         await asyncio.gather(*(one(cc) for cc in todo[i:i + _SAVE_EVERY]))

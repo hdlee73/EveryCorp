@@ -16,7 +16,7 @@ def get_client() -> httpx.AsyncClient:
             timeout=s.http_timeout,
             follow_redirects=True,
             headers={"User-Agent": s.user_agent, "Accept-Language": "ko-KR,ko;q=0.9"},
-            limits=httpx.Limits(max_connections=50, max_keepalive_connections=20),
+            limits=httpx.Limits(max_connections=50, max_keepalive_connections=20, keepalive_expiry=10),
         )
     return _client
 
