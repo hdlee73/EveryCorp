@@ -29,6 +29,10 @@ REPRT_Q1 = "11013"       # 1분기보고서
 REPRT_Q3 = "11014"       # 3분기보고서
 
 
+_ATTEMPTS = 3
+_SEM = asyncio.Semaphore(6)
+
+
 class DartNoData(Exception):
     """status 013: 조회된 데이터 없음."""
 
@@ -45,18 +49,19 @@ async def get_json(path: str, **params: Any) -> dict:
     params = {k: v for k, v in params.items() if v is not None}
     params["crtfc_key"] = _key()
     r = None
-    for attempt in range(2):  # 일시적 네트워크 오류·HTML 응답은 한 번 더 시도
+    for attempt in range(_ATTEMPTS):  # 일시적 네트워크 오류(ReadError 등)·HTML 응답은 간격을 두고 다시 시도
         try:
-            r = await get_client().get(f"{BASE}/{path}", params=params)
+            async with _SEM:  # DART 동시 호출 수 제한(백그라운드 수집과 화면 요청이 한꺼번에 몰리면 연결을 끊는다)
+                r = await get_client().get(f"{BASE}/{path}", params=params)
             if r.status_code == 200:
                 data = r.json()
                 break
             err = f"HTTP {r.status_code}"
         except (httpx.HTTPError, ValueError) as e:
             err = f"{type(e).__name__} {e}"[:120]
-        if attempt == 1:
+        if attempt == _ATTEMPTS - 1:
             raise UpstreamError("DART", err)
-        await asyncio.sleep(1)
+        await asyncio.sleep(1 + attempt)
     status = data.get("status")
     if status == OK:
         return data
