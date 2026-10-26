@@ -37,6 +37,9 @@ _SAVE_EVERY = 200
 
 # 저장 형식 버전. 올리면 기존 저장본을 버리고 다시 수집한다(v3: 최신 기수만 당기로 봄).
 _SCHEMA = 3
+_CAP_SCHEMA = 2  # 자본잠식 저장 형식(2: 조회 완료 법인 목록 done 포함, 실패 묶음 재시도)
+_CAPITAL_PASSES = 3
+_CAPITAL_RETRY_WAIT = 20
 _CB_SCHEMA = 2  # CB·BW 저장 형식(2: 회차별 미상환 행 포함). 올리면 새로 수집한다.
 
 _jobs: dict[str, asyncio.Task] = {}
@@ -169,28 +172,53 @@ def _listed_codes() -> list[str]:
 # ───────── 자본잠식 수집 ─────────
 
 async def _collect_capital(key: str, year: int, reprt: str) -> None:
+    """상장사+사업보고서 제출 법인의 재무상태표를 100곳씩 묶어 조회한다.
+
+    조회에 성공한(자료 없음 포함) 법인은 done에 적어 두고, 실패한 묶음은 쉬었다가 다시 시도한다.
+    실패한 묶음이 남아 있으면 complete가 되지 않아 앱에서 "이어서 수집"으로 이어 받는다.
+    """
+    prev = _load(key)
+    keep = prev.get("year") == year and prev.get("reprt") == reprt and prev.get("v") == _CAP_SCHEMA
+    records: dict[str, dict] = dict(prev.get("records", {})) if keep else {}
+    done: set[str] = set(prev.get("done", [])) if keep else set()
     codes = sorted(set(_listed_codes()) | set(await _annual_filings(year)))
     batches = [codes[i:i + _MULTI_BATCH] for i in range(0, len(codes), _MULTI_BATCH)]
-    data = {"year": year, "reprt": reprt, "records": {}, "total": len(codes), "complete": False, "updated_at": 0}
-    _progress[key] = (0, len(batches))
-    for n, batch in enumerate(batches, 1):
-        try:
-            res = await dart_client.get_json("fnlttMultiAcnt.json", corp_code=",".join(batch),
-                                             bsns_year=str(year), reprt_code=reprt)
-            data["records"].update(parse_multi_acnt(res.get("list", [])))
-            _note(key, True)
-        except dart_client.DartNoData:
-            _note(key, True)
-        except Exception as e:  # noqa: BLE001  묶음 하나가 실패해도 나머지는 계속
-            log.warning("capital batch %s failed: %s", n, e)
-            _note(key, False)
-        _progress[key] = (n, len(batches))
-        if _tripped(key):
+    data = {"v": _CAP_SCHEMA, "year": year, "reprt": reprt, "records": records, "done": [], "total": len(codes),
+            "complete": False, "updated_at": 0}
+
+    def save(complete: bool = False) -> None:
+        data["done"] = sorted(done)
+        data["complete"] = complete
+        data["updated_at"] = int(time.time())
+        _save(key, data)
+
+    _progress[key] = (len(done), len(codes))
+    for passno in range(_CAPITAL_PASSES):
+        todo = [bt for bt in batches if not set(bt) <= done]
+        if not todo or _tripped(key):
             break
-        await asyncio.sleep(0.2)
-    data["complete"] = not _tripped(key)
-    data["updated_at"] = int(time.time())
-    _save(key, data)
+        if passno:
+            await asyncio.sleep(_CAPITAL_RETRY_WAIT)  # 실패한 묶음은 DART가 가라앉은 뒤 다시
+        for n, batch in enumerate(todo, 1):
+            try:
+                res = await dart_client.get_json("fnlttMultiAcnt.json", corp_code=",".join(batch),
+                                                 bsns_year=str(year), reprt_code=reprt)
+                records.update(parse_multi_acnt(res.get("list", [])))
+                done.update(batch)
+                _note(key, True)
+            except dart_client.DartNoData:
+                done.update(batch)
+                _note(key, True)
+            except Exception as e:  # noqa: BLE001  묶음 하나가 실패해도 나머지는 계속, 실패분은 다음 차례에 다시
+                log.warning("capital batch %s failed: %s", n, e)
+                _note(key, False)
+            _progress[key] = (len(done), len(codes))
+            if n % 5 == 0:
+                save()
+            if _tripped(key):
+                break
+            await asyncio.sleep(0.2)
+    save(complete=all(set(bt) <= done for bt in batches))
 
 
 # ───────── CB·BW 수집 ─────────
@@ -545,9 +573,12 @@ async def capital_impairment(year: int, reprt: str = dart_client.REPRT_ANNUAL, s
                              refresh: bool = False) -> dict:
     key = f"capital_{year}_{reprt}"
     data = _load(key)
+    if data.get("v") != _CAP_SCHEMA:
+        data = {}  # 이전 형식 저장본은 조회하지 못한 묶음이 섞여 있을 수 있어 쓰지 않는다
     if start and (not data.get("complete") or (refresh and time.time() - data.get("updated_at", 0) > 24 * 3600)):
         _ensure_job(key, lambda: _collect_capital(key, year, reprt))
-        data = _load(key) or data
+        fresh = _load(key)
+        data = fresh if fresh.get("v") == _CAP_SCHEMA else data
     items = []
     for cc, rec in data.get("records", {}).items():
         kind = impairment_kind(rec.get("equity"), rec.get("capital"))
@@ -559,7 +590,7 @@ async def capital_impairment(year: int, reprt: str = dart_client.REPRT_ANNUAL, s
                       "capital": rec["capital"], "kind": kind, "fs_div": rec["fs_div"]})
     items.sort(key=lambda x: (x["equity"] if x["equity"] is not None else 0))
     return {**_status(key, data), "year": year, "reprt_code": reprt, "report_name": REPRT_NAMES.get(reprt, reprt),
-            "checked": len(data.get("records", {})), "items": items}
+            "checked": len(data.get("done", [])), "with_data": len(data.get("records", {})), "items": items}
 
 
 async def convertible_bonds(year: int, start: bool = False, refresh: bool = False) -> dict:

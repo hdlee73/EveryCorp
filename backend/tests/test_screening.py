@@ -134,3 +134,33 @@ def test_current_term_uses_latest_term_number():
         {"term": "제28기\n(전기)", "auditor": "서현회계법인", "opinion": "적정의견", "scope": ""},
     ]
     assert [i["auditor"] for i in sc.current_term_items(rows)] == ["정안회계법인"]
+
+
+def test_capital_collection_retries_failed_batches(tmp_path, monkeypatch):
+    import asyncio
+
+    monkeypatch.setattr(sc, "_dir", lambda: str(tmp_path))
+    monkeypatch.setattr(sc, "_MULTI_BATCH", 2)
+    monkeypatch.setattr(sc, "_CAPITAL_RETRY_WAIT", 0)
+    monkeypatch.setattr(sc, "_listed_codes", lambda: ["00000001", "00000002", "00000003", "00000004"])
+
+    async def no_filings(year):
+        return {}
+
+    calls: dict[str, int] = {}
+
+    async def fake_get_json(path, **kw):
+        first = kw["corp_code"].split(",")[0]
+        calls[first] = calls.get(first, 0) + 1
+        if first == "00000003" and calls[first] == 1:
+            raise RuntimeError("DART 연결 끊김")  # 첫 시도만 실패
+        return {"list": [{"corp_code": cc, "sj_div": "BS", "fs_div": "CFS", "account_nm": "자본총계", "thstrm_amount": "10",
+                          "thstrm_dt": "2025.12.31"} for cc in kw["corp_code"].split(",")]}
+
+    monkeypatch.setattr(sc, "_annual_filings", no_filings)
+    monkeypatch.setattr(sc.dart_client, "get_json", fake_get_json)
+    sc._fails.pop("capital_t", None)
+    asyncio.run(sc._collect_capital("capital_t", 2025, "11011"))
+    saved = sc._load("capital_t")
+    assert saved["complete"] is True and len(saved["done"]) == 4 and len(saved["records"]) == 4
+    assert calls["00000003"] == 2  # 실패한 묶음만 다시 조회
