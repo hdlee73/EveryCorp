@@ -55,6 +55,19 @@ def _unit(text: str) -> int | None:
     return next((mult for word, mult in _UNIT_MULT if m.group(1).endswith(word)), None)
 
 
+def _unit_near(table) -> int | None:
+    """표 안과 바로 앞쪽 글에서 가장 가까운 '단위' 표기. 구간에 단위가 여럿이면(다른 표의 단위가 앞에 남은 경우) 가까운 것이 이 표의 단위다."""
+    inside = _unit(table.get_text(" ", strip=True))
+    if inside:
+        return inside
+    for piece in table.find_all_previous(string=True, limit=80):
+        if "단위" in piece:
+            u = _unit(piece)
+            if u:
+                return u
+    return None
+
+
 def _grid(table) -> list[list[str]]:
     """rowspan·colspan을 펼친 표."""
     grid: list[list[str]] = []
@@ -93,10 +106,11 @@ def parse_balance_table(html: str) -> dict | None:
     """
     soup = BeautifulSoup(html, "html.parser")
     text = soup.get_text(" ", strip=True)
-    unit = _unit(text)
+    page_unit = _unit(text)
     bm = re.search(r"기준일\s*[:：]?\s*(\d{4})\D+(\d{1,2})\D+(\d{1,2})", text)
     base_date = f"{bm.group(1)}{int(bm.group(2)):02d}{int(bm.group(3)):02d}" if bm else ""
     for table in soup.find_all("table"):
+        unit = _unit_near(table) or page_unit
         grid = _grid(table)
         n_head = 0
         while n_head < len(grid) and not any((to_int(c) or 0) >= 10_000 for c in grid[n_head]):
@@ -154,3 +168,21 @@ def parse_report_node(html: str) -> dict:
         end = _END_HEAD.search(html, bw.end())
         out["BW"] = parse_balance_table(html[bw.start():end.start() if end else len(html)])
     return out
+
+
+_RESCALE_DIVS = (1, 1_000, 1_000_000, 100_000_000)
+_ABSURD = 10_000_000_000_000  # 10조원: 비교할 발행 금액이 없을 때 이보다 크면 단위를 잘못 곱한 것으로 본다
+
+
+def rescale(amount: int, ref: int | None) -> int:
+    """보고서 표에서 읽은 금액이 발행 당시 권면총액(ref, 원)을 넘으면 단위(천·백만·억)를 잘못 곱한 것으로 보고 되돌린다.
+
+    ref가 없으면 10조원 초과일 때만 되돌린다. 알맞은 값을 못 찾으면 그대로 둔다.
+    """
+    limit = int(ref * 1.05) if ref else _ABSURD
+    if amount <= limit:
+        return amount
+    for div in _RESCALE_DIVS[1:]:
+        if amount // div <= limit:
+            return amount // div
+    return amount

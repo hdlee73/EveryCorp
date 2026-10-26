@@ -66,3 +66,18 @@ def test_parse_report_node_kmw_layout():
 
 def test_parse_report_node_without_headings():
     assert cv.parse_report_node("<p>다른 내용</p>") == {"CB": None, "BW": None}
+
+
+def test_rescale_undoes_wrong_unit():
+    # 발행 당시 15억(원), 미상환 1.5억(원)인데 억원 단위로 곱해 1.5경이 된 경우
+    assert cv.rescale(150_000_000 * 100_000_000, 1_500_000_000) == 150_000_000
+    assert cv.rescale(700 * 1_000_000, 3_000_000_000) == 700 * 1_000_000  # 정상 값은 그대로
+    assert cv.rescale(10**17, None) <= 10**13  # 기준이 없어도 10조 초과면 되돌린다
+    assert cv.rescale(4_750 * 100_000_000, None) == 4_750 * 100_000_000
+
+
+def test_unit_uses_nearest_notation():
+    html = """<p>(단위 : 억원)</p><p>다른 표 설명</p><p>미상환 전환사채 발행현황 (단위 : 원, 주)</p>
+    <table><tr><th>종류</th><th>미상환사채 권면(전자등록)총액</th></tr>
+    <tr><td>1회 CB</td><td>150,000,000</td></tr><tr><td>합계</td><td>150,000,000</td></tr></table>"""
+    assert cv.parse_balance_table(html)["total"] == 150_000_000
