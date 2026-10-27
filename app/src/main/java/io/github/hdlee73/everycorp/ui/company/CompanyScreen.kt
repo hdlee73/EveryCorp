@@ -1,6 +1,22 @@
 package io.github.hdlee73.everycorp.ui.company
 
+import android.content.Context
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import io.github.hdlee73.everycorp.data.report.SummarySection
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -62,9 +78,19 @@ fun CompanyScreen(app: AppViewModel, dest: Dest.Company) {
     val context = LocalContext.current
     val summary = vm.summaryPdf
     // 요약 PDF 버튼: 저장할 위치를 먼저 고른 뒤 그 위치에 만든다.
+    var sections by remember { mutableStateOf(loadPdfSections(context)) }
+    var chooseSections by remember { mutableStateOf(false) }
     val pickSummary = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/pdf"),
-    ) { uri -> if (uri != null) vm.exportSummaryPdf(context.applicationContext, uri) }
+    ) { uri -> if (uri != null) vm.exportSummaryPdf(context.applicationContext, uri, sections) }
+    if (chooseSections) PdfSectionsDialog(
+        corpName = corp.corpName, selected = sections,
+        onCancel = { chooseSections = false },
+        onConfirm = { picked ->
+            sections = picked; savePdfSections(context, picked); chooseSections = false
+            pickSummary.launch(io.github.hdlee73.everycorp.data.pdf.PdfSupport.safeFileName("${corp.corpName}_요약", "summary"))
+        },
+    )
     LaunchedEffect(summary) {
         when (summary) {
             is PdfUi.Done -> {
@@ -94,7 +120,7 @@ fun CompanyScreen(app: AppViewModel, dest: Dest.Company) {
                     if (summary is PdfUi.Downloading) {
                         CircularProgressIndicator(Modifier.padding(12.dp).size(24.dp), strokeWidth = 2.dp)
                     } else {
-                        IconButton(onClick = { pickSummary.launch(io.github.hdlee73.everycorp.data.pdf.PdfSupport.safeFileName("${corp.corpName}_요약", "summary")) }) {
+                        IconButton(onClick = { chooseSections = true }) {
                             Icon(Icons.Filled.PictureAsPdf, contentDescription = "요약 PDF 만들기")
                         }
                     }
@@ -117,4 +143,48 @@ fun CompanyScreen(app: AppViewModel, dest: Dest.Company) {
             }
         }
     }
+}
+
+
+private const val PDF_PREFS = "pdf_sections"
+
+/** 마지막에 고른 PDF 항목. 처음에는 전부. */
+private fun loadPdfSections(context: Context): Set<SummarySection> {
+    val saved = runCatching { context.getSharedPreferences(PDF_PREFS, Context.MODE_PRIVATE).getStringSet("picked", null) }.getOrNull()
+        ?: return SummarySection.entries.toSet()
+    return SummarySection.entries.filter { it.name in saved }.toSet()
+}
+
+private fun savePdfSections(context: Context, picked: Set<SummarySection>) {
+    runCatching { context.getSharedPreferences(PDF_PREFS, Context.MODE_PRIVATE).edit().putStringSet("picked", picked.map { it.name }.toSet()).apply() }
+}
+
+/** 요약 PDF에 넣을 항목을 고르는 창. 확인하면 저장 위치 선택으로 이어진다. */
+@Composable
+private fun PdfSectionsDialog(corpName: String, selected: Set<SummarySection>, onCancel: () -> Unit, onConfirm: (Set<SummarySection>) -> Unit) {
+    var picked by remember { mutableStateOf(selected) }
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text("PDF에 넣을 항목") },
+        text = {
+            Column {
+                Text("$corpName · 선택한 항목만 A4 요약본에 담깁니다", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                SummarySection.entries.forEach { sec ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable { picked = if (sec in picked) picked - sec else picked + sec },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked = sec in picked, onCheckedChange = { picked = if (it) picked + sec else picked - sec })
+                        Text(sec.label)
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    TextButton(onClick = { picked = SummarySection.entries.toSet() }) { Text("전체 선택") }
+                    TextButton(onClick = { picked = emptySet() }) { Text("전체 해제") }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onConfirm(picked) }, enabled = picked.isNotEmpty()) { Text("저장 위치 선택…") } },
+        dismissButton = { TextButton(onClick = onCancel) { Text("취소") } },
+    )
 }
