@@ -6,6 +6,7 @@ import androidx.core.content.FileProvider
 import io.github.hdlee73.everycorp.BuildConfig
 import io.github.hdlee73.everycorp.data.pdf.PdfSupport
 import io.github.hdlee73.everycorp.data.report.SummaryPdfInput
+import io.github.hdlee73.everycorp.data.report.SummaryChartImage
 import io.github.hdlee73.everycorp.data.report.SummaryHwpxWriter
 import io.github.hdlee73.everycorp.data.report.SummaryPdfWriter
 import io.github.hdlee73.everycorp.data.report.SummarySection
@@ -113,7 +114,7 @@ class CompanyViewModel(
                     withContext(Dispatchers.IO) {
                         val out = context.contentResolver.openOutputStream(target) ?: error("선택한 위치에 저장할 수 없습니다.")
                         out.use {
-                            if (hwpx) SummaryHwpxWriter { name -> context.assets.open("hwpx/$name").use { s -> s.readBytes() } }.write(input, it)
+                            if (hwpx) SummaryHwpxWriter { name -> context.assets.open("hwpx/$name").use { s -> s.readBytes() } }.write(input, it, input.chart?.let { c -> SummaryChartImage.render(c) })
                             else SummaryPdfWriter().write(input, it)
                         }
                     }

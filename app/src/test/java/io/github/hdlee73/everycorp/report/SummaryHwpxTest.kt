@@ -30,13 +30,13 @@ class SummaryHwpxTest {
 
     private fun input(sections: Set<SummarySection>) = SummaryPdfInput(
         corpName = "테스트 & 기업", badge = "상장", overview = null, debt = null, quote = null, chart = null, auditReports = reports,
-        appName = "Every Corp", versionName = "1.10.0", author = "이현덕 (hdlee73@gmail.com)", generatedAt = "2026.10.27 09:00", sections = sections,
+        appName = "Every Corp", versionName = "1.10.1", author = "이현덕 (hdlee73@gmail.com)", generatedAt = "2026.10.27 09:00", sections = sections,
     )
 
-    private fun build(sections: Set<SummarySection>): Map<String, ByteArray> {
+    private fun build(sections: Set<SummarySection>, png: ByteArray? = null): Map<String, ByteArray> {
         val out = ByteArrayOutputStream()
         // 단위 테스트의 작업 폴더는 app/ 모듈이다.
-        SummaryHwpxWriter { name -> File("src/main/assets/hwpx/$name").readBytes() }.write(input(sections), out)
+        SummaryHwpxWriter { name -> File("src/main/assets/hwpx/$name").readBytes() }.write(input(sections), out, png)
         val files = linkedMapOf<String, ByteArray>()
         ZipInputStream(ByteArrayInputStream(out.toByteArray())).use { z ->
             var e: ZipEntry? = z.nextEntry
@@ -71,5 +71,17 @@ class SummaryHwpxTest {
         assertTrue(s.contains("1. 기업개황"))
         assertFalse(s.contains("감사의견"))
         assertFalse(s.contains("채권"))
+    }
+
+    @Test fun auditSectionIsARealTable() {
+        val s = String(build(setOf(SummarySection.Audit)).getValue("Contents/section0.xml"), Charsets.UTF_8)
+        assertTrue(s.contains("<hp:tbl"))
+        assertFalse(s.contains(" | "))
+    }
+
+    @Test fun chartImageIsEmbedded() {
+        val png = byteArrayOf(1, 2, 3)
+        val files = build(setOf(SummarySection.Overview), png)
+        assertTrue(files.containsKey("BinData/BIN0001.png") || !String(files.getValue("Contents/section0.xml")).contains("hp:pic"))
     }
 }
