@@ -12,7 +12,7 @@ import logging
 import re
 from datetime import date, timedelta
 
-from ..cache import cached
+from ..cache import cache, cached
 from ..errors import UpstreamError
 from ..http import get_client
 from ..parsers import dart_viewer as dv
@@ -29,11 +29,20 @@ _SEM = asyncio.Semaphore(4)  # DART 웹 동시 요청 제한(과도한 크롤링
 
 @cached(ttl=7 * 24 * 3600)
 async def fetch_viewer_html(rcp_no: str) -> str:
-    async with _SEM:
-        r = await get_client().get(f"{dv.DART_HOST}/dsaf001/main.do", params={"rcpNo": rcp_no})
-    if r.status_code != 200:
-        raise UpstreamError("DART 뷰어", f"HTTP {r.status_code}")
-    return r.text
+    last: Exception | None = None
+    for attempt in range(3):  # DART 웹이 가끔 연결을 끊는다. 짧게 쉬며 다시 시도
+        if attempt:
+            await asyncio.sleep(1.5 * attempt)
+        try:
+            async with _SEM:
+                r = await get_client().get(f"{dv.DART_HOST}/dsaf001/main.do", params={"rcpNo": rcp_no})
+        except Exception as e:  # noqa: BLE001
+            last = e
+            continue
+        if r.status_code == 200:
+            return r.text
+        last = UpstreamError("DART 뷰어", f"HTTP {r.status_code}")
+    raise last if isinstance(last, UpstreamError) else UpstreamError("DART 뷰어", str(last))
 
 
 def _period(report_nm: str, rcept_dt: str) -> str:
@@ -177,8 +186,19 @@ async def get_period_opinions(corp_code: str, since: date) -> dict[str, dict]:
     return out
 
 
-@cached(ttl=6 * 3600)
 async def get_audit_reports(corp_code: str, years: int = 3) -> dict:
+    """일부라도 못 읽은 결과(partial)는 캐시하지 않는다. 캐시하면 새로고침해도 6시간 동안 같은 빈 화면이 나온다."""
+    key = ("audit_reports", corp_code, years)
+    hit = cache.get(key)
+    if hit is not None:
+        return hit
+    out = await _load_audit_reports(corp_code, years)
+    if not out["partial"]:
+        cache.set(key, out, 6 * 3600)
+    return out
+
+
+async def _load_audit_reports(corp_code: str, years: int) -> dict:
     entry = corp_index.get(corp_code)
     corp_name = entry.corp_name if entry else corp_code
     end = date.today()
