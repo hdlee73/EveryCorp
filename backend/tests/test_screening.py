@@ -172,3 +172,30 @@ def test_capital_collection_retries_failed_batches(tmp_path, monkeypatch):
     saved = sc._load("capital_t")
     assert saved["complete"] is True and len(saved["done"]) == 4 and len(saved["records"]) == 4
     assert calls["00000003"] == 2  # 실패한 묶음만 다시 조회
+
+
+def test_audit_reports_partial_not_cached(monkeypatch):
+    """일부 실패한(partial) 감사보고서 결과는 캐시하지 않아 새로고침하면 다시 조회한다."""
+    import asyncio
+    from app.cache import cache
+    from app.services import reports_service as rs
+
+    cache.clear()
+    calls = []
+
+    async def fake(corp_code, years):
+        calls.append(1)
+        return {"partial": len(calls) == 1, "reports": []}
+
+    monkeypatch.setattr(rs, "_load_audit_reports", fake)
+
+    async def run():
+        first = await rs.get_audit_reports("00000001")
+        second = await rs.get_audit_reports("00000001")
+        third = await rs.get_audit_reports("00000001")
+        return first, second, third
+
+    first, second, third = asyncio.run(run())
+    assert first["partial"] and not second["partial"] and not third["partial"]
+    assert len(calls) == 2  # 두 번째 결과(정상)부터 캐시
+    cache.clear()
