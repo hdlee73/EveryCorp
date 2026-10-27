@@ -107,7 +107,7 @@ private fun FavoriteRow(vm: AppViewModel, corp: CorpItemDto, picking: Boolean, p
                 val sub = listOfNotNull(corp.stockCode?.takeIf { it.isNotBlank() }, group).joinToString(" · ")
                 if (sub.isNotBlank()) Text(sub, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
             }
-            Badge(corp.badge.ifBlank { if (corp.isListed) "상장" else "외감" }, listed = corp.isListed)
+            corp.badge.ifBlank { if (corp.isListed) "" else "외감" }.let { b -> if (b.isNotBlank()) Badge(b, listed = corp.isListed) }
             Box {
                 IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "그룹·삭제") }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {

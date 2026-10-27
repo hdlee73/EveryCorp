@@ -6,6 +6,7 @@ import androidx.core.content.FileProvider
 import io.github.hdlee73.everycorp.BuildConfig
 import io.github.hdlee73.everycorp.data.pdf.PdfSupport
 import io.github.hdlee73.everycorp.data.report.SummaryPdfInput
+import io.github.hdlee73.everycorp.data.report.SummaryChartImage
 import io.github.hdlee73.everycorp.data.report.SummaryHwpxWriter
 import io.github.hdlee73.everycorp.data.report.SummaryPdfWriter
 import io.github.hdlee73.everycorp.data.report.SummarySection
@@ -113,7 +114,7 @@ class CompanyViewModel(
                     withContext(Dispatchers.IO) {
                         val out = context.contentResolver.openOutputStream(target) ?: error("선택한 위치에 저장할 수 없습니다.")
                         out.use {
-                            if (hwpx) SummaryHwpxWriter { name -> context.assets.open("hwpx/$name").use { s -> s.readBytes() } }.write(input, it)
+                            if (hwpx) SummaryHwpxWriter { name -> context.assets.open("hwpx/$name").use { s -> s.readBytes() } }.write(input, it, input.chart?.let { c -> SummaryChartImage.render(c) })
                             else SummaryPdfWriter().write(input, it)
                         }
                     }
@@ -172,7 +173,8 @@ class CompanyViewModel(
 
     fun loadOverview() { overview = UiState.Loading; viewModelScope.launch { overview = repo.overview(corp.corpCode).toUiState() } }
     fun loadShareholders() { shareholders = UiState.Loading; viewModelScope.launch { shareholders = repo.shareholders(corp.corpCode).toUiState() } }
-    fun loadReports() { reports = UiState.Loading; viewModelScope.launch { reports = repo.auditReports(corp.corpCode).toUiState() } }
+    /** [refresh]가 true 면 서버 저장분을 건너뛰고 DART에서 다시 읽는다. */
+    fun loadReports(refresh: Boolean = false) { reports = UiState.Loading; viewModelScope.launch { reports = repo.auditReports(corp.corpCode, refresh = refresh).toUiState() } }
     fun loadDebt() { debt = UiState.Loading; viewModelScope.launch { debt = repo.debtSecurities(corp.corpCode).toUiState() } }
     fun loadNews() { news = UiState.Loading; viewModelScope.launch { news = repo.news(corp.corpCode).toUiState() } }
     /** 당일 분봉. 처음엔 로딩 표시, 이후 갱신은 조용히(실패해도 이전 그래프 유지). */

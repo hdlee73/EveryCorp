@@ -75,8 +75,8 @@ class CorpRepository(private val api: EveryCorpApi, private val kind: KindClient
 
     suspend fun shareholders(corpCode: String): Result<ShareholdersDto> = apiCall { api.shareholders(corpCode) }
 
-    suspend fun auditReports(corpCode: String, years: Int = 3): Result<AuditReportsResponse> =
-        apiCall { api.auditReports(corpCode, years) }
+    suspend fun auditReports(corpCode: String, years: Int = 3, refresh: Boolean = false): Result<AuditReportsResponse> =
+        apiCall { api.auditReports(corpCode, years, refresh) }
 
     suspend fun disclosures(
         corpCode: String,

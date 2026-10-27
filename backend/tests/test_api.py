@@ -40,7 +40,7 @@ def test_search_requires_token():
 def test_search_ranking_and_chosung(client):
     items = client.get("/api/v1/corps/search", params={"q": "삼성전자"}).json()["items"]
     assert [i["corp_name"] for i in items] == ["삼성전자", "삼성전자서비스"]
-    assert items[0]["badge"] == "상장" and items[1]["badge"] == "외감"
+    assert items[0]["badge"] == "" and items[1]["badge"] == "외감"
     assert client.get("/api/v1/corps/search", params={"q": "ㅅㅅㅈㅈ"}).json()["items"][0]["corp_code"] == "00126380"
     assert client.get("/api/v1/corps/search", params={"q": "000660"}).json()["items"][0]["corp_name"] == "SK하이닉스"
     assert client.get("/api/v1/corps/search", params={"q": "삼성물산테스트"}).json()["count"] == 1

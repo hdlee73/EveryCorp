@@ -199,3 +199,46 @@ def test_audit_reports_partial_not_cached(monkeypatch):
     assert first["partial"] and not second["partial"] and not third["partial"]
     assert len(calls) == 2  # 두 번째 결과(정상)부터 캐시
     cache.clear()
+
+
+def test_listed_code_but_not_listed_cls_is_external_audit():
+    from app.services import market_service as ms
+    from app.services.corp_index import CorpEntry
+
+    e = CorpEntry("00999999", "코리아센터", "", "290510", "")
+    ms._market.pop("290510", None)
+    assert ms.badge_of(e) == ""
+    ms.remember("290510", "E")
+    try:
+        assert ms.badge_of(e) == "외감"
+    finally:
+        ms._not_listed.discard("290510")
+
+
+def test_badge_is_blank_not_listed_when_market_unknown():
+    from app.services import market_service as ms
+    from app.services.corp_index import CorpEntry
+
+    e = CorpEntry("00999998", "가상", "", "123456", "")
+    ms._market.pop("123456", None)
+    ms._not_listed.discard("123456")
+    assert ms.badge_of(e) == ""
+
+
+def test_viewer_failure_falls_back_to_list_only_card():
+    import asyncio
+    from app.services import reports_service as rs
+
+    async def boom(_rcp):
+        raise RuntimeError("blocked")
+
+    orig = rs.fetch_viewer_html
+    rs.fetch_viewer_html = boom
+    try:
+        it = {"report_nm": "감사보고서 (2025.12)", "rcept_no": "20260320000001", "rcept_dt": "20260320"}
+        out = asyncio.run(rs._standalone("테스트", it))
+        att = asyncio.run(rs._attachments("테스트", {"report_nm": "반기보고서 (2026.06)", "rcept_no": "20260814000001", "rcept_dt": "20260814"}))
+    finally:
+        rs.fetch_viewer_html = orig
+    assert out[0]["dcm_no"] == "" and out[0]["pdf_url"] == "" and out[0]["origin"] == "LIST" and "blocked" in out[0]["_err"]
+    assert att[0]["kind"] == "REVIEW" and att[0]["origin"] == "LIST"

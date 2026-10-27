@@ -18,6 +18,7 @@ from datetime import date
 from ..config import get_settings
 from ..cache import cached
 from . import dart_client
+from . import market_service
 from .corp_index import corp_index
 from .reports_service import summarize_opinions
 
@@ -158,6 +159,19 @@ def _save(key: str, data: dict) -> None:
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False)
     os.replace(tmp, _path(key))
+
+
+async def _with_badges(items: list[dict]) -> None:
+    """기업개황의 구분(corp_cls)과 같은 기준으로 시장 구분을 채운다. 모르는 것은 DART 기업개황으로 조회해 저장."""
+    entries = [e for e in (corp_index.by_code.get(i["corp_code"]) for i in items) if e]
+    await market_service.ensure_markets(entries)
+    for i in items:
+        i["badge"] = _badge(i["corp_code"])
+
+
+def _badge(corp_code: str) -> str:
+    e = corp_index.by_code.get(corp_code)
+    return market_service.badge_of(e) if e else ""
 
 
 def _name(corp_code: str) -> tuple[str, str]:
@@ -575,6 +589,7 @@ async def audit_nonclean(year: int, start: bool = False, refresh: bool = False) 
         for o in flagged:
             items.append({"corp_code": cc, "corp_name": name, "stock_code": stock, "period": rec["period"],
                           "rcept_no": rec.get("rcept_no", ""), "opinion": o["opinion"], "auditor": o["auditor"], "scope": o["scope"]})
+    await _with_badges(items)
     items.sort(key=lambda x: (x["period"], x["corp_name"]))
     return {**_status(key, data), "year": year, "checked": len(data.get("records", {})), "items": items}
 
@@ -598,6 +613,7 @@ async def capital_impairment(year: int, reprt: str = dart_client.REPRT_ANNUAL, s
         items.append({"corp_code": cc, "corp_name": name, "stock_code": stock, "period": rec["period"],
                       "assets": rec["assets"], "liabilities": rec["liabilities"], "equity": rec["equity"],
                       "capital": rec["capital"], "kind": kind, "fs_div": rec["fs_div"]})
+    await _with_badges(items)
     items.sort(key=lambda x: (x["equity"] if x["equity"] is not None else 0))
     return {**_status(key, data), "year": year, "reprt_code": reprt, "report_name": REPRT_NAMES.get(reprt, reprt),
             "checked": len(data.get("done", [])), "with_data": len(data.get("records", {})), "items": items}
@@ -621,6 +637,7 @@ async def convertible_bonds(year: int, start: bool = False, refresh: bool = Fals
             continue
         name, stock = _name(cc)
         items.append({"corp_code": cc, "corp_name": name, "stock_code": stock, **it})
+    await _with_badges(items)
     items.sort(key=lambda x: -x["total"])
     return {**_status(key, data), "year": year, "checked": len(data.get("records", {})), "candidates": len(data.get("cands", [])),
             "items": items}

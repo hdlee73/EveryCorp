@@ -116,19 +116,19 @@ private fun eok(v: Long?) = Fmt.eok(v?.toDouble())
 
 private fun auditTable(d: AuditScreeningDto) = ResultTable(
     d.status, d.progress.done, d.progress.total, d.checked, d.updatedAt,
-    listOf("결산", "DART코드", "회사명", "감사의견", "감사인", "구분"), listOf(84.dp, 80.dp, 150.dp, 90.dp, 130.dp, 90.dp),
-    d.items.map { TableRow(corpOf(it.corpCode, it.corpName, it.stockCode), listOf(period(it.period), it.corpCode, it.corpName, it.opinion, it.auditor, it.scope), 3, StockColors.up, it.rceptNo, it.auditor) },
-    "당기 감사의견이 한정·부적정·의견거절인 회사만 표시합니다. 행을 누르면 DART 감사보고서가 열립니다.",
+    listOf("결산", "DART코드", "상장구분", "회사명", "감사의견", "감사인", "구분"), listOf(84.dp, 80.dp, 72.dp, 150.dp, 90.dp, 130.dp, 90.dp),
+    d.items.map { TableRow(corpOf(it.corpCode, it.corpName, it.stockCode), listOf(period(it.period), it.corpCode, it.badge, it.corpName, it.opinion, it.auditor, it.scope), 4, StockColors.up) },
+    "당기 감사의견이 한정·부적정·의견거절인 회사만 표시합니다. 행을 누르면 기업개황이 열립니다(감사보고서는 기업 화면의 감사보고서 탭).",
 ).copy(paused = d.paused)
 
 private fun capitalTable(d: CapitalScreeningDto) = ResultTable(
     d.status, d.progress.done, d.progress.total, d.checked, d.updatedAt,
-    listOf("결산", "DART코드", "회사명", "자산", "부채", "자기자본", "자본금", "구분"), listOf(84.dp, 80.dp, 150.dp, 72.dp, 72.dp, 80.dp, 72.dp, 76.dp),
+    listOf("결산", "DART코드", "상장구분", "회사명", "자산", "부채", "자기자본", "자본금", "구분"), listOf(84.dp, 80.dp, 72.dp, 150.dp, 72.dp, 72.dp, 80.dp, 72.dp, 76.dp),
     d.items.map {
         TableRow(
             corpOf(it.corpCode, it.corpName, it.stockCode),
-            listOf(period(it.period), it.corpCode, it.corpName, eok(it.assets), eok(it.liabilities), eok(it.equity), eok(it.capital), it.kind),
-            5, if (it.kind == "완전잠식") StockColors.up else StockColors.down,
+            listOf(period(it.period), it.corpCode, it.badge, it.corpName, eok(it.assets), eok(it.liabilities), eok(it.equity), eok(it.capital), it.kind),
+            6, if (it.kind == "완전잠식") StockColors.up else StockColors.down,
         )
     },
     "단위 억원 · 자본총계 < 자본금 · 연결재무제표 우선(없으면 별도). 완전잠식은 빨강, 부분잠식은 파랑.",
@@ -136,14 +136,14 @@ private fun capitalTable(d: CapitalScreeningDto) = ResultTable(
 
 private fun convertibleTable(d: ConvertibleScreeningDto) = ResultTable(
     d.status, d.progress.done, d.progress.total, d.checked, d.updatedAt,
-    listOf("기준일", "DART코드", "회사명", "CB", "BW", "합계", "건수", "근거"), listOf(88.dp, 80.dp, 150.dp, 72.dp, 72.dp, 76.dp, 48.dp, 56.dp),
+    listOf("기준일", "DART코드", "상장구분", "회사명", "CB", "BW", "합계", "건수", "근거"), listOf(88.dp, 80.dp, 72.dp, 150.dp, 72.dp, 72.dp, 76.dp, 48.dp, 56.dp),
     d.items.map {
         val base = ymd(it.baseDate).ifBlank { period(it.period) }
         TableRow(
             corpOf(it.corpCode, it.corpName, it.stockCode),
-            listOf(base, it.corpCode, it.corpName, eok(it.cbAmount), eok(it.bwAmount), eok(it.total), it.count.toString(),
+            listOf(base, it.corpCode, it.badge, it.corpName, eok(it.cbAmount), eok(it.bwAmount), eok(it.total), it.count.toString(),
                 if (it.source == "정기보고서") "보고서" else "추정"),
-            5, StockColors.up,
+            6, StockColors.up,
             bonds = it.bonds.map { b -> BondLine(b.kind, b.tm.ifBlank { b.name.ifBlank { "-" } }, ymd(b.issued), ymd(b.maturity), b.amount, b.basis != "정기보고서") },
             sub = "기준일 $base · 근거 ${if (it.source == "정기보고서") "보고서" else "추정"} · 단위 억원",
         )
@@ -224,20 +224,8 @@ private fun ResultBody(vm: AppViewModel, t: ResultTable, d: Dest.ScreeningResult
             }
         }
     }
-    // 감사의견 행은 DART 감사보고서로, 그 밖의 행은 기업 화면으로 연결한다.
-    val onRow: (TableRow) -> Unit = { r ->
-        if (r.bonds.isNotEmpty()) detail = r
-        else if (r.rceptNo.isBlank()) vm.openCompany(r.corp)
-        else if (!opening) {
-            opening = true
-            scope.launch {
-                vm.repository.screeningAuditLink(r.rceptNo, r.auditor)
-                    .onSuccess { openInAppBrowser(context, it.url) }
-                    .onFailure { vm.openCompany(r.corp) }
-                opening = false
-            }
-        }
-    }
+    // CB·BW 는 회차 상세 표(거기서 기업개황으로), 그 밖의 행은 바로 기업개황으로 연결한다.
+    val onRow: (TableRow) -> Unit = { r -> if (r.bonds.isNotEmpty()) detail = r else vm.openCompany(r.corp) }
     detail?.let { r -> BondDetailDialog(r, onClose = { detail = null }, onCompany = { detail = null; vm.openCompany(r.corp) }) }
     Column(Modifier.fillMaxSize()) {
         val collecting = t.status != "ready"
@@ -355,6 +343,6 @@ private fun Cell(text: String, width: Dp, index: Int, bold: Boolean = false, col
     Text(
         text.ifBlank { "-" }, Modifier.width(width).padding(horizontal = 4.dp), style = MaterialTheme.typography.bodySmall,
         fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal, color = color,
-        textAlign = if (index < 3) TextAlign.Start else TextAlign.End, maxLines = 2,
+        textAlign = if (index < 4) TextAlign.Start else TextAlign.End, maxLines = 2,
     )
 }

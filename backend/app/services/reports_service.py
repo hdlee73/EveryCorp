@@ -30,7 +30,7 @@ _SEM = asyncio.Semaphore(4)  # DART 웹 동시 요청 제한(과도한 크롤링
 @cached(ttl=7 * 24 * 3600)
 async def fetch_viewer_html(rcp_no: str) -> str:
     last: Exception | None = None
-    for attempt in range(3):  # DART 웹이 가끔 연결을 끊는다. 짧게 쉬며 다시 시도
+    for attempt in range(4):  # DART 웹이 가끔 연결을 끊는다. 짧게 쉬며 다시 시도
         if attempt:
             await asyncio.sleep(1.5 * attempt)
         try:
@@ -85,12 +85,23 @@ def _make_item(corp_name: str, title: str, rcp_no: str, dcm_no: str, period: str
     }
 
 
+def _listed_only_item(corp_name: str, title: str, it: dict, kind_word: str, err: Exception) -> dict:
+    """DART 웹 뷰어를 못 읽었을 때: OpenDART 공시 목록 정보만으로 만든 카드(PDF 없이 원문 링크만)."""
+    item = _make_item(corp_name, title, it["rcept_no"], "", _period(it["report_nm"], it["rcept_dt"]), it["rcept_dt"],
+                      "LIST", it["report_nm"].strip(), kind_word)
+    item.update({"pdf_url": "", "pdf_proxy_path": "", "id": f"{it['rcept_no']}-list-{kind_word or 'x'}", "_err": f"{type(err).__name__}: {err}"[:160]})
+    return item
+
+
 async def _standalone(corp_name: str, it: dict) -> list[dict]:
     title = re.sub(r"^\[[^\]]+\]\s*", "", it["report_nm"]).strip()  # [기재정정] 등 접두어 제거
     title = _PERIOD_RE.sub("", title).strip()
     if not dv.is_audit_or_review(title):
         return []
-    html = await fetch_viewer_html(it["rcept_no"])
+    try:
+        html = await fetch_viewer_html(it["rcept_no"])
+    except Exception as e:  # noqa: BLE001
+        return [_listed_only_item(corp_name, title, it, "", e)]
     dcm = dv.parse_main_dcm_no(html)
     if not dcm:
         return []
@@ -102,7 +113,11 @@ async def _attachments(corp_name: str, it: dict) -> list[dict]:
     km = _PERIODIC_KIND_RE.search(it["report_nm"])
     if not km:
         return []
-    html = await fetch_viewer_html(it["rcept_no"])
+    try:
+        html = await fetch_viewer_html(it["rcept_no"])
+    except Exception as e:  # noqa: BLE001
+        title = "감사보고서(사업보고서 첨부)" if km.group(1) == "사업" else "검토보고서(" + km.group(1) + "보고서 첨부)"
+        return [_listed_only_item(corp_name, title, it, km.group(1), e)]
     period = _period(it["report_nm"], it["rcept_dt"])
     return [
         _make_item(corp_name, d.title, d.rcp_no, d.dcm_no, period, it["rcept_dt"], "ATTACHMENT",
@@ -186,10 +201,10 @@ async def get_period_opinions(corp_code: str, since: date) -> dict[str, dict]:
     return out
 
 
-async def get_audit_reports(corp_code: str, years: int = 3) -> dict:
+async def get_audit_reports(corp_code: str, years: int = 3, refresh: bool = False) -> dict:
     """일부라도 못 읽은 결과(partial)는 캐시하지 않는다. 캐시하면 새로고침해도 6시간 동안 같은 빈 화면이 나온다."""
     key = ("audit_reports", corp_code, years)
-    hit = cache.get(key)
+    hit = None if refresh else cache.get(key)
     if hit is not None:
         return hit
     out = await _load_audit_reports(corp_code, years)
@@ -230,6 +245,10 @@ async def _load_audit_reports(corp_code: str, years: int) -> dict:
             continue
         collected.extend(r)
     reports = merge_reports(collected)
+    errs = [r.pop("_err") for r in collected if "_err" in r]
+    for r in reports:
+        r.pop("_err", None)
+    failed += len(errs)
     for rep in reports:
         got = opinions.get(rep["period"], {})
         rep["auditor"], rep["opinion"] = got.get("auditor", ""), got.get("opinion", "")
@@ -240,5 +259,6 @@ async def _load_audit_reports(corp_code: str, years: int) -> dict:
         "to": end.isoformat(),
         "count": len(reports),
         "partial": failed > 0,
+        "fail_reason": errs[0] if errs else "",
         "reports": reports,
     }
