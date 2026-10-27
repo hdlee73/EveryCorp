@@ -46,6 +46,7 @@ import io.github.hdlee73.everycorp.ui.AppViewModel
 import io.github.hdlee73.everycorp.ui.common.CompanyTab
 import io.github.hdlee73.everycorp.ui.common.Dest
 import io.github.hdlee73.everycorp.ui.common.GradientTopBar
+import io.github.hdlee73.everycorp.ui.common.PillChip
 import io.github.hdlee73.everycorp.ui.common.UnderlineTabs
 import io.github.hdlee73.everycorp.ui.theme.HeroPalettes
 import io.github.hdlee73.everycorp.ui.theme.LocalHeroPalette
@@ -83,12 +84,17 @@ fun CompanyScreen(app: AppViewModel, dest: Dest.Company) {
     val pickSummary = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/pdf"),
     ) { uri -> if (uri != null) vm.exportSummaryPdf(context.applicationContext, uri, sections) }
+    // 한글(HWPX)은 표준 MIME 이 없어 일반 파일 형식으로 두고 확장자(.hwpx)를 파일 이름에 붙인다.
+    val pickHwpx = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/octet-stream"),
+    ) { uri -> if (uri != null) vm.exportSummaryPdf(context.applicationContext, uri, sections, hwpx = true) }
     if (chooseSections) PdfSectionsDialog(
         corpName = corp.corpName, selected = sections,
         onCancel = { chooseSections = false },
-        onConfirm = { picked ->
+        onConfirm = { picked, hwpx ->
             sections = picked; savePdfSections(context, picked); chooseSections = false
-            pickSummary.launch(io.github.hdlee73.everycorp.data.pdf.PdfSupport.safeFileName("${corp.corpName}_요약", "summary"))
+            if (hwpx) pickHwpx.launch("${io.github.hdlee73.everycorp.data.pdf.PdfSupport.safeFileName("${corp.corpName}_요약", "summary").removeSuffix(".pdf")}.hwpx")
+            else pickSummary.launch(io.github.hdlee73.everycorp.data.pdf.PdfSupport.safeFileName("${corp.corpName}_요약", "summary"))
         },
     )
     LaunchedEffect(summary) {
@@ -101,8 +107,12 @@ fun CompanyScreen(app: AppViewModel, dest: Dest.Company) {
                 vm.clearSummaryPdf()
             }
             is PdfUi.Saved -> {
-                Toast.makeText(context, "선택한 위치에 요약 PDF를 저장했습니다.", Toast.LENGTH_SHORT).show()
-                io.github.hdlee73.everycorp.data.pdf.PdfDownloader.viewIntent(context, summary.uri)?.let { context.startActivity(it) }
+                if (vm.summaryFormat == "HWPX") {
+                    Toast.makeText(context, "선택한 위치에 한글(HWPX) 문서를 저장했습니다. 한컴오피스 등으로 열 수 있습니다.", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(context, "선택한 위치에 요약 PDF를 저장했습니다.", Toast.LENGTH_SHORT).show()
+                    io.github.hdlee73.everycorp.data.pdf.PdfDownloader.viewIntent(context, summary.uri)?.let { context.startActivity(it) }
+                }
                 vm.clearSummaryPdf()
             }
             is PdfUi.Failed -> { Toast.makeText(context, summary.message, Toast.LENGTH_LONG).show(); vm.clearSummaryPdf() }
@@ -161,11 +171,12 @@ private fun savePdfSections(context: Context, picked: Set<SummarySection>) {
 
 /** 요약 PDF에 넣을 항목을 고르는 창. 확인하면 저장 위치 선택으로 이어진다. */
 @Composable
-private fun PdfSectionsDialog(corpName: String, selected: Set<SummarySection>, onCancel: () -> Unit, onConfirm: (Set<SummarySection>) -> Unit) {
+private fun PdfSectionsDialog(corpName: String, selected: Set<SummarySection>, onCancel: () -> Unit, onConfirm: (Set<SummarySection>, Boolean) -> Unit) {
     var picked by remember { mutableStateOf(selected) }
+    var hwpx by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onCancel,
-        title = { Text("PDF에 넣을 항목") },
+        title = { Text("저장할 항목") },
         text = {
             Column {
                 Text("$corpName · 선택한 항목만 A4 요약본에 담깁니다", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -178,13 +189,18 @@ private fun PdfSectionsDialog(corpName: String, selected: Set<SummarySection>, o
                         Text(sec.label)
                     }
                 }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("형식", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    PillChip("PDF", onClick = { hwpx = false }, selected = !hwpx)
+                    PillChip("한글(HWPX)", onClick = { hwpx = true }, selected = hwpx)
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     TextButton(onClick = { picked = SummarySection.entries.toSet() }) { Text("전체 선택") }
                     TextButton(onClick = { picked = emptySet() }) { Text("전체 해제") }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = { onConfirm(picked) }, enabled = picked.isNotEmpty()) { Text("저장 위치 선택…") } },
+        confirmButton = { TextButton(onClick = { onConfirm(picked, hwpx) }, enabled = picked.isNotEmpty()) { Text("저장 위치 선택…") } },
         dismissButton = { TextButton(onClick = onCancel) { Text("취소") } },
     )
 }

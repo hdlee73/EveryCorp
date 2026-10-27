@@ -6,6 +6,7 @@ import androidx.core.content.FileProvider
 import io.github.hdlee73.everycorp.BuildConfig
 import io.github.hdlee73.everycorp.data.pdf.PdfSupport
 import io.github.hdlee73.everycorp.data.report.SummaryPdfInput
+import io.github.hdlee73.everycorp.data.report.SummaryHwpxWriter
 import io.github.hdlee73.everycorp.data.report.SummaryPdfWriter
 import io.github.hdlee73.everycorp.data.report.SummarySection
 import kotlinx.coroutines.Dispatchers
@@ -83,9 +84,14 @@ class CompanyViewModel(
     fun clearSummaryPdf() { summaryPdf = null }
 
     /** 필요한 데이터를 (아직 없으면) 불러와 A4 PDF 로 만들고 캐시 폴더에 저장한다. */
-    fun exportSummaryPdf(context: Context, target: Uri? = null, sections: Set<SummarySection> = SummarySection.entries.toSet()) {
+    /** 마지막으로 만든 요약 문서 형식("PDF" | "HWPX"). 완료 알림 문구에 쓴다. */
+    var summaryFormat by mutableStateOf("PDF"); private set
+
+    /** [hwpx]가 true 면 한글(HWPX) 문서로 [target]에 저장한다(저장 위치는 반드시 고른 곳). */
+    fun exportSummaryPdf(context: Context, target: Uri? = null, sections: Set<SummarySection> = SummarySection.entries.toSet(), hwpx: Boolean = false) {
         if (summaryPdf is PdfUi.Downloading) return
         summaryPdf = PdfUi.Downloading(false)
+        summaryFormat = if (hwpx) "HWPX" else "PDF"
         viewModelScope.launch {
             try {
                 // 고르지 않은 항목은 불러오지 않는다.
@@ -106,7 +112,10 @@ class CompanyViewModel(
                 if (target != null) {  // 사용자가 고른 위치에 바로 쓴다
                     withContext(Dispatchers.IO) {
                         val out = context.contentResolver.openOutputStream(target) ?: error("선택한 위치에 저장할 수 없습니다.")
-                        out.use { SummaryPdfWriter().write(input, it) }
+                        out.use {
+                            if (hwpx) SummaryHwpxWriter { name -> context.assets.open("hwpx/$name").use { s -> s.readBytes() } }.write(input, it)
+                            else SummaryPdfWriter().write(input, it)
+                        }
                     }
                     summaryPdf = PdfUi.Saved(target)
                     return@launch

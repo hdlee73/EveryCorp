@@ -214,8 +214,7 @@ class SummaryPdfWriter {
     }
 
     /** 반기·분기 검토보고서는 빼고 결산(기말) 감사보고서만 남긴다. */
-    private fun yearEndOnly(reports: List<AuditReportDto>) =
-        reports.filter { it.kind == "AUDIT" && it.periodLabel.endsWith("결산") }
+    private fun yearEndOnly(reports: List<AuditReportDto>) = yearEndAuditReports(reports)
 
     fun write(input: SummaryPdfInput, out: OutputStream) = writeAll(listOf(input), out)
 
