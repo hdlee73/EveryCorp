@@ -127,8 +127,8 @@ fun CompanyScreen(app: AppViewModel, dest: Dest.Company) {
             GradientTopBar(
                 title = corp.corpName,
                 onBack = { app.back() },
-                // 기업개황(DART corp_cls)의 구분이 목록의 임시 "상장"보다 정확하다.
-                badge = ((vm.overview as? UiState.Success)?.data?.badge).orEmpty().ifBlank { corp.badge.ifBlank { if (corp.isListed) "상장" else "외감" } },
+                // 기업개황(DART corp_cls)의 구분을 우선한다. 시장을 모르면 "상장" 같은 추정 값 없이 비운다.
+                badge = ((vm.overview as? UiState.Success)?.data?.badge).orEmpty().ifBlank { corp.badge.ifBlank { if (corp.isListed) "" else "외감" } }.ifBlank { null },
                 trailing = {
                     if (tab == CompanyTab.Reports) {
                         IconButton(onClick = { vm.loadReports(refresh = true) }) { Icon(Icons.Filled.Refresh, contentDescription = "감사보고서 새로 불러오기") }

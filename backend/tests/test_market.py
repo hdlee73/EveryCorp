@@ -21,6 +21,6 @@ def test_badges(monkeypatch):
     e = lambda name, stock="": CorpEntry("00000001", name, "", stock, "")  # noqa: E731
     assert market_service.badge_of(e("삼성전자", "005930")) == "유가증권"
     assert market_service.badge_of(e("에코프로", "086520")) == "코스닥"
-    assert market_service.badge_of(e("미확인", "999999")) == "상장"
+    assert market_service.badge_of(e("미확인", "999999")) == ""
     assert market_service.badge_of(e("가나다")) == "외감"
     assert market_service.badge_of(e("제3차유동화전문")) == "기타"

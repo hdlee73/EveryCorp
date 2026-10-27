@@ -172,6 +172,8 @@ data class AuditReportsResponse(
     val to: String = "",
     val count: Int = 0,
     val partial: Boolean = false,
+    /** 일부를 못 읽었을 때 첫 오류(진단용) */
+    @SerialName("fail_reason") val failReason: String = "",
     val reports: List<AuditReportDto> = emptyList(),
 )
 
@@ -189,12 +191,12 @@ data class AuditReportDto(
     @SerialName("period_label") val periodLabel: String = "",
     @SerialName("rcept_dt") val rceptDt: String = "",
     @SerialName("rcp_no") val rcpNo: String,
-    @SerialName("dcm_no") val dcmNo: String,
-    /** STANDALONE | ATTACHMENT */
+    @SerialName("dcm_no") val dcmNo: String = "",
+    /** STANDALONE | ATTACHMENT | LIST(뷰어를 못 읽어 목록 정보만) */
     val origin: String = "",
     @SerialName("source_report_name") val sourceReportName: String = "",
-    @SerialName("pdf_url") val pdfUrl: String,
-    @SerialName("pdf_proxy_path") val pdfProxyPath: String,
+    @SerialName("pdf_url") val pdfUrl: String = "",
+    @SerialName("pdf_proxy_path") val pdfProxyPath: String = "",
     @SerialName("viewer_url") val viewerUrl: String,
     @SerialName("file_name") val fileName: String,
 )

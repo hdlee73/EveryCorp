@@ -91,14 +91,14 @@ async def refresh_from_kind() -> int:
 def _save() -> None:
     try:
         with open(_path(), "w", encoding="utf-8") as f:
-            json.dump({"saved_at": _loaded_at, "market": _market}, f, ensure_ascii=False)
+            json.dump({"saved_at": _loaded_at, "market": _market, "not_listed": sorted(_not_listed)}, f, ensure_ascii=False)
     except OSError:
         log.warning("market map save failed")
 
 
-async def ensure_markets(entries: list[CorpEntry]) -> None:
+async def ensure_markets(entries: list[CorpEntry], limit: int = 150) -> None:
     """KIND 목록에 없는(또는 KIND가 서버 IP를 막은) 상장사는 DART 기업개황의 corp_cls(Y/K/N)로 채우고 저장한다."""
-    missing = [e for e in entries if e.is_listed and e.stock_code not in _market]
+    missing = [e for e in entries if e.is_listed and e.stock_code not in _market and e.stock_code not in _not_listed][:limit]
     if not missing:
         return
     sem = asyncio.Semaphore(5)
@@ -121,6 +121,7 @@ def load_from_disk() -> None:
         with open(_path(), encoding="utf-8") as f:
             raw = json.load(f)
         _market, _loaded_at = raw["market"], raw.get("saved_at", 0.0)
+        _not_listed.update(raw.get("not_listed", []))
     except (OSError, ValueError, KeyError):
         pass
 
@@ -159,7 +160,7 @@ def market_of(entry: CorpEntry) -> str:
 
 def badge_of(entry: CorpEntry) -> str:
     if _listed(entry) and entry.stock_code not in _market:
-        return "상장"   # 시장 정보를 아직 못 받은 경우
+        return ""   # 시장 정보를 아직 못 받은 경우("상장"이라고 쓰지 않는다. 폐지되었을 수 있다)
     return MARKET_BADGE[market_of(entry)]
 
 

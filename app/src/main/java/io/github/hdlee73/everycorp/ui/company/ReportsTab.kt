@@ -56,7 +56,7 @@ fun ReportsTab(vm: CompanyViewModel) {
                 if (shown.isEmpty()) item { EmptyBox("최근 3년(${Fmt.date(r.from)} ~ ${Fmt.date(r.to)}) ${if (annual) "연간 감사보고서" else "분·반기 검토보고서"}가 없습니다.") }
                 if (r.partial) item {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("일부 보고서를 확인하지 못했을 수 있습니다.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                        Text("일부 보고서를 확인하지 못했을 수 있습니다." + if (r.failReason.isNotBlank()) " (원인: ${r.failReason})" else "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                         Button(onClick = { vm.loadReports(refresh = true) }) { Text("다시 불러오기") }
                     }
                 }
@@ -77,7 +77,7 @@ private fun ReportCard(vm: CompanyViewModel, rep: AuditReportDto) {
     SectionCard {
         Text(rep.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Text(
-            listOf(rep.periodLabel, if (rep.kind == "AUDIT") "감사" else "검토", if (rep.consolidated) "연결" else "별도")
+            listOf(rep.periodLabel, if (rep.kind == "AUDIT") "감사" else "검토", if (rep.origin == "LIST") "" else if (rep.consolidated) "연결" else "별도")
                 .filter { it.isNotBlank() }.joinToString(" · "),
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -94,7 +94,7 @@ private fun ReportCard(vm: CompanyViewModel, rep: AuditReportDto) {
                     if (intent != null) context.startActivity(intent) else Toast.makeText(context, "PDF 뷰어 앱이 없습니다. Download/EveryCorp 폴더에 저장되었습니다.", Toast.LENGTH_LONG).show()
                 }) { Text("PDF 열기") }
                 is PdfUi.Downloading -> Button(onClick = {}, enabled = false) { Text(if (state.viaProxy) "서버 경유 받는 중…" else "받는 중…") }
-                else -> Button(onClick = { pick.launch(PdfSupport.safeFileName(rep.fileName, rep.title)) }) { Text("PDF 저장") }
+                else -> { if (rep.dcmNo.isNotBlank()) Button(onClick = { pick.launch(PdfSupport.safeFileName(rep.fileName, rep.title)) }) { Text("PDF 저장") } }
             }
             OutlinedButton(onClick = { openInAppBrowser(context, rep.viewerUrl) }) { Text("DART 원문") }
         }
