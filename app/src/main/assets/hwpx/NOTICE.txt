@@ -1,0 +1,1 @@
+HWPX 기본 문서(글 모양 정의 등)는 python-hwpx(https://github.com/airmang/python-hwpx, Copyright 2025-2026 airmang, Apache License 2.0)의 Skeleton.hwpx에서 가져와 굵은 글자 모양 2개를 더한 것입니다.

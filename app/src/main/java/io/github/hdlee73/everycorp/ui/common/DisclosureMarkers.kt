@@ -3,13 +3,13 @@ package io.github.hdlee73.everycorp.ui.common
 import androidx.compose.ui.graphics.Color
 import io.github.hdlee73.everycorp.data.api.dto.DisclosureDto
 
-/** 주가 차트에 점으로 찍는 공시 종류. 차트가 지저분해지지 않게 주요사항보고서만 찍는다. */
+/** 주가 차트에 노란 별로 찍는 공시 종류. 차트가 지저분해지지 않게 주요사항보고서만 찍는다. */
 enum class MarkerKind(val label: String, val color: Color) {
-    Major("주요사항보고서", Color(0xFFE5372C)),
+    Major("주요사항보고서", Color(0xFFF5B301)),
 }
 
 /** [date]는 하이픈 없는 YYYYMMDD. */
-data class ChartMarker(val date: String, val kind: MarkerKind, val title: String)
+data class ChartMarker(val date: String, val kind: MarkerKind, val title: String, val disclosure: DisclosureDto? = null)
 
 /** 공시 제목 → 마커 종류. 주요사항보고서(정정 접두어 허용)가 아니면 null(표시 안 함). */
 fun classifyDisclosure(title: String): MarkerKind? =
@@ -18,7 +18,7 @@ fun classifyDisclosure(title: String): MarkerKind? =
 fun toMarkers(items: List<DisclosureDto>): List<ChartMarker> =
     items.mapNotNull { d ->
         val kind = classifyDisclosure(d.title) ?: return@mapNotNull null
-        ChartMarker(d.date.replace("-", ""), kind, d.title.trim())
+        ChartMarker(d.date.replace("-", ""), kind, d.title.trim(), d)
     }
 
 /** 마커 날짜가 거래일이 아니면 그 다음 거래일 위치에 찍는다. 차트 범위 밖이면 null. [dates]는 YYYYMMDD 오름차순. */

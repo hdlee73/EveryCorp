@@ -1,6 +1,13 @@
 package io.github.hdlee73.everycorp.ui.company
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
@@ -42,6 +49,7 @@ import io.github.hdlee73.everycorp.ui.common.UiState
 import io.github.hdlee73.everycorp.ui.common.UiStateContent
 import io.github.hdlee73.everycorp.ui.common.openDisclosure
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DisclosuresTab(vm: CompanyViewModel) {
     val listState = rememberLazyListState()
@@ -53,9 +61,26 @@ fun DisclosuresTab(vm: CompanyViewModel) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DisclosurePeriod.entries.forEach { p -> FilterChip(selected = vm.period == p, onClick = { vm.changePeriod(p) }, label = { Text(p.label) }) }
             }
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DisclosureCategory.entries.forEach { c -> FilterChip(selected = vm.category == c, onClick = { vm.changeCategory(c) }, label = { Text(c.label) }) }
-                DisclosureSource.entries.forEach { s -> FilterChip(selected = vm.source == s, onClick = { vm.changeSource(s) }, label = { Text(s.label) }) }
+            // 공시 종류(한 덩어리 버튼)와 출처(이름표가 붙은 작은 칩 상자)를 모양으로 구분한다.
+            Text("공시 종류", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                val cats = DisclosureCategory.entries
+                cats.forEachIndexed { i, c ->
+                    SegmentedButton(
+                        selected = vm.category == c, onClick = { vm.changeCategory(c) },
+                        shape = SegmentedButtonDefaults.itemShape(index = i, count = cats.size),
+                        label = { Text(c.label, maxLines = 1, style = MaterialTheme.typography.labelMedium) },
+                    )
+                }
+            }
+            Row(
+                Modifier.fillMaxWidth().padding(top = 4.dp).border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("출처", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                DisclosureSource.entries.forEach { s ->
+                    FilterChip(selected = vm.source == s, onClick = { vm.changeSource(s) }, label = { Text(s.label, style = MaterialTheme.typography.labelSmall) }, modifier = Modifier.height(28.dp))
+                }
             }
             OutlinedTextField(
                 value = vm.search, onValueChange = vm::changeSearch, modifier = Modifier.fillMaxWidth(),

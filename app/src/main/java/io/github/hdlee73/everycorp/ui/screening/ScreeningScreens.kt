@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -59,21 +60,14 @@ private val REPORTS = listOf("11011" to "사업보고서", "11012" to "반기보
 
 @Composable
 fun ScreeningScreen(vm: AppViewModel) {
-    val thisYear = LocalDate.now().year
-    val years = (thisYear downTo thisYear - 6).toList()
-    var year by remember { mutableStateOf(thisYear - 1) }
-    var reprt by remember { mutableStateOf("11011") }
+    val year = LocalDate.now().year - 1
     Column(Modifier.fillMaxSize()) {
         TabHeader("스크리닝", "조건에 맞는 회사를 결산연도별로 모아 봅니다")
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "스크리닝은 서버가 DART에서 전체 상장사(감사의견은 비상장 포함)를 하나씩 조회해 모으는 작업이라 처음엔 수십 분 이상 걸리고 서버 부담이 큽니다. 그래서 결과 화면에서 \"수집 시작\"을 눌렀을 때만 수집하며, 한 번 모은 결과는 서버에 저장되어 다음부터 바로 보입니다. 앱을 꺼도 수집은 계속됩니다.",
+                "스크리닝은 서버가 DART에서 전체 상장사(감사의견은 비상장 포함)를 하나씩 조회해 모으는 작업이라 처음엔 수십 분 이상 걸리고 서버 부담이 큽니다. 그래서 결과 화면에서 \"수집 시작\"을 눌렀을 때만 수집하며, 한 번 모은 결과는 서버에 저장되어 다음부터 바로 보입니다. 앱을 꺼도 수집은 계속됩니다. 결산연도는 각 화면 위쪽에서 고릅니다.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            SectionLabel("결산(사업)연도")
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                years.forEach { y -> PillChip("${y}년", onClick = { year = y }, selected = year == y) }
-            }
             SectionCard(Modifier.clickable { vm.openScreeningResult(ScreeningKind.Audit, year) }) {
                 Text("감사의견 비적정", style = MaterialTheme.typography.titleMedium)
                 Text(
@@ -81,16 +75,12 @@ fun ScreeningScreen(vm: AppViewModel) {
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            SectionCard {
+            SectionCard(Modifier.clickable { vm.openScreeningResult(ScreeningKind.Capital, year) }) {
                 Text("자본잠식", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "자본총계가 자본금보다 작은 회사 · 자산·부채·자기자본·자본금(억원). 보고서를 골라 주세요.",
+                    "자본총계가 자본금보다 작은 회사 · 자산·부채·자기자본·자본금(억원). 보고서(사업·반기·분기)는 화면 위쪽에서 고릅니다.",
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    REPORTS.forEach { (code, label) -> PillChip(label, onClick = { reprt = code }, selected = reprt == code) }
-                }
-                PillChip("${year}년 ${REPORTS.first { it.first == reprt }.second} 보기", onClick = { vm.openScreeningResult(ScreeningKind.Capital, year, reprt) }, selected = true)
             }
             SectionCard(Modifier.clickable { vm.openScreeningResult(ScreeningKind.Convertible, year) }) {
                 Text("CB·BW 발행잔액", style = MaterialTheme.typography.titleMedium)
@@ -104,12 +94,15 @@ fun ScreeningScreen(vm: AppViewModel) {
 }
 
 /** 결과 표 한 줄. [corp]를 누르면 기업 화면으로 이동한다. */
-private data class TableRow(val corp: CorpItemDto, val cells: List<String>, val tintColumn: Int = -1, val tint: Color = Color.Unspecified, val rceptNo: String = "", val auditor: String = "", val detail: List<String> = emptyList())
+private data class TableRow(val corp: CorpItemDto, val cells: List<String>, val tintColumn: Int = -1, val tint: Color = Color.Unspecified, val rceptNo: String = "", val auditor: String = "", val bonds: List<BondLine> = emptyList(), val sub: String = "")
+
+/** CB·BW 회차 상세 한 줄. amount는 원. */
+private data class BondLine(val kind: String, val tm: String, val issued: String, val maturity: String, val amount: Long, val estimated: Boolean)
 
 private data class ResultTable(
     val status: String, val done: Int, val total: Int, val checked: Int, val updatedAt: Long?,
     val headers: List<String>, val widths: List<Dp>, val rows: List<TableRow>, val note: String,
-    val paused: Boolean = false,
+    val paused: Boolean = false, val hint: String = "", val legend: String = "",
 )
 
 private fun corpOf(code: String, name: String, stock: String) =
@@ -123,19 +116,19 @@ private fun eok(v: Long?) = Fmt.eok(v?.toDouble())
 
 private fun auditTable(d: AuditScreeningDto) = ResultTable(
     d.status, d.progress.done, d.progress.total, d.checked, d.updatedAt,
-    listOf("결산", "회사명", "감사의견", "감사인", "구분"), listOf(84.dp, 150.dp, 90.dp, 130.dp, 90.dp),
-    d.items.map { TableRow(corpOf(it.corpCode, it.corpName, it.stockCode), listOf(period(it.period), it.corpName, it.opinion, it.auditor, it.scope), 2, StockColors.up, it.rceptNo, it.auditor) },
+    listOf("결산", "DART코드", "회사명", "감사의견", "감사인", "구분"), listOf(84.dp, 80.dp, 150.dp, 90.dp, 130.dp, 90.dp),
+    d.items.map { TableRow(corpOf(it.corpCode, it.corpName, it.stockCode), listOf(period(it.period), it.corpCode, it.corpName, it.opinion, it.auditor, it.scope), 3, StockColors.up, it.rceptNo, it.auditor) },
     "당기 감사의견이 한정·부적정·의견거절인 회사만 표시합니다. 행을 누르면 DART 감사보고서가 열립니다.",
 ).copy(paused = d.paused)
 
 private fun capitalTable(d: CapitalScreeningDto) = ResultTable(
     d.status, d.progress.done, d.progress.total, d.checked, d.updatedAt,
-    listOf("결산", "회사명", "자산", "부채", "자기자본", "자본금", "구분"), listOf(84.dp, 150.dp, 72.dp, 72.dp, 80.dp, 72.dp, 76.dp),
+    listOf("결산", "DART코드", "회사명", "자산", "부채", "자기자본", "자본금", "구분"), listOf(84.dp, 80.dp, 150.dp, 72.dp, 72.dp, 80.dp, 72.dp, 76.dp),
     d.items.map {
         TableRow(
             corpOf(it.corpCode, it.corpName, it.stockCode),
-            listOf(period(it.period), it.corpName, eok(it.assets), eok(it.liabilities), eok(it.equity), eok(it.capital), it.kind),
-            4, if (it.kind == "완전잠식") StockColors.up else StockColors.down,
+            listOf(period(it.period), it.corpCode, it.corpName, eok(it.assets), eok(it.liabilities), eok(it.equity), eok(it.capital), it.kind),
+            5, if (it.kind == "완전잠식") StockColors.up else StockColors.down,
         )
     },
     "단위 억원 · 자본총계 < 자본금 · 연결재무제표 우선(없으면 별도). 완전잠식은 빨강, 부분잠식은 파랑.",
@@ -143,33 +136,42 @@ private fun capitalTable(d: CapitalScreeningDto) = ResultTable(
 
 private fun convertibleTable(d: ConvertibleScreeningDto) = ResultTable(
     d.status, d.progress.done, d.progress.total, d.checked, d.updatedAt,
-    listOf("기준일", "회사명", "CB", "BW", "합계", "가까운 만기", "건수", "근거"), listOf(88.dp, 150.dp, 72.dp, 72.dp, 76.dp, 92.dp, 48.dp, 56.dp),
+    listOf("기준일", "DART코드", "회사명", "CB", "BW", "합계", "건수", "근거"), listOf(88.dp, 80.dp, 150.dp, 72.dp, 72.dp, 76.dp, 48.dp, 56.dp),
     d.items.map {
+        val base = ymd(it.baseDate).ifBlank { period(it.period) }
         TableRow(
             corpOf(it.corpCode, it.corpName, it.stockCode),
-            listOf(ymd(it.baseDate).ifBlank { period(it.period) }, it.corpName, eok(it.cbAmount), eok(it.bwAmount), eok(it.total),
-                it.nextMaturity.let { m -> if (m.length == 8) "${m.take(4)}.${m.substring(4, 6)}.${m.takeLast(2)}" else m }, it.count.toString(),
+            listOf(base, it.corpCode, it.corpName, eok(it.cbAmount), eok(it.bwAmount), eok(it.total), it.count.toString(),
                 if (it.source == "정기보고서") "보고서" else "추정"),
-            4, StockColors.up,
-            detail = it.bonds.map { b ->
-                "${b.kind} ${b.tm.ifBlank { b.name.ifBlank { "-" } }} · 발행 ${ymd(b.issued).ifBlank { "-" }} · 만기 ${ymd(b.maturity).ifBlank { "-" }} · 미상환 ${eok(b.amount)}억${if (b.basis == "정기보고서") "" else " (추정)"}"
-            },
+            5, StockColors.up,
+            bonds = it.bonds.map { b -> BondLine(b.kind, b.tm.ifBlank { b.name.ifBlank { "-" } }, ymd(b.issued), ymd(b.maturity), b.amount, b.basis != "정기보고서") },
+            sub = "기준일 $base · 근거 ${if (it.source == "정기보고서") "보고서" else "추정"} · 단위 억원",
         )
     },
-    "단위 억원 · 근거 '보고서'는 최근 정기보고서의 기준일 현재 미상환 사채 표, '추정'은 발행결정 권면총액(전환·조기상환 미반영)입니다. 행을 누르면 회차·발행일·만기일·미상환 잔액을 봅니다.",
-).copy(paused = d.paused)
+    "단위 억원 · 근거 '보고서'는 최근 정기보고서의 기준일 현재 미상환 사채 표, '추정'은 발행결정 권면총액(전환·조기상환 미반영)입니다.",
+).copy(
+    paused = d.paused,
+    hint = "회사 행을 누르면 회차별 상세 표(회차·발행일·만기일·미상환 잔액)를 볼 수 있습니다.",
+    legend = CONVERTIBLE_LEGEND,
+)
+
+private const val CONVERTIBLE_LEGEND = "근거란?\n보고서: 정기보고서(사업·반기·분기)의 '미상환 잔액' 표에서 읽은 값으로, 기준일 현재 실제 잔액입니다.\n추정: 보고서에서 읽지 못해 발행결정 공시의 권면총액으로 계산한 값입니다. 이후의 전환·상환·행사가 빠져 있어 실제보다 클 수 있습니다."
 
 @Composable
 fun ScreeningResultScreen(vm: AppViewModel, d: Dest.ScreeningResult) {
     // 서버가 수집 중이면 완료될 때까지 몇 초마다 다시 불러온다.
     // 수집은 사용자가 "수집 시작"을 눌러야 시작된다. 누르기 전에는 저장된 결과만 한 번 읽는다.
-    var started by remember(d) { mutableStateOf(false) }
-    val state by produceState<UiState<ResultTable>>(UiState.Loading, d, started) {
+    // 연도(자본잠식은 보고서도)는 이 화면 안에서 고른다. 처음 값은 이동할 때 받은 값.
+    var year by remember(d) { mutableStateOf(d.year) }
+    var reprt by remember(d) { mutableStateOf(d.reprt) }
+    var started by remember(d, year, reprt) { mutableStateOf(false) }
+    val state by produceState<UiState<ResultTable>>(UiState.Loading, d, year, reprt, started) {
+        value = UiState.Loading
         while (true) {
             val r = when (d.kind) {
-                ScreeningKind.Audit -> vm.repository.screeningAudit(d.year, started).map(::auditTable)
-                ScreeningKind.Capital -> vm.repository.screeningCapital(d.year, d.reprt, started).map(::capitalTable)
-                ScreeningKind.Convertible -> vm.repository.screeningConvertible(d.year, started).map(::convertibleTable)
+                ScreeningKind.Audit -> vm.repository.screeningAudit(year, started).map(::auditTable)
+                ScreeningKind.Capital -> vm.repository.screeningCapital(year, reprt, started).map(::capitalTable)
+                ScreeningKind.Convertible -> vm.repository.screeningConvertible(year, started).map(::convertibleTable)
             }
             val t = r.getOrNull()
             if (t == null) { value = UiState.Error(r.exceptionOrNull()?.message ?: "오류가 발생했습니다."); return@produceState }
@@ -180,18 +182,18 @@ fun ScreeningResultScreen(vm: AppViewModel, d: Dest.ScreeningResult) {
         }
     }
     val title = when (d.kind) {
-        ScreeningKind.Audit -> "감사의견 비적정 · ${d.year}년"
-        ScreeningKind.Capital -> "자본잠식 · ${d.year}년 ${REPORTS.first { it.first == d.reprt }.second}"
-        ScreeningKind.Convertible -> "CB·BW · ${d.year}년"
+        ScreeningKind.Audit -> "감사의견 비적정 · ${year}년"
+        ScreeningKind.Capital -> "자본잠식 · ${year}년 ${REPORTS.first { it.first == reprt }.second}"
+        ScreeningKind.Convertible -> "CB·BW · ${year}년"
     }
     Column(Modifier.fillMaxSize()) {
         GradientTopBar(title = title, onBack = { vm.back() })
-        UiStateContent(state, onRetry = null) { t -> ResultBody(vm, t, d, onStart = { started = true }) }
+        UiStateContent(state, onRetry = null) { t -> ResultBody(vm, t, d, year, reprt, onYear = { year = it }, onReprt = { reprt = it }, onStart = { started = true }) }
     }
 }
 
 @Composable
-private fun ResultBody(vm: AppViewModel, t: ResultTable, d: Dest.ScreeningResult, onStart: () -> Unit) {
+private fun ResultBody(vm: AppViewModel, t: ResultTable, d: Dest.ScreeningResult, year: Int, reprt: String, onYear: (Int) -> Unit, onReprt: (String) -> Unit, onStart: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var opening by remember { mutableStateOf(false) }
@@ -203,9 +205,9 @@ private fun ResultBody(vm: AppViewModel, t: ResultTable, d: Dest.ScreeningResult
             android.widget.Toast.makeText(context, "엑셀을 만드는 중입니다. 법인등록번호를 조회해 시간이 걸릴 수 있습니다.", android.widget.Toast.LENGTH_SHORT).show()
             scope.launch {
                 val kind = when (d.kind) { ScreeningKind.Audit -> "audit"; ScreeningKind.Capital -> "capital"; ScreeningKind.Convertible -> "convertible" }
-                vm.repository.screeningExport(kind, d.year, d.reprt)
+                vm.repository.screeningExport(kind, year, reprt)
                     .onSuccess { bytes ->
-                        val name = "EveryCorp_${d.kind.label}_${d.year}".replace(Regex("[^0-9A-Za-z가-힣._-]"), "_") + ".xlsx"
+                        val name = "EveryCorp_${d.kind.label}_$year".replace(Regex("[^0-9A-Za-z가-힣._-]"), "_") + ".xlsx"
                         val uri = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                             val dir = java.io.File(context.cacheDir, "reports").apply { mkdirs() }
                             val file = java.io.File(dir, name).apply { writeBytes(bytes) }
@@ -224,7 +226,7 @@ private fun ResultBody(vm: AppViewModel, t: ResultTable, d: Dest.ScreeningResult
     }
     // 감사의견 행은 DART 감사보고서로, 그 밖의 행은 기업 화면으로 연결한다.
     val onRow: (TableRow) -> Unit = { r ->
-        if (r.detail.isNotEmpty()) detail = r
+        if (r.bonds.isNotEmpty()) detail = r
         else if (r.rceptNo.isBlank()) vm.openCompany(r.corp)
         else if (!opening) {
             opening = true
@@ -236,18 +238,15 @@ private fun ResultBody(vm: AppViewModel, t: ResultTable, d: Dest.ScreeningResult
             }
         }
     }
-    detail?.let { r ->
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { detail = null },
-            title = { Text(r.corp.corpName) },
-            text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) { r.detail.forEach { Text(it, style = MaterialTheme.typography.bodyMedium) } } },
-            confirmButton = { androidx.compose.material3.TextButton(onClick = { detail = null; vm.openCompany(r.corp) }) { Text("기업 보기") } },
-            dismissButton = { androidx.compose.material3.TextButton(onClick = { detail = null }) { Text("닫기") } },
-        )
-    }
+    detail?.let { r -> BondDetailDialog(r, onClose = { detail = null }, onCompany = { detail = null; vm.openCompany(r.corp) }) }
     Column(Modifier.fillMaxSize()) {
         val collecting = t.status != "ready"
         val running = t.status == "collecting"
+        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            YearPicker(year, onYear)
+            if (d.kind == ScreeningKind.Capital) REPORTS.forEach { (code, label) -> PillChip(label, onClick = { onReprt(code) }, selected = reprt == code) }
+            if (t.rows.isNotEmpty()) PillChip(if (exporting) "엑셀 만드는 중…" else "엑셀로 내보내기", onClick = exportExcel, selected = false)
+        }
         Text(
             when {
                 running -> "서버가 DART에서 수집 중입니다 (${t.done}/${t.total}). 앱을 꺼도 서버에서 계속되고, 그 전 결과는 일부입니다."
@@ -266,27 +265,31 @@ private fun ResultBody(vm: AppViewModel, t: ResultTable, d: Dest.ScreeningResult
                 PillChip(if (t.checked > 0) "이어서 수집" else "수집 시작", onClick = onStart, selected = true)
             }
         }
-        if (t.rows.isNotEmpty()) {
-            Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                PillChip(if (exporting) "엑셀 만드는 중…" else "엑셀로 내보내기", onClick = exportExcel, selected = false)
-            }
-        }
+        if (t.hint.isNotBlank()) Text(
+            "💡 ${t.hint}", Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth().background(MaterialTheme.colorScheme.tertiaryContainer, androidx.compose.foundation.shape.RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onTertiaryContainer,
+        )
+        if (t.legend.isNotBlank()) Text(
+            t.legend, Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer, androidx.compose.foundation.shape.RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         if (t.rows.isEmpty()) {
             EmptyBox(if (collecting) "아직 집계된 항목이 없습니다." else "해당하는 회사가 없습니다.", Modifier.padding(horizontal = 16.dp))
             return
         }
         val total = t.widths.fold(0.dp) { a, b -> a + b }
+        // 제목 행은 LazyColumn 밖에 두어 세로로 스크롤해도 그대로 보이고, 가로로는 목록과 함께 움직인다.
         Box(Modifier.weight(1f).horizontalScroll(rememberScrollState())) {
-            LazyColumn(Modifier.width(total + 32.dp), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)) {
-                item {
-                    Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer).padding(vertical = 8.dp)) {
-                        t.headers.forEachIndexed { i, h -> Cell(h, t.widths[i], i, bold = true, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                    }
+            Column(Modifier.width(total + 32.dp).fillMaxHeight()) {
+                Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    t.headers.forEachIndexed { i, h -> Cell(h, t.widths[i], i, bold = true, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 }
-                itemsIndexed(t.rows, key = { i, r -> "$i${r.corp.corpCode}" }) { _, r ->
-                    Row(Modifier.fillMaxWidth().clickable { onRow(r) }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        r.cells.forEachIndexed { i, c ->
-                            Cell(c, t.widths[i], i, color = if (i == r.tintColumn) r.tint else MaterialTheme.colorScheme.onSurface, bold = i == r.tintColumn)
+                LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)) {
+                    itemsIndexed(t.rows, key = { i, r -> "$i${r.corp.corpCode}" }) { _, r ->
+                        Row(Modifier.fillMaxWidth().clickable { onRow(r) }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            r.cells.forEachIndexed { i, c ->
+                                Cell(c, t.widths[i], i, color = if (i == r.tintColumn) r.tint else MaterialTheme.colorScheme.onSurface, bold = i == r.tintColumn)
+                            }
                         }
                     }
                 }
@@ -295,12 +298,63 @@ private fun ResultBody(vm: AppViewModel, t: ResultTable, d: Dest.ScreeningResult
     }
 }
 
-/** 첫 두 열(결산·회사명)은 왼쪽 정렬, 나머지 글자·숫자는 오른쪽 정렬. */
+/** 결산연도 선택(최근 7개년). */
+@Composable
+private fun YearPicker(year: Int, onYear: (Int) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    val thisYear = LocalDate.now().year
+    Box {
+        PillChip("연도 ${year} ▾", onClick = { open = true }, selected = true)
+        androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            (thisYear downTo thisYear - 6).forEach { y ->
+                androidx.compose.material3.DropdownMenuItem(text = { Text("${y}년") }, onClick = { open = false; onYear(y) })
+            }
+        }
+    }
+}
+
+/** CB·BW 회차별 미상환 잔액 표(억원). */
+@Composable
+private fun BondDetailDialog(r: TableRow, onClose: () -> Unit, onCompany: () -> Unit) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text("${r.corp.corpCode} · ${r.corp.corpName}", style = MaterialTheme.typography.titleMedium) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(r.sub, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val ws = listOf(36.dp, 44.dp, 74.dp, 74.dp, 64.dp)
+                Column(Modifier.horizontalScroll(rememberScrollState())) {
+                    Row(Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(vertical = 6.dp)) {
+                        listOf("구분", "회차", "발행일", "만기일", "미상환").forEachIndexed { i, h -> Cell(h, ws[i], if (i < 4) 0 else 9, bold = true, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    }
+                    r.bonds.forEach { b ->
+                        Row(Modifier.padding(vertical = 5.dp)) {
+                            Cell(b.kind, ws[0], 0); Cell(b.tm, ws[1], 0); Cell(b.issued, ws[2], 0); Cell(b.maturity, ws[3], 0)
+                            Cell(eok(b.amount) + if (b.estimated) "*" else "", ws[4], 9)
+                        }
+                    }
+                    Row(Modifier.background(MaterialTheme.colorScheme.surfaceContainer).padding(vertical = 6.dp)) {
+                        Cell("합계", ws[0] + ws[1] + ws[2] + ws[3], 0, bold = true)
+                        Cell(eok(r.bonds.sumOf { it.amount }), ws[4], 9, bold = true)
+                    }
+                }
+                if (r.bonds.any { it.estimated }) Text(
+                    "* 추정: 발행결정 권면총액 기준이라 실제 잔액과 다를 수 있습니다.",
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = onCompany) { Text("기업 보기") } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onClose) { Text("닫기") } },
+    )
+}
+
+/** 앞 세 열(결산·DART코드·회사명)은 왼쪽 정렬, 나머지 글자·숫자는 오른쪽 정렬. */
 @Composable
 private fun Cell(text: String, width: Dp, index: Int, bold: Boolean = false, color: Color = Color.Unspecified) {
     Text(
         text.ifBlank { "-" }, Modifier.width(width).padding(horizontal = 4.dp), style = MaterialTheme.typography.bodySmall,
         fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal, color = color,
-        textAlign = if (index < 2) TextAlign.Start else TextAlign.End, maxLines = 2,
+        textAlign = if (index < 3) TextAlign.Start else TextAlign.End, maxLines = 2,
     )
 }

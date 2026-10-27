@@ -6,7 +6,9 @@ import androidx.core.content.FileProvider
 import io.github.hdlee73.everycorp.BuildConfig
 import io.github.hdlee73.everycorp.data.pdf.PdfSupport
 import io.github.hdlee73.everycorp.data.report.SummaryPdfInput
+import io.github.hdlee73.everycorp.data.report.SummaryHwpxWriter
 import io.github.hdlee73.everycorp.data.report.SummaryPdfWriter
+import io.github.hdlee73.everycorp.data.report.SummarySection
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -82,26 +84,38 @@ class CompanyViewModel(
     fun clearSummaryPdf() { summaryPdf = null }
 
     /** 필요한 데이터를 (아직 없으면) 불러와 A4 PDF 로 만들고 캐시 폴더에 저장한다. */
-    fun exportSummaryPdf(context: Context, target: Uri? = null) {
+    /** 마지막으로 만든 요약 문서 형식("PDF" | "HWPX"). 완료 알림 문구에 쓴다. */
+    var summaryFormat by mutableStateOf("PDF"); private set
+
+    /** [hwpx]가 true 면 한글(HWPX) 문서로 [target]에 저장한다(저장 위치는 반드시 고른 곳). */
+    fun exportSummaryPdf(context: Context, target: Uri? = null, sections: Set<SummarySection> = SummarySection.entries.toSet(), hwpx: Boolean = false) {
         if (summaryPdf is PdfUi.Downloading) return
         summaryPdf = PdfUi.Downloading(false)
+        summaryFormat = if (hwpx) "HWPX" else "PDF"
         viewModelScope.launch {
             try {
-                val ov = (overview as? UiState.Success)?.data ?: repo.overview(corp.corpCode).getOrNull()
-                val dt = (debt as? UiState.Success)?.data ?: repo.debtSecurities(corp.corpCode).getOrNull()
-                val q = if (corp.isListed) repo.quote(corp.corpCode).getOrNull() else null
-                val ch = if (corp.isListed) ((chart as? UiState.Success)?.data ?: repo.chart(corp.corpCode).getOrNull()) else null
-                val ar = ((reports as? UiState.Success)?.data ?: repo.auditReports(corp.corpCode).getOrNull())?.reports
+                // 고르지 않은 항목은 불러오지 않는다.
+                val needOverview = SummarySection.Overview in sections || SummarySection.Financials in sections
+                val ov = if (needOverview) ((overview as? UiState.Success)?.data ?: repo.overview(corp.corpCode).getOrNull()) else null
+                val dt = if (SummarySection.Debt in sections) ((debt as? UiState.Success)?.data ?: repo.debtSecurities(corp.corpCode).getOrNull()) else null
+                val stock = SummarySection.Stock in sections && corp.isListed
+                val q = if (stock) repo.quote(corp.corpCode).getOrNull() else null
+                val ch = if (stock) ((chart as? UiState.Success)?.data ?: repo.chart(corp.corpCode).getOrNull()) else null
+                val ar = if (SummarySection.Audit in sections) ((reports as? UiState.Success)?.data ?: repo.auditReports(corp.corpCode).getOrNull())?.reports else null
                 val input = SummaryPdfInput(
                     corpName = corp.corpName, badge = corp.badge, overview = ov, debt = dt, quote = q, chart = ch, auditReports = ar,
                     appName = "Every Corp", versionName = BuildConfig.VERSION_NAME,
                     author = "${BuildConfig.AUTHOR_NAME} (${BuildConfig.AUTHOR_EMAIL})",
                     generatedAt = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy.MM.dd HH:mm")),
+                    sections = sections,
                 )
                 if (target != null) {  // 사용자가 고른 위치에 바로 쓴다
                     withContext(Dispatchers.IO) {
                         val out = context.contentResolver.openOutputStream(target) ?: error("선택한 위치에 저장할 수 없습니다.")
-                        out.use { SummaryPdfWriter().write(input, it) }
+                        out.use {
+                            if (hwpx) SummaryHwpxWriter { name -> context.assets.open("hwpx/$name").use { s -> s.readBytes() } }.write(input, it)
+                            else SummaryPdfWriter().write(input, it)
+                        }
                     }
                     summaryPdf = PdfUi.Saved(target)
                     return@launch

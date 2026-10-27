@@ -66,7 +66,7 @@ fun PriceLineChart(points: List<ChartPointDto>, high: Long?, low: Long?, lineCol
             when {
                 sm.isNotEmpty() -> "${Fmt.date(sm.first().date)}  [${sm.first().kind.label}] ${sm.size}건\n" + sm.joinToString("\n") { "· ${it.title}" }
                 sel != null -> "${Fmt.date(sel.date)}  ${Fmt.price(sel.close)}원"
-                placed.isNotEmpty() -> "차트를 눌러 일별 종가 확인 · 빨간 점을 누르면 주요사항보고서 내용"
+                placed.isNotEmpty() -> "차트를 눌러 일별 종가 확인 · 노란 별을 누르면 주요사항보고서 내용"
                 else -> "차트를 눌러 일별 종가 확인"
             },
             style = MaterialTheme.typography.labelMedium,
@@ -121,7 +121,9 @@ fun PriceLineChart(points: List<ChartPointDto>, high: Long?, low: Long?, lineCol
             placed.forEach { (m, i) ->
                 val on = m in selectedMarkers
                 drawLine(m.kind.color.copy(alpha = if (on) 0.9f else 0.35f), Offset(x(i), y(closes[i])), Offset(x(i), size.height), strokeWidth = if (on) 3f else 1.5f)
-                drawCircle(m.kind.color, radius = if (on) 11f else 7f, center = Offset(x(i), y(closes[i])))
+                val star = starPath(Offset(x(i), y(closes[i])), if (on) 20f else 14f)
+                drawPath(star, m.kind.color)
+                drawPath(star, Color(0xFF9A6B00), style = Stroke(width = if (on) 3f else 2f))
             }
             selected?.let { i ->
                 drawLine(labelColor, Offset(x(i), 0f), Offset(x(i), size.height), strokeWidth = 2f)
@@ -129,6 +131,18 @@ fun PriceLineChart(points: List<ChartPointDto>, high: Long?, low: Long?, lineCol
             }
         }
     }
+}
+
+/** 꼭짓점 5개짜리 별. [r]은 바깥 반지름. */
+private fun starPath(c: Offset, r: Float): Path = Path().apply {
+    for (k in 0 until 10) {
+        val rad = if (k % 2 == 0) r else r * 0.45f
+        val a = -Math.PI / 2 + k * Math.PI / 5
+        val px = c.x + (rad * Math.cos(a)).toFloat()
+        val py = c.y + (rad * Math.sin(a)).toFloat()
+        if (k == 0) moveTo(px, py) else lineTo(px, py)
+    }
+    close()
 }
 
 private fun indexAt(px: Float, width: Float, n: Int): Int =

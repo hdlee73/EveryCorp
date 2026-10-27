@@ -1,6 +1,17 @@
 package io.github.hdlee73.everycorp.ui.company
 
+import android.content.Context
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material3.Checkbox
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import io.github.hdlee73.everycorp.ui.common.ChartMarker
+import io.github.hdlee73.everycorp.ui.common.openDisclosure
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
@@ -61,6 +72,7 @@ fun StockTab(vm: CompanyViewModel) {
                 else {
                     PriceLineChart(ch.points, ch.range52w.high, ch.range52w.low, color, highDate = ch.range52w.highDate, lowDate = ch.range52w.lowDate, markers = vm.markers)
                     if (vm.markers.isNotEmpty()) MarkerLegend()
+                    if (vm.markers.isNotEmpty()) MarkerList(vm.markers)
                     Text("거래량", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     VolumeBarChart(ch.points, Modifier.fillMaxWidth().height(72.dp))
                 }
@@ -73,9 +85,38 @@ fun StockTab(vm: CompanyViewModel) {
 private fun MarkerLegend() {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         MarkerKind.entries.forEach { k ->
-            Text("● ${k.label}", style = MaterialTheme.typography.labelSmall, color = k.color)
+            Text("★ ${k.label}", style = MaterialTheme.typography.labelSmall, color = Color(0xFFB07F00))
         }
-        Text("공시일 기준 · 점을 누르면 어떤 공시인지 표시", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("공시일 기준 · 별을 누르면 어떤 공시인지 표시", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** "공시 내용 바로 보기" 체크: 켜면 주요사항보고서 공시일·공시명 목록을 차트 아래에 보이고, 끄면 숨긴다. 마지막 선택을 기억한다. */
+@Composable
+private fun MarkerList(markers: List<ChartMarker>) {
+    val context = LocalContext.current
+    var show by remember {
+        mutableStateOf(runCatching { context.getSharedPreferences("stock_tab", Context.MODE_PRIVATE).getBoolean("marker_list", true) }.getOrDefault(true))
+    }
+    Row(
+        Modifier.fillMaxWidth().clickable {
+            show = !show
+            runCatching { context.getSharedPreferences("stock_tab", Context.MODE_PRIVATE).edit().putBoolean("marker_list", show).apply() }
+        },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Checkbox(checked = show, onCheckedChange = null)
+        Text("공시 내용 바로 보기", Modifier.padding(start = 8.dp), style = MaterialTheme.typography.bodyMedium)
+    }
+    if (show) markers.sortedByDescending { it.date }.forEach { m ->
+        Row(
+            Modifier.fillMaxWidth().clickable(enabled = m.disclosure != null) { m.disclosure?.let { openDisclosure(context, it) } }.padding(vertical = 5.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text("★", color = m.kind.color)
+            Text(Fmt.date(m.date), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(m.title, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+        }
     }
 }
 

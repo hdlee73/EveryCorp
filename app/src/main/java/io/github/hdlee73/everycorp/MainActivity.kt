@@ -10,6 +10,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -96,11 +101,11 @@ class MainActivity : ComponentActivity() {
 
 /** 왼쪽 서랍 메뉴 항목과 한 줄 기능 요약. */
 private enum class MenuItem(val label: String, val summary: String, val icon: ImageVector, val dest: Dest, val palette: HeroPalette) {
-    Search("기업 검색", "기업·ETF를 찾아 개황, 감사보고서, 공시, 주가, 채권, 뉴스를 봅니다", Icons.Filled.Search, Dest.Home, HeroPalettes.Sky),
-    Favorites("관심", "관심기업을 그룹으로 모아 보고 비교·일괄 PDF를 만듭니다", Icons.Filled.Star, Dest.Favorites, HeroPalettes.Rose),
-    Screening("스크리닝", "조건에 맞는 회사를 모아 보고 엑셀로 내보냅니다", Icons.Filled.FilterAlt, Dest.Screening, HeroPalettes.Indigo),
-    Alerts("알림", "관심기업의 새 공시를 확인합니다", Icons.Filled.Notifications, Dest.Alerts, HeroPalettes.Coral),
-    Info("앱 정보", "버전·만든이, 업데이트 확인과 자동 업데이트·공시 알림 설정", Icons.Filled.Info, Dest.Info, HeroPalettes.Slate);
+    Search("기업 검색", "기업·ETF 개황, 감사보고서, 공시, 주가, 채권, 뉴스", Icons.Filled.Search, Dest.Home, HeroPalettes.Sky),
+    Favorites("관심", "관심기업 그룹 보기·비교·일괄 PDF", Icons.Filled.Star, Dest.Favorites, HeroPalettes.Rose),
+    Screening("스크리닝", "조건에 맞는 회사 목록·엑셀 내보내기", Icons.Filled.FilterAlt, Dest.Screening, HeroPalettes.Indigo),
+    Alerts("알림", "관심기업의 새 공시 확인", Icons.Filled.Notifications, Dest.Alerts, HeroPalettes.Coral),
+    Info("앱 정보", "버전·만든이, 업데이트 확인·자동 업데이트·알림 설정", Icons.Filled.Info, Dest.Info, HeroPalettes.Slate);
 
     companion object {
         fun of(d: Dest): MenuItem? = entries.firstOrNull { it.dest == d }
@@ -157,20 +162,24 @@ private fun Root() {
                         NavigationDrawerItem(
                             icon = { Icon(m.icon, contentDescription = null) },
                             label = {
-                                Column(Modifier.padding(vertical = 4.dp)) {
+                                Column(Modifier.padding(vertical = 8.dp)) {
                                     Text(m.label)
-                                    Text(m.summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(m.summary, style = MaterialTheme.typography.labelSmall, fontSize = 10.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             },
-                            selected = item == m, onClick = { go(m) }, modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
+                            selected = item == m, onClick = { go(m) }, modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding).padding(vertical = 4.dp),
                         )
                         // 스크리닝 아래에 하부 메뉴: 누르면 해당 목록(최근 결산연도)을 바로 연다.
                         if (m == MenuItem.Screening) ScreeningKind.entries.forEach { k ->
-                            NavigationDrawerItem(
-                                label = { Text(k.label, style = MaterialTheme.typography.bodyMedium) },
-                                selected = (top as? Dest.ScreeningResult)?.kind == k,
-                                onClick = { vm.openScreeningPage(k); scope.launch { drawerState.close() } },
-                                modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding).padding(start = 40.dp),
+                            val sel = (top as? Dest.ScreeningResult)?.kind == k
+                            Text(
+                                k.label, style = MaterialTheme.typography.bodyMedium,
+                                color = if (sel) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(start = 52.dp, end = 12.dp).fillMaxWidth()
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(if (sel) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+                                    .clickable { vm.openScreeningPage(k); scope.launch { drawerState.close() } }
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
                             )
                         }
                     }

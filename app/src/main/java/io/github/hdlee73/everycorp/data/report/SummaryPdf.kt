@@ -15,6 +15,15 @@ import io.github.hdlee73.everycorp.data.api.dto.QuoteDto
 import io.github.hdlee73.everycorp.ui.common.Fmt
 import java.io.OutputStream
 
+/** PDF에 넣을 수 있는 항목. 순서대로 번호가 붙는다. */
+enum class SummarySection(val label: String) {
+    Overview("기업개황"),
+    Financials("재무현황"),
+    Debt("채권·단기증권"),
+    Stock("주가현황"),
+    Audit("감사의견·감사인(기말)"),
+}
+
 /** 개황·채권·주가현황을 A4 PDF 한 부로 묶는 데 필요한 입력. 값이 없는 섹션은 "불러오지 못함"으로 표시한다. */
 data class SummaryPdfInput(
     val corpName: String,
@@ -29,6 +38,8 @@ data class SummaryPdfInput(
     val versionName: String,
     val author: String,
     val generatedAt: String,
+    /** 넣을 항목. 기본은 전부. */
+    val sections: Set<SummarySection> = SummarySection.entries.toSet(),
 )
 
 /** Android 의 PdfDocument 로 A4(595x842pt) 문서를 직접 그린다. 외부 라이브러리 없음. */
@@ -202,6 +213,9 @@ class SummaryPdfWriter {
         y += 4f
     }
 
+    /** 반기·분기 검토보고서는 빼고 결산(기말) 감사보고서만 남긴다. */
+    private fun yearEndOnly(reports: List<AuditReportDto>) = yearEndAuditReports(reports)
+
     fun write(input: SummaryPdfInput, out: OutputStream) = writeAll(listOf(input), out)
 
     /** 기업마다 새 쪽에서 시작해 한 PDF 파일로 묶는다(일괄 PDF). */
@@ -221,74 +235,88 @@ class SummaryPdfWriter {
             small,
         )
 
-        heading("1. 기업개황")
-        if (ov == null) text("기업개황을 불러오지 못했습니다.", small) else {
-            labelValue("대표이사", ov.ceoName)
-            labelValue("설립일", ov.established?.let { Fmt.date(it) })
-            labelValue("결산월", ov.fiscalMonth?.let { "${it.toIntOrNull() ?: it}월" })
-            labelValue("주소", ov.address)
-            labelValue("홈페이지", ov.homepage)
-            labelValue("전화", ov.phone)
-            labelValue("최대주주", ov.largestShareholder.display.ifBlank { null })
+        var no = 0
+        fun title(sec: SummarySection, extra: String = "") = "${++no}. ${sec.label}$extra"
+        val want = input.sections
 
-            val f = ov.financials
-            val tables = f.tables
-            if (f.available && tables != null) {
-                heading("2. 재무현황 (${f.fsLabel.orEmpty()}, 단위 ${tables.unit})")
+        if (SummarySection.Overview in want) {
+            heading(title(SummarySection.Overview))
+            if (ov == null) text("기업개황을 불러오지 못했습니다.", small) else {
+                labelValue("대표이사", ov.ceoName)
+                labelValue("설립일", ov.established?.let { Fmt.date(it) })
+                labelValue("결산월", ov.fiscalMonth?.let { "${it.toIntOrNull() ?: it}월" })
+                labelValue("주소", ov.address)
+                labelValue("홈페이지", ov.homepage)
+                labelValue("전화", ov.phone)
+                labelValue("최대주주", ov.largestShareholder.display.ifBlank { null })
+            }
+        }
+
+        if (SummarySection.Financials in want) {
+            val f = ov?.financials
+            val tables = f?.tables
+            if (f != null && f.available && tables != null) {
+                heading(title(SummarySection.Financials, " (${f.fsLabel.orEmpty()}, 단위 ${tables.unit})"))
                 text("재무상태", bold)
                 table(tables.balance)
                 text("손익", bold)
                 table(tables.income)
                 f.latestBasis?.let { text("기준: ${it.reportName} · 출처 DART 정기보고서", small) }
             } else {
-                heading("2. 재무현황")
-                text(f.message ?: "재무정보가 없습니다.", small)
+                heading(title(SummarySection.Financials))
+                text(f?.message ?: "재무정보가 없습니다.", small)
             }
         }
 
-        heading("3. 채권·단기증권")
-        val d = input.debt
-        if (d == null) text("채권 정보를 불러오지 못했습니다.", small)
-        else if (!d.available) text(d.message ?: "채권 잔액 정보가 없습니다.", small)
-        else {
-            if (d.unitNote.isNotBlank()) text(d.unitNote, small)
-            for (s in d.sections) {
-                need(30f)
-                y += 4f
-                text("${s.title}  합계 ${s.totalDisplay ?: Fmt.number(s.total)}", bold)
-                for (r in s.rows) {
-                    val buckets = r.buckets.filter { it.amount != null }.joinToString(" · ") { "${it.label} ${Fmt.number(it.amount)}" }
-                    text("${r.label}: ${Fmt.number(r.total)}" + if (buckets.isNotEmpty()) "  ($buckets)" else "", body, x = MARGIN + 8f)
+        if (SummarySection.Debt in want) {
+            heading(title(SummarySection.Debt))
+            val d = input.debt
+            if (d == null) text("채권 정보를 불러오지 못했습니다.", small)
+            else if (!d.available) text(d.message ?: "채권 잔액 정보가 없습니다.", small)
+            else {
+                if (d.unitNote.isNotBlank()) text(d.unitNote, small)
+                for (s in d.sections) {
+                    need(30f)
+                    y += 4f
+                    text("${s.title}  합계 ${s.totalDisplay ?: Fmt.number(s.total)}", bold)
+                    for (r in s.rows) {
+                        val buckets = r.buckets.filter { it.amount != null }.joinToString(" · ") { "${it.label} ${Fmt.number(it.amount)}" }
+                        text("${r.label}: ${Fmt.number(r.total)}" + if (buckets.isNotEmpty()) "  ($buckets)" else "", body, x = MARGIN + 8f)
+                    }
                 }
+                if (d.missing.isNotEmpty()) text("잔액 표 없음: ${d.missing.joinToString(", ")}", small)
+                if (d.source.isNotBlank()) text("출처: ${d.source}", small)
             }
-            if (d.missing.isNotEmpty()) text("잔액 표 없음: ${d.missing.joinToString(", ")}", small)
-            if (d.source.isNotBlank()) text("출처: ${d.source}", small)
         }
 
-        heading("4. 주가현황")
-        val q = input.quote
-        if (q == null && input.chart == null) {
-            text(if (ov?.isListed == false) "비상장 기업이라 주가 정보가 없습니다." else "주가 정보를 불러오지 못했습니다.", small)
-        } else {
-            q?.let {
-                labelValue("현재가", "${Fmt.price(it.price)}원  ${Fmt.change(it.change, it.changeRate, it.direction)}")
-                labelValue("시가/고가/저가", "${Fmt.price(it.open)} / ${Fmt.price(it.high)} / ${Fmt.price(it.low)}")
-                labelValue("거래량", Fmt.number(it.volume))
-                labelValue("52주 최고/최저", "${Fmt.price(it.week52High)} / ${Fmt.price(it.week52Low)}")
-                if (it.per != null || it.pbr != null) {
-                    labelValue("PER / PBR", "${it.per?.let { v -> String.format("%.2f", v) } ?: "-"} / ${it.pbr?.let { v -> String.format("%.2f", v) } ?: "-"}")
+        if (SummarySection.Stock in want) {
+            heading(title(SummarySection.Stock))
+            val q = input.quote
+            if (q == null && input.chart == null) {
+                text(if (ov?.isListed == false) "비상장 기업이라 주가 정보가 없습니다." else "주가 정보를 불러오지 못했습니다.", small)
+            } else {
+                q?.let {
+                    labelValue("현재가", "${Fmt.price(it.price)}원  ${Fmt.change(it.change, it.changeRate, it.direction)}")
+                    labelValue("시가/고가/저가", "${Fmt.price(it.open)} / ${Fmt.price(it.high)} / ${Fmt.price(it.low)}")
+                    labelValue("거래량", Fmt.number(it.volume))
+                    labelValue("52주 최고/최저", "${Fmt.price(it.week52High)} / ${Fmt.price(it.week52Low)}")
+                    if (it.per != null || it.pbr != null) {
+                        labelValue("PER / PBR", "${it.per?.let { v -> String.format("%.2f", v) } ?: "-"} / ${it.pbr?.let { v -> String.format("%.2f", v) } ?: "-"}")
+                    }
                 }
+                input.chart?.let { priceChart(it) }
             }
-            input.chart?.let { priceChart(it) }
         }
 
-        heading("5. 감사의견·감사인 (기수·재무제표별)")
-        val ar = input.auditReports
-        if (ar == null) text("감사보고서 정보를 불러오지 못했습니다.", small)
-        else if (ar.isEmpty()) text("조회 기간 내 감사·검토보고서가 없습니다.", small)
-        else {
-            auditTable(ar)
-            text("출처: DART 정기보고서·감사보고서. 연결/별도는 공시된 보고서 기준입니다.", small)
+        if (SummarySection.Audit in want) {
+            heading(title(SummarySection.Audit, " (연결·별도)"))
+            val ar = input.auditReports?.let(::yearEndOnly)
+            if (input.auditReports == null) text("감사보고서 정보를 불러오지 못했습니다.", small)
+            else if (ar.isNullOrEmpty()) text("조회 기간 내 기말(결산) 감사보고서가 없습니다.", small)
+            else {
+                auditTable(ar)
+                text("출처: DART 정기보고서·감사보고서. 반기·분기 검토는 제외하고 결산(기말) 기준만 넣었습니다.", small)
+            }
         }
 
         need(40f)
