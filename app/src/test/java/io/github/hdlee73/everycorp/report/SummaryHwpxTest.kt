@@ -30,7 +30,7 @@ class SummaryHwpxTest {
 
     private fun input(sections: Set<SummarySection>) = SummaryPdfInput(
         corpName = "테스트 & 기업", badge = "상장", overview = null, debt = null, quote = null, chart = null, auditReports = reports,
-        appName = "Every Corp", versionName = "1.10.1", author = "이현덕 (hdlee73@gmail.com)", generatedAt = "2026.10.27 09:00", sections = sections,
+        appName = "Every Corp", versionName = "1.11.0", author = "이현덕 (hdlee73@gmail.com)", generatedAt = "2026.10.27 09:00", sections = sections,
     )
 
     private fun build(sections: Set<SummarySection>, png: ByteArray? = null): Map<String, ByteArray> {

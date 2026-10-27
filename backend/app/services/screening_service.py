@@ -18,6 +18,7 @@ from datetime import date
 from ..config import get_settings
 from ..cache import cached
 from . import dart_client
+from . import market_service
 from .corp_index import corp_index
 from .reports_service import summarize_opinions
 
@@ -158,6 +159,11 @@ def _save(key: str, data: dict) -> None:
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False)
     os.replace(tmp, _path(key))
+
+
+def _badge(corp_code: str) -> str:
+    e = corp_index.by_code.get(corp_code)
+    return market_service.badge_of(e) if e else ""
 
 
 def _name(corp_code: str) -> tuple[str, str]:
@@ -573,7 +579,7 @@ async def audit_nonclean(year: int, start: bool = False, refresh: bool = False) 
             continue
         name, stock = _name(cc)
         for o in flagged:
-            items.append({"corp_code": cc, "corp_name": name, "stock_code": stock, "period": rec["period"],
+            items.append({"corp_code": cc, "corp_name": name, "stock_code": stock, "badge": _badge(cc), "period": rec["period"],
                           "rcept_no": rec.get("rcept_no", ""), "opinion": o["opinion"], "auditor": o["auditor"], "scope": o["scope"]})
     items.sort(key=lambda x: (x["period"], x["corp_name"]))
     return {**_status(key, data), "year": year, "checked": len(data.get("records", {})), "items": items}
@@ -595,7 +601,7 @@ async def capital_impairment(year: int, reprt: str = dart_client.REPRT_ANNUAL, s
         if not kind:
             continue
         name, stock = _name(cc)
-        items.append({"corp_code": cc, "corp_name": name, "stock_code": stock, "period": rec["period"],
+        items.append({"corp_code": cc, "corp_name": name, "stock_code": stock, "badge": _badge(cc), "period": rec["period"],
                       "assets": rec["assets"], "liabilities": rec["liabilities"], "equity": rec["equity"],
                       "capital": rec["capital"], "kind": kind, "fs_div": rec["fs_div"]})
     items.sort(key=lambda x: (x["equity"] if x["equity"] is not None else 0))
@@ -620,7 +626,7 @@ async def convertible_bonds(year: int, start: bool = False, refresh: bool = Fals
         if not it:
             continue
         name, stock = _name(cc)
-        items.append({"corp_code": cc, "corp_name": name, "stock_code": stock, **it})
+        items.append({"corp_code": cc, "corp_name": name, "stock_code": stock, "badge": _badge(cc), **it})
     items.sort(key=lambda x: -x["total"])
     return {**_status(key, data), "year": year, "checked": len(data.get("records", {})), "candidates": len(data.get("cands", [])),
             "items": items}

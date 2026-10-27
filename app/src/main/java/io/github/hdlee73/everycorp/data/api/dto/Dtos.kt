@@ -458,6 +458,8 @@ data class AuditScreenItemDto(
     @SerialName("corp_code") val corpCode: String,
     @SerialName("corp_name") val corpName: String,
     @SerialName("stock_code") val stockCode: String = "",
+    /** 시장 구분(유가증권·코스닥·코넥스·외감·기타) */
+    val badge: String = "",
     val period: String = "",
     @SerialName("rcept_no") val rceptNo: String = "",
     val opinion: String = "",
@@ -483,6 +485,8 @@ data class CapitalScreenItemDto(
     @SerialName("corp_code") val corpCode: String,
     @SerialName("corp_name") val corpName: String,
     @SerialName("stock_code") val stockCode: String = "",
+    /** 시장 구분(유가증권·코스닥·코넥스·외감·기타) */
+    val badge: String = "",
     val period: String = "",
     val assets: Long? = null,
     val liabilities: Long? = null,
@@ -525,6 +529,8 @@ data class ConvertibleScreenItemDto(
     @SerialName("corp_code") val corpCode: String,
     @SerialName("corp_name") val corpName: String,
     @SerialName("stock_code") val stockCode: String = "",
+    /** 시장 구분(유가증권·코스닥·코넥스·외감·기타) */
+    val badge: String = "",
     val period: String = "",
     @SerialName("cb_amount") val cbAmount: Long = 0,
     @SerialName("bw_amount") val bwAmount: Long = 0,

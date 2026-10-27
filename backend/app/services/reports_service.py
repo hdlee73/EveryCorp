@@ -30,7 +30,7 @@ _SEM = asyncio.Semaphore(4)  # DART 웹 동시 요청 제한(과도한 크롤링
 @cached(ttl=7 * 24 * 3600)
 async def fetch_viewer_html(rcp_no: str) -> str:
     last: Exception | None = None
-    for attempt in range(3):  # DART 웹이 가끔 연결을 끊는다. 짧게 쉬며 다시 시도
+    for attempt in range(4):  # DART 웹이 가끔 연결을 끊는다. 짧게 쉬며 다시 시도
         if attempt:
             await asyncio.sleep(1.5 * attempt)
         try:
@@ -186,10 +186,10 @@ async def get_period_opinions(corp_code: str, since: date) -> dict[str, dict]:
     return out
 
 
-async def get_audit_reports(corp_code: str, years: int = 3) -> dict:
+async def get_audit_reports(corp_code: str, years: int = 3, refresh: bool = False) -> dict:
     """일부라도 못 읽은 결과(partial)는 캐시하지 않는다. 캐시하면 새로고침해도 6시간 동안 같은 빈 화면이 나온다."""
     key = ("audit_reports", corp_code, years)
-    hit = cache.get(key)
+    hit = None if refresh else cache.get(key)
     if hit is not None:
         return hit
     out = await _load_audit_reports(corp_code, years)

@@ -199,3 +199,17 @@ def test_audit_reports_partial_not_cached(monkeypatch):
     assert first["partial"] and not second["partial"] and not third["partial"]
     assert len(calls) == 2  # 두 번째 결과(정상)부터 캐시
     cache.clear()
+
+
+def test_listed_code_but_not_listed_cls_is_external_audit():
+    from app.services import market_service as ms
+    from app.services.corp_index import CorpEntry
+
+    e = CorpEntry("00999999", "코리아센터", "", "290510", "")
+    ms._market.pop("290510", None)
+    assert ms.badge_of(e) == "상장"
+    ms.remember("290510", "E")
+    try:
+        assert ms.badge_of(e) == "외감"
+    finally:
+        ms._not_listed.discard("290510")

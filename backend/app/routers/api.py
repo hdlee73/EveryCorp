@@ -100,9 +100,9 @@ async def overview(corp_code: str) -> dict:
 # ───────── 탭 2 ─────────
 
 @router.get("/corps/{corp_code}/audit-reports")
-async def audit_reports(corp_code: str, years: int = Query(3, ge=1, le=5)) -> dict:
+async def audit_reports(corp_code: str, years: int = Query(3, ge=1, le=5), refresh: bool = False) -> dict:
     _corp_or_404(corp_code)
-    return await reports_service.get_audit_reports(corp_code, years)
+    return await reports_service.get_audit_reports(corp_code, years, refresh)
 
 
 @router.get("/corps/{corp_code}/stake-changes")

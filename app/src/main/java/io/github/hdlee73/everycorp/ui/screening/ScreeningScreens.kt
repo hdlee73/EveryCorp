@@ -108,6 +108,8 @@ private data class ResultTable(
 private fun corpOf(code: String, name: String, stock: String) =
     CorpItemDto(corpCode = code, corpName = name, stockCode = stock.ifBlank { null }, listing = if (stock.isNotBlank()) "LISTED" else "UNLISTED")
 
+private fun named(name: String, badge: String) = if (badge.isBlank()) name else "$name · $badge"
+
 private fun period(p: String) = p.replace('-', '.')
 
 private fun ymd(s: String) = if (s.length >= 8) "${s.take(4)}.${s.substring(4, 6)}.${s.substring(6, 8)}" else s
@@ -116,18 +118,18 @@ private fun eok(v: Long?) = Fmt.eok(v?.toDouble())
 
 private fun auditTable(d: AuditScreeningDto) = ResultTable(
     d.status, d.progress.done, d.progress.total, d.checked, d.updatedAt,
-    listOf("결산", "DART코드", "회사명", "감사의견", "감사인", "구분"), listOf(84.dp, 80.dp, 150.dp, 90.dp, 130.dp, 90.dp),
-    d.items.map { TableRow(corpOf(it.corpCode, it.corpName, it.stockCode), listOf(period(it.period), it.corpCode, it.corpName, it.opinion, it.auditor, it.scope), 3, StockColors.up, it.rceptNo, it.auditor) },
+    listOf("결산", "DART코드", "회사명", "감사의견", "감사인", "구분"), listOf(84.dp, 80.dp, 200.dp, 90.dp, 130.dp, 90.dp),
+    d.items.map { TableRow(corpOf(it.corpCode, it.corpName, it.stockCode), listOf(period(it.period), it.corpCode, named(it.corpName, it.badge), it.opinion, it.auditor, it.scope), 3, StockColors.up, it.rceptNo, it.auditor) },
     "당기 감사의견이 한정·부적정·의견거절인 회사만 표시합니다. 행을 누르면 DART 감사보고서가 열립니다.",
 ).copy(paused = d.paused)
 
 private fun capitalTable(d: CapitalScreeningDto) = ResultTable(
     d.status, d.progress.done, d.progress.total, d.checked, d.updatedAt,
-    listOf("결산", "DART코드", "회사명", "자산", "부채", "자기자본", "자본금", "구분"), listOf(84.dp, 80.dp, 150.dp, 72.dp, 72.dp, 80.dp, 72.dp, 76.dp),
+    listOf("결산", "DART코드", "회사명", "자산", "부채", "자기자본", "자본금", "구분"), listOf(84.dp, 80.dp, 200.dp, 72.dp, 72.dp, 80.dp, 72.dp, 76.dp),
     d.items.map {
         TableRow(
             corpOf(it.corpCode, it.corpName, it.stockCode),
-            listOf(period(it.period), it.corpCode, it.corpName, eok(it.assets), eok(it.liabilities), eok(it.equity), eok(it.capital), it.kind),
+            listOf(period(it.period), it.corpCode, named(it.corpName, it.badge), eok(it.assets), eok(it.liabilities), eok(it.equity), eok(it.capital), it.kind),
             5, if (it.kind == "완전잠식") StockColors.up else StockColors.down,
         )
     },
@@ -136,12 +138,12 @@ private fun capitalTable(d: CapitalScreeningDto) = ResultTable(
 
 private fun convertibleTable(d: ConvertibleScreeningDto) = ResultTable(
     d.status, d.progress.done, d.progress.total, d.checked, d.updatedAt,
-    listOf("기준일", "DART코드", "회사명", "CB", "BW", "합계", "건수", "근거"), listOf(88.dp, 80.dp, 150.dp, 72.dp, 72.dp, 76.dp, 48.dp, 56.dp),
+    listOf("기준일", "DART코드", "회사명", "CB", "BW", "합계", "건수", "근거"), listOf(88.dp, 80.dp, 200.dp, 72.dp, 72.dp, 76.dp, 48.dp, 56.dp),
     d.items.map {
         val base = ymd(it.baseDate).ifBlank { period(it.period) }
         TableRow(
             corpOf(it.corpCode, it.corpName, it.stockCode),
-            listOf(base, it.corpCode, it.corpName, eok(it.cbAmount), eok(it.bwAmount), eok(it.total), it.count.toString(),
+            listOf(base, it.corpCode, named(it.corpName, it.badge), eok(it.cbAmount), eok(it.bwAmount), eok(it.total), it.count.toString(),
                 if (it.source == "정기보고서") "보고서" else "추정"),
             5, StockColors.up,
             bonds = it.bonds.map { b -> BondLine(b.kind, b.tm.ifBlank { b.name.ifBlank { "-" } }, ymd(b.issued), ymd(b.maturity), b.amount, b.basis != "정기보고서") },

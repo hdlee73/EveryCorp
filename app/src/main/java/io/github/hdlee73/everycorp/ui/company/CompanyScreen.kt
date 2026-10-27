@@ -22,7 +22,9 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import io.github.hdlee73.everycorp.ui.common.UiState
 import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Search
@@ -125,8 +127,12 @@ fun CompanyScreen(app: AppViewModel, dest: Dest.Company) {
             GradientTopBar(
                 title = corp.corpName,
                 onBack = { app.back() },
-                badge = corp.badge.ifBlank { if (corp.isListed) "상장" else "외감" },
+                // 기업개황(DART corp_cls)의 구분이 목록의 임시 "상장"보다 정확하다.
+                badge = ((vm.overview as? UiState.Success)?.data?.badge).orEmpty().ifBlank { corp.badge.ifBlank { if (corp.isListed) "상장" else "외감" } },
                 trailing = {
+                    if (tab == CompanyTab.Reports) {
+                        IconButton(onClick = { vm.loadReports(refresh = true) }) { Icon(Icons.Filled.Refresh, contentDescription = "감사보고서 새로 불러오기") }
+                    }
                     if (summary is PdfUi.Downloading) {
                         CircularProgressIndicator(Modifier.padding(12.dp).size(24.dp), strokeWidth = 2.dp)
                     } else {

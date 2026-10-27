@@ -173,7 +173,8 @@ class CompanyViewModel(
 
     fun loadOverview() { overview = UiState.Loading; viewModelScope.launch { overview = repo.overview(corp.corpCode).toUiState() } }
     fun loadShareholders() { shareholders = UiState.Loading; viewModelScope.launch { shareholders = repo.shareholders(corp.corpCode).toUiState() } }
-    fun loadReports() { reports = UiState.Loading; viewModelScope.launch { reports = repo.auditReports(corp.corpCode).toUiState() } }
+    /** [refresh]가 true 면 서버 저장분을 건너뛰고 DART에서 다시 읽는다. */
+    fun loadReports(refresh: Boolean = false) { reports = UiState.Loading; viewModelScope.launch { reports = repo.auditReports(corp.corpCode, refresh = refresh).toUiState() } }
     fun loadDebt() { debt = UiState.Loading; viewModelScope.launch { debt = repo.debtSecurities(corp.corpCode).toUiState() } }
     fun loadNews() { news = UiState.Loading; viewModelScope.launch { news = repo.news(corp.corpCode).toUiState() } }
     /** 당일 분봉. 처음엔 로딩 표시, 이후 갱신은 조용히(실패해도 이전 그래프 유지). */

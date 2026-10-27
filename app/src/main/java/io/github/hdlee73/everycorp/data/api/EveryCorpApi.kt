@@ -43,6 +43,7 @@ interface EveryCorpApi {
     suspend fun auditReports(
         @Path("corpCode") corpCode: String,
         @Query("years") years: Int = 3,
+        @Query("refresh") refresh: Boolean = false,
     ): AuditReportsResponse
 
     @GET("api/v1/corps/{corpCode}/shareholders")

@@ -31,6 +31,7 @@ _OTHER_NAME_RE = re.compile(r"유동화|제\d+차|펀드|투자신탁|투자조�
 
 _market: dict[str, str] = {}      # 종목코드 → KOSPI|KOSDAQ|KONEX
 _loaded_at: float = 0.0
+_not_listed: set[str] = set()     # 종목코드는 있으나 기업개황(corp_cls)상 비상장인 코드(예: 코리아센터)
 
 
 def _path() -> str:
@@ -141,16 +142,23 @@ def remember(stock_code: str, corp_cls: str) -> None:
     m = _CLS_TO_MARKET.get(corp_cls)
     if m and stock_code:
         _market.setdefault(stock_code, m)
+        _not_listed.discard(stock_code)
+    elif stock_code and corp_cls and stock_code not in _market:
+        _not_listed.add(stock_code)  # 종목코드가 있어도 개황상 상장사가 아니면 '외감'으로 본다
+
+
+def _listed(entry: CorpEntry) -> bool:
+    return entry.is_listed and entry.stock_code not in _not_listed
 
 
 def market_of(entry: CorpEntry) -> str:
-    if entry.is_listed:
+    if _listed(entry):
         return _market.get(entry.stock_code, "LISTED")
     return "OTHER" if _OTHER_NAME_RE.search(entry.corp_name) else "EXTERNAL_AUDIT"
 
 
 def badge_of(entry: CorpEntry) -> str:
-    if entry.is_listed and entry.stock_code not in _market:
+    if _listed(entry) and entry.stock_code not in _market:
         return "상장"   # 시장 정보를 아직 못 받은 경우
     return MARKET_BADGE[market_of(entry)]
 
