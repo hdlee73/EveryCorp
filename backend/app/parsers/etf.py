@@ -10,6 +10,12 @@ from __future__ import annotations
 from .price import kiwoom_abs_int, kiwoom_float
 
 
+def _nav(raw) -> float | None:
+    """NAV는 가격이라 음수일 수 없다. 키움이 전일대비 방향 부호(-66160)를 붙여 보내는 날이 있어 절댓값으로 쓴다."""
+    v = kiwoom_float(raw)
+    return None if v is None else abs(v)
+
+
 def _txt(v) -> str:
     s = (v or "").strip() if isinstance(v, str) else ""
     return "" if s == "-" else s
@@ -28,7 +34,7 @@ def parse_etf_list(rows: list[dict]) -> list[dict]:
             "index_name": _txt(r.get("trace_idex_nm")),
             "price": kiwoom_abs_int(r.get("close_pric")),
             "change_rate": kiwoom_float(r.get("pre_rt")),
-            "nav": kiwoom_float(r.get("nav")),
+            "nav": _nav(r.get("nav")),
             "volume": kiwoom_abs_int(r.get("trde_qty")),
         })
     return out
@@ -79,7 +85,7 @@ def parse_etf_daily(rows: list[dict]) -> list[dict]:
             "close": kiwoom_abs_int(r.get("cur_prc")),
             "change_rate": kiwoom_float(r.get("pre_rt")),
             "volume": kiwoom_abs_int(r.get("trde_qty")),
-            "nav": kiwoom_float(r.get("nav")),
+            "nav": _nav(r.get("nav")),
             "disparity": kiwoom_float(r.get("navetfdispty_rt")),
             "tracking_error": _tracking_error(r.get("trace_eor_rt")),
         })
