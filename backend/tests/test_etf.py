@@ -37,3 +37,11 @@ def test_daily_sorted_latest_first_and_tracking_scaled():
     assert [r["date"] for r in d] == ["2026-10-23", "2026-10-22"]
     assert d[0]["close"] == 87045 and d[0]["disparity"] == -0.19 and d[0]["tracking_error"] == 0.69
     assert d[1]["tracking_error"] == 0.72
+
+
+def test_daily_nav_sign_is_dropped():
+    from app.parsers.etf import parse_etf_daily
+
+    rows = [{"cntr_dt": "20261026", "cur_prc": "+66235", "pre_rt": "+0.1", "trde_qty": "1", "nav": "-66160", "navetfdispty_rt": "+0.11", "trace_eor_rt": "1.61"}]
+    d = parse_etf_daily(rows)[0]
+    assert d["nav"] == 66160.0 and d["disparity"] == 0.11
