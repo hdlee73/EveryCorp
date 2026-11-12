@@ -1,5 +1,6 @@
 package io.github.hdlee73.everycorp.data
 
+import io.github.hdlee73.everycorp.data.api.dto.LatestReleaseDto
 import io.github.hdlee73.everycorp.data.update.UpdateLogic
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -47,5 +48,14 @@ class UpdateLogicTest {
         val h = "a".repeat(64)
         assertEquals(h, UpdateLogic.parseSha256("${h.uppercase()}  everycorp.apk\n"))
         assertNull(UpdateLogic.parseSha256("short  file"))
+    }
+
+    @Test fun downloadUrlPrefersApkAndRequiresHttps() {
+        val apk = "https://github.com/hdlee73/EveryCorp/releases/download/v1.12.1/everycorp-v1.12.1.apk"
+        val page = "https://github.com/hdlee73/EveryCorp/releases/tag/v1.12.1"
+        assertEquals(apk, UpdateLogic.downloadUrl(LatestReleaseDto("1.12.1", releaseUrl = page, apkUrl = apk)))
+        assertEquals(page, UpdateLogic.downloadUrl(LatestReleaseDto("1.12.1", releaseUrl = page)))
+        assertEquals(page, UpdateLogic.downloadUrl(LatestReleaseDto("1.12.1", releaseUrl = page, apkUrl = "http://x/a.apk")))
+        assertNull(UpdateLogic.downloadUrl(LatestReleaseDto("1.12.1", apkUrl = "file:///sdcard/a.apk")))
     }
 }

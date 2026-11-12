@@ -18,7 +18,7 @@ class AppContainer(context: Context) {
     private val kindClient = KindClient(okhttp3.OkHttpClient.Builder().connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS).readTimeout(30, java.util.concurrent.TimeUnit.SECONDS).build())
     val repository = CorpRepository(api, kindClient)
     val updates = UpdateRepository(api, http)
-    val installer = UpdateInstaller(context, http)
+    val installer = UpdateInstaller(context)
     val pdf = PdfDownloader(context)
     val prefs = AppPrefs(context)
     /** 실시간 시세·호가(서버 WebSocket 중계). */

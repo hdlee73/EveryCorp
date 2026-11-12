@@ -16,8 +16,8 @@ android {
         applicationId = "io.github.hdlee73.everycorp"
         minSdk = 26
         targetSdk = 36
-        versionCode = 33
-        versionName = "1.12.0"
+        versionCode = 34
+        versionName = "1.12.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
@@ -37,6 +37,10 @@ android {
                 storePassword = env("ANDROID_KEYSTORE_PASSWORD")
                 keyAlias = env("ANDROID_KEY_ALIAS")
                 keyPassword = env("ANDROID_KEY_PASSWORD")
+                // minSdk 26 이라 v1(JAR) 서명은 필요 없다. v2 + v3(키 교체 대비) 서명.
+                enableV1Signing = false
+                enableV2Signing = true
+                enableV3Signing = true
             }
         }
     }

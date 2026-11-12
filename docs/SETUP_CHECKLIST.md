@@ -46,7 +46,7 @@ keytool -genkeypair -v -keystore everycorp-release.jks -alias everycorp -keyalg 
 1. Settings → Branches → `main` 보호 규칙: *Require a pull request before merging*, *Do not allow bypassing*.
 2. Settings → Actions → General → *Fork pull request workflows*: **Require approval for all outside collaborators**.
 3. Settings → Collaborators: 쓰기 권한은 본인만.
-→ 릴리스는 `main` push로만 만들어지고, 서명키는 Secrets에만 있어 포크는 같은 서명의 APK를 만들 수 없습니다. 앱도 설치 전에 서명·체크섬을 한 번 더 검사합니다.
+→ 릴리스는 `main` push로만 만들어지고, 서명키는 Secrets에만 있어 포크는 같은 서명의 APK를 만들 수 없습니다. 다른 서명의 APK는 안드로이드가 기존 앱 위에 설치하지 않습니다.
 
 ## 5. 서버 배포 (호스팅 확정 필요)
 키움 REST API가 서버 **고정 IP**를 요구해서, 고정 IP를 쓸 수 있는 소형 VM(예: AWS Lightsail 서울 + Static IP)을 추천합니다. 선택하시면 Docker 배포와 GitHub Actions(SSH 배포) 워크플로를 만들겠습니다. Cloud Run은 Cloud NAT+고정 IP 설정이 추가로 필요합니다.
