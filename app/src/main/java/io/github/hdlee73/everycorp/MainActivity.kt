@@ -50,6 +50,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.Leaderboard
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
@@ -106,6 +107,7 @@ private enum class MenuItem(val label: String, val summary: String, val icon: Im
     Favorites("관심", "관심기업 그룹 보기·비교·일괄 PDF", Icons.Filled.Star, Dest.Favorites, HeroPalettes.Rose),
     Screening("스크리닝", "조건에 맞는 회사 목록·엑셀 내보내기", Icons.Filled.FilterAlt, Dest.Screening, HeroPalettes.Indigo),
     Market("시장 랭킹", "거래량·상승률 순위 + 최근 공시 태그", Icons.Filled.Leaderboard, Dest.Market, HeroPalettes.Ocean),
+    Etf("ETF", "순자산·괴리율, 구성종목(PDF), 자사 ETF·순환투자·중복도", Icons.Filled.PieChart, Dest.EtfHome, HeroPalettes.Teal),
     Alerts("알림", "관심기업의 새 공시 확인", Icons.Filled.Notifications, Dest.Alerts, HeroPalettes.Coral),
     Info("앱 정보", "버전·만든이, 업데이트 확인·자동 업데이트·알림 설정", Icons.Filled.Info, Dest.Info, HeroPalettes.Slate);
 
@@ -215,6 +217,8 @@ private fun Root() {
                         is Dest.ScreeningResult -> ScreeningResultScreen(vm, d)
                         is Dest.Company -> CompanyScreen(vm, d)
                         is Dest.Etf -> EtfScreen(vm, d)
+                        Dest.EtfHome -> io.github.hdlee73.everycorp.ui.etf.EtfHomeScreen(vm)
+                        is Dest.EtfOverlap -> io.github.hdlee73.everycorp.ui.etf.EtfOverlapScreen(vm, d)
                     }
                 }
             }

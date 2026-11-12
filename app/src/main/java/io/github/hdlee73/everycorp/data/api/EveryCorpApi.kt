@@ -11,6 +11,9 @@ import io.github.hdlee73.everycorp.data.api.dto.CorpSearchResponse
 import io.github.hdlee73.everycorp.data.api.dto.DebtSecuritiesDto
 import io.github.hdlee73.everycorp.data.api.dto.DisclosuresResponse
 import io.github.hdlee73.everycorp.data.api.dto.EtfDetailDto
+import io.github.hdlee73.everycorp.data.api.dto.EtfOverlapDto
+import io.github.hdlee73.everycorp.data.api.dto.EtfPortfolioDto
+import io.github.hdlee73.everycorp.data.api.dto.EtfRelationsDto
 import io.github.hdlee73.everycorp.data.api.dto.EtfSearchResponse
 import io.github.hdlee73.everycorp.data.api.dto.NewsDto
 import io.github.hdlee73.everycorp.data.api.dto.IntradayDto
@@ -88,6 +91,15 @@ interface EveryCorpApi {
 
     @GET("api/v1/etfs/{code}")
     suspend fun etf(@Path("code") code: String): EtfDetailDto
+
+    @GET("api/v1/etfs/{code}/portfolio")
+    suspend fun etfPortfolio(@Path("code") code: String): EtfPortfolioDto
+
+    @GET("api/v1/etfs/{code}/relations")
+    suspend fun etfRelations(@Path("code") code: String): EtfRelationsDto
+
+    @GET("api/v1/etfs/overlap")
+    suspend fun etfOverlap(@Query("a") a: String, @Query("b") b: String): EtfOverlapDto
 
     @GET("api/v1/etfs/{code}/chart")
     suspend fun etfChart(@Path("code") code: String, @Query("days") days: Int = 365): ChartDto

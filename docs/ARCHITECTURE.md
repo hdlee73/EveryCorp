@@ -139,7 +139,7 @@ FSS Insights는 공개 시험 키(레포에 커밋된 keystore)로 서명하고 
 1. **서명키는 Secrets에만**: 릴리스 APK는 `ANDROID_KEYSTORE_BASE64`로만 서명. 키가 없는 사람이 만든 APK는 서명이 달라 안드로이드가 기존 앱 위 설치(업데이트)를 거부한다.
 2. **포크·PR에는 Secrets가 전달되지 않음**: GitHub는 포크에서 온 PR 워크플로에 Secrets를 주지 않는다. 릴리스 작업은 `main` push(쓰기 권한자만 가능)일 때만 실행.
 3. **업데이트 출처 고정**: 앱은 `api.github.com/repos/hdlee73/EveryCorp/releases/latest`만 본다. 릴리스는 레포 쓰기 권한자만 만들 수 있다.
-4. **설치는 OS가 서명으로 검증**: v1.12.1부터 앱은 `REQUEST_INSTALL_PACKAGES` 권한 없이 릴리스 APK 주소(https만)를 브라우저로 연다. 서명이 다른 APK는 안드로이드가 업데이트 설치를 거부한다. 앱이 직접 APK를 받아 설치하는 방식은 Play 프로텍트가 위험 신호로 보는 패턴이라 뺐다(docs/PLAY_PROTECT.md).
+4. **설치는 OS가 서명으로 검증**: v1.13.1부터 앱은 `REQUEST_INSTALL_PACKAGES` 권한 없이 릴리스 APK 주소(https만)를 브라우저로 연다. 서명이 다른 APK는 안드로이드가 업데이트 설치를 거부한다. 앱이 직접 APK를 받아 설치하는 방식은 Play 프로텍트가 위험 신호로 보는 패턴이라 뺐다(docs/PLAY_PROTECT.md).
 5. **브랜치 보호(권장)**: `main`에 PR 필수·직접 push 금지 설정.
 
 ### 3.3 앱 정보 · 업데이트

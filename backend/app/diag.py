@@ -5,6 +5,7 @@
       docker compose exec api python -m app.diag <corp_code> <stock_code> --holder   (비상장: 감사보고서 주석 탐색)
       docker compose exec api python -m app.diag 00126380 005930 --etf              (키움 ETF TR 후보)
       docker compose exec api python -m app.diag 00126380 005930 --market           (키움 차트·호가·수급·랭킹 응답 필드 확인)
+      docker compose exec api python -m app.diag --etf-pdf [ETF코드]                  (ETF 순자산·운용사·구성종목 원천과 매칭 결과만)
 """
 from __future__ import annotations
 
@@ -266,8 +267,94 @@ async def diag_kiwoom_market(stock: str) -> None:
             print(f"랭킹 {kind} 실패:", type(e).__name__, e)
 
 
+def _show(title: str, data) -> None:
+    if not isinstance(data, dict):
+        print(f"{title}: dict 아님 {type(data).__name__}")
+        return
+    keys = {k: (v if not isinstance(v, list) else f"list[{len(v)}]") for k, v in data.items()}
+    print(f"{title} 키:", snippet(str(keys), 400))
+    for k, v in data.items():
+        if isinstance(v, list) and v:
+            print(f"   {k} 첫 행:", snippet(str(v[0]), 700))
+
+
+async def diag_etf_pdf(code: str) -> None:
+    """ETF 기초자료·구성종목 원천별 실제 응답과, 매칭 보정 결과(미매칭 목록)를 보여 준다."""
+    from .parsers import etf_pdf as xp
+    from .services import corp_index as ci
+    from .services import etf_portfolio_service as ps
+
+    await ci.ensure_loaded()
+    head(f"ETF 원천 확인 ({code})")
+    day = ps._recent_business_days(2)
+    tries = [
+        ("KRX 기본정보 MDCSTAT04601", {"bld": "dbms/MDC/STAT/standard/MDCSTAT04601", "share": "1"}),
+        ("KRX 전종목시세 MDCSTAT04301", {"bld": "dbms/MDC/STAT/standard/MDCSTAT04301", "trdDd": day[0], "share": "1", "money": "1"}),
+        ("KRX PDF MDCSTAT05001", {"bld": "dbms/MDC/STAT/standard/MDCSTAT05001", "trdDd": day[0], "isuCd": xp.kr_isin(code), "share": "1", "money": "1"}),
+    ]
+    for title, form in tries:
+        try:
+            _show(title, await ps._krx_data(form))
+        except Exception as e:  # noqa: BLE001
+            print(f"{title} 실패:", type(e).__name__, e)
+    if ps.krx_enabled():
+        for d in day:
+            try:
+                s = get_settings()
+                r = await get_client().get(f"{s.krx_base_url}/etp/etf_bydd_trd", params={"basDd": d}, headers={"AUTH_KEY": s.krx_auth_key})
+                print(f"KRX Open API etf_bydd_trd {d}: HTTP {r.status_code}")
+                if r.status_code == 200:
+                    _show("   응답", r.json())
+                    break
+                print("   ", snippet(r.text, 200))
+            except Exception as e:  # noqa: BLE001
+                print("KRX Open API 실패:", type(e).__name__, e)
+    else:
+        print("KRX Open API 키 없음(KRX_AUTH_KEY)")
+    try:
+        _show("네이버 etfAnalysis", await ps._naver(code))
+    except Exception as e:  # noqa: BLE001
+        print("네이버 실패:", type(e).__name__, e)
+    from .services import kiwoom_client as kw
+    if kw.kiwoom_enabled():
+        try:
+            data, _ = await kw._post("/api/dostk/etf", "ka40002", {"stk_cd": code})
+            _show("키움 ka40002(종목정보, 순자산·좌수 필드 유무 확인)", data)
+        except Exception as e:  # noqa: BLE001
+            print("ka40002 실패:", type(e).__name__, e)
+
+    head("가공 결과")
+    try:
+        b = await ps.get_basics(code)
+        print("기초자료:", {k: v for k, v in b.items() if k != "checks"})
+        for c in b["checks"]:
+            print("  대조:", c)
+    except Exception as e:  # noqa: BLE001
+        print("기초자료 실패:", type(e).__name__, e)
+    try:
+        p = await ps.get_portfolio(code)
+        print(f"구성종목 {p['count']}개 · 비중합 {p['total_weight']}% · 출처 {p['source']} · 기준일 {p['date']} · 미매칭 {p['unmatched_count']}")
+        print("종류별:", p["by_kind"])
+        for h in p["holdings"][:8]:
+            print("  ", h)
+        for h in [h for h in p["holdings"] if h["kind"] == "UNMATCHED"][:15]:
+            print("  미매칭:", h)
+    except Exception as e:  # noqa: BLE001
+        print("구성종목 실패:", type(e).__name__, e)
+    try:
+        r = await ps.get_relations(code)
+        print("자사/타사 ETF 비중:", r["etf_holdings"]["own_weight"], r["etf_holdings"]["other_weight"], "운용사", r["manager"])
+        print("순환:", r["cycles"][:3], "상호보유:", r["mutual"], "저장소:", r["coverage"])
+    except Exception as e:  # noqa: BLE001
+        print("관련성 실패:", type(e).__name__, e)
+
+
 async def main() -> None:
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    if "--etf-pdf" in sys.argv:
+        await diag_etf_pdf(args[0] if args else ETF_CODE)
+        head("끝")
+        return
     corp_code = args[0] if len(args) > 0 else "00126380"
     stock = args[1] if len(args) > 1 else "005930"
     name = "삼성전자" if corp_code == "00126380" else ""

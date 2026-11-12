@@ -436,6 +436,8 @@ data class EtfDetailDto(
     @SerialName("par_value") val parValue: Long? = null,
     val quote: QuoteDto? = null,
     val daily: List<EtfDailyDto> = emptyList(),
+    /** KRX 기초자료(순자산·상장좌수·운용사·총보수)와 키움 대조. 서버가 못 받으면 null. */
+    val basics: EtfBasicsDto? = null,
     val source: String = "",
 )
 

@@ -7,9 +7,9 @@
 
 | 점검 항목 | 상태 |
 |---|---|
-| 서명 | GitHub Secrets의 고정 릴리스 키로 서명(debug 키 아님). v1.0.0과 v1.12.0 인증서 SHA-256 동일 확인. v1.12.1부터 v2+v3 서명 |
+| 서명 | GitHub Secrets의 고정 릴리스 키로 서명(debug 키 아님). v1.0.0과 v1.12.0 인증서 SHA-256 동일 확인. v1.13.1부터 v2+v3 서명 |
 | targetSdk / minSdk | 36 / 26. "앱 호환성 낮음" 경고는 targetSdk가 기기 API보다 2단계 이상 낮을 때만 뜬다 |
-| 위험 신호 권한 | 문자(SMS)·알림 접근·접근성 권한 없음. `REQUEST_INSTALL_PACKAGES`(다른 앱 설치 요청)는 v1.12.1에서 제거 |
+| 위험 신호 권한 | 문자(SMS)·알림 접근·접근성 권한 없음. `REQUEST_INSTALL_PACKAGES`(다른 앱 설치 요청)는 v1.13.1에서 제거 |
 | 자동 업데이트 | 앱이 APK를 직접 받아 설치하지 않고 브라우저로 릴리스 APK(https만)를 연다. 서명이 다른 APK는 OS가 업데이트를 거부 |
 | R8 | 기본 `proguard-android-optimize` 축소만 사용. 추가 난독화 도구 없음 |
 

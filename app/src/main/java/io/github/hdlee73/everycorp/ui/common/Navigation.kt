@@ -13,6 +13,13 @@ enum class CompanyTab(val label: String) {
     News("뉴스"),
 }
 
+/** ETF 화면 탭. */
+enum class EtfTab(val label: String) {
+    Basics("기초자료"),
+    Portfolio("구성종목(PDF)"),
+    Relations("ETF 관련성"),
+}
+
 /** 스크리닝 종류. */
 enum class ScreeningKind(val label: String) {
     Audit("감사의견 비적정"),
@@ -35,8 +42,16 @@ sealed interface Dest {
     /** 스크리닝 결과 표. [reprt]는 DART 보고서 코드(자본잠식만 사업/반기/분기 선택). */
     data class ScreeningResult(val kind: ScreeningKind, val year: Int, val reprt: String = "11011") : Dest
 
-    /** ETF 상세(탭 없는 한 화면). */
-    data class Etf(val item: EtfItemDto) : Dest
+    /** ETF 메뉴 첫 화면: ETF 검색과 두 ETF 비교 고르기. */
+    data object EtfHome : Dest
+
+    /** ETF 상세. [tabs]는 방문한 탭 기록(맨 뒤가 현재 탭). 뒤로가기는 직전 탭으로 돌아간다. */
+    data class Etf(val item: EtfItemDto, val tabs: List<EtfTab> = listOf(EtfTab.Basics)) : Dest {
+        val current: EtfTab get() = tabs.last()
+    }
+
+    /** 두 ETF 구성종목 중복도. */
+    data class EtfOverlap(val a: EtfItemDto, val b: EtfItemDto) : Dest
 
     /** [tabs]는 이 기업 화면 안에서 방문한 탭 기록(맨 뒤가 현재 탭). 뒤로가기는 직전 탭으로 돌아간다. */
     data class Company(val corp: CorpItemDto, val tabs: List<CompanyTab> = listOf(CompanyTab.Overview)) : Dest {
@@ -68,7 +83,17 @@ data class NavState(val stack: List<Dest> = listOf(Dest.Home)) {
     fun openScreeningPage(kind: ScreeningKind, year: Int): NavState =
         NavState(listOf(Dest.Home, Dest.Screening, Dest.ScreeningResult(kind, year)))
 
-    fun openEtf(item: EtfItemDto): NavState = copy(stack = stack + Dest.Etf(item))
+    fun openEtf(item: EtfItemDto, tab: EtfTab = EtfTab.Basics): NavState =
+        copy(stack = stack + Dest.Etf(item, if (tab == EtfTab.Basics) listOf(EtfTab.Basics) else listOf(EtfTab.Basics, tab)))
+
+    fun openEtfOverlap(a: EtfItemDto, b: EtfItemDto): NavState = copy(stack = stack + Dest.EtfOverlap(a, b))
+
+    fun selectEtfTab(tab: EtfTab): NavState {
+        val t = top as? Dest.Etf ?: return this
+        if (t.current == tab) return this
+        val tabs = t.tabs.filterNot { it == tab } + tab
+        return copy(stack = stack.dropLast(1) + t.copy(tabs = tabs))
+    }
 
     fun openInfo(): NavState = if (top == Dest.Info) this else copy(stack = stack + Dest.Info)
 
@@ -83,6 +108,7 @@ data class NavState(val stack: List<Dest> = listOf(Dest.Home)) {
     fun back(): NavState? {
         val t = top
         if (t is Dest.Company && t.tabs.size > 1) return copy(stack = stack.dropLast(1) + t.copy(tabs = t.tabs.dropLast(1)))
+        if (t is Dest.Etf && t.tabs.size > 1) return copy(stack = stack.dropLast(1) + t.copy(tabs = t.tabs.dropLast(1)))
         if (stack.size > 1) return copy(stack = stack.dropLast(1))
         return null
     }
