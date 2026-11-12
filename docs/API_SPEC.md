@@ -439,7 +439,7 @@ DART 정기보고서의 증권 미상환 잔액(회사채·기업어음증권(CP
 |---|---|---|---|
 | `GET /corps/{corp_code}/stock/candles?period=m1\|m5\|m15\|m30\|m60\|D\|W\|M&count=` | ka10080·ka10081·ka10082·ka10083 | `candles[]` = `{t,o,h,l,c,v}` 오름차순(수정주가). 키움이 없으면 D/W/M은 공공데이터포털·네이버 일봉(W/M은 묶어서 계산), 분봉은 503 | 분 20~120초, 일 10분, 주 30분, 월 1시간 |
 | `GET /corps/{corp_code}/stock/orderbook` | ka10004 | `asks[]`·`bids[]`(1~10호가 `{price,qty}`), `total_ask`, `total_bid`, `time` | 2초 |
-| `GET /corps/{corp_code}/stock/flows?days=20` | ka10059·ka90013·ka10014·ka10013 | `investors[]`(개인·외국인·기관 등 순매수 주), `program[]`(순매수 백만원), `short[]`(공매도량·비중·평균가), `credit[]`(신용융자 신규·상환·잔고·잔고율), `summary.d5/d20` 누적, 일부 실패 시 `warnings[]` | 10분 |
+| `GET /corps/{corp_code}/stock/flows?days=20` | ka10059·ka90013·ka10014·ka10013 | `investors[]`(개인·외국인·기관 등 순매수 주), `program[]`(순매수 백만원), `short[]`(공매도량·비중·평균가, `short_amt` 천원), `credit[]`(신용융자 신규·상환·잔고(주)·`amount` 백만원·잔고율), `summary.d5/d20` 누적, 일부 실패 시 `warnings[]` | 10분 |
 | `GET /market/rankings?kind=volume\|value\|rise\|fall&market=all\|kospi\|kosdaq&limit=50&tags=true&days=3` | ka10030·ka10027 | 순위(ETF·ETN 제외) + DART 최근 `days`일 전체 공시(list.json, 15분 캐시)에서 종목별 `tags[]`(유상증자·CB·공급계약·실적·자사주·지분변동 등)·`disclosures[]`(최신 3건) | 30초 |
 | `WS /api/v1/realtime` | WebSocket 0B(체결)·0D(호가) | 앱 → `{"action":"subscribe","codes":["005930"]}`(연결당 5종목). 서버 → `status{mode: kiwoom\|polling}`, `trade{price,change,change_rate,direction,acc_volume,strength,time}`, `orderbook{asks,bids,total_ask,total_bid,time}`. 키움 키가 없거나 연결이 계속 실패하면 3초 간격 현재가 폴링으로 `trade`만 보낸다. 헤더 `X-App-Token` 검사(틀리면 4401로 닫음) | - |
 

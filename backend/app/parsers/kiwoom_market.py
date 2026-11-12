@@ -1,6 +1,7 @@
 """키움 REST API 시장 데이터 파서(순수 함수). 계좌·주문 응답은 다루지 않는다.
 
-필드명 근거(공식 명세 대조 필요 — 키움은 예고 없이 바꿀 수 있다):
+필드명 근거: 2026-11-12 실서버(app.diag --market)로 ka10080·82·83·04·59·90013·14·13·랭킹 응답 키를 확인했다.
+키움은 예고 없이 바꿀 수 있으니 이상하면 diag 로 다시 확인한다.
 - 차트 ka10079~ka10083: 목록 키 stk_tic_chart_qry / stk_min_pole_chart_qry / stk_dt_pole_chart_qry /
   stk_stk_pole_chart_qry / stk_mth_pole_chart_qry, 행 dt|cntr_tm, cur_prc, open_pric, high_pric, low_pric, trde_qty.
   분봉 가격에는 방향 부호(+/-)가 붙어 오므로 절댓값을 쓴다.
@@ -28,6 +29,10 @@ def num(v, absolute: bool = False) -> float | None:
         x = float(v)
     else:
         s = _NUM.sub("", str(v).strip())
+        # 키움은 음수 증감에 '--110946'처럼 부호를 겹쳐 보내기도 한다(ka90013 *_irds). 앞쪽 부호를 하나로 줄인다.
+        m = re.match(r"^([+\-]+)(.*)$", s)
+        if m:
+            s = ("-" if "-" in m.group(1) else "") + m.group(2)
         if s in ("", "+", "-", ".", "+.", "-."):
             return None
         try:
@@ -134,10 +139,15 @@ def parse_orderbook(data: dict) -> dict:
     """ka10004 → {asks:[{price,qty}] 1호가부터, bids:[...], total_ask, total_bid, time}."""
     asks, bids = [], []
     for n in range(1, 11):
-        sp = "sel_fpr_bid" if n == 1 else f"sel_{n}th_pre_bid"
-        sq = "sel_fpr_req" if n == 1 else f"sel_{n}th_pre_req"
-        bp = "buy_fpr_bid" if n == 1 else f"buy_{n}th_pre_bid"
-        bq = "buy_fpr_req" if n == 1 else f"buy_{n}th_pre_req"
+        if n == 1:  # 1호가 키는 sel_fpr_* 이고, 일부 응답은 sel_1th_pre_* 로 온다
+            sp, sq, bp, bq = "sel_fpr_bid", "sel_fpr_req", "buy_fpr_bid", "buy_fpr_req"
+            if data.get(sp) in (None, ""):
+                sp, sq = "sel_1th_pre_bid", "sel_1th_pre_req"
+            if data.get(bp) in (None, ""):
+                bp, bq = "buy_1th_pre_bid", "buy_1th_pre_req"
+        else:
+            sp, sq = f"sel_{n}th_pre_bid", f"sel_{n}th_pre_req"
+            bp, bq = f"buy_{n}th_pre_bid", f"buy_{n}th_pre_req"
         a, b = inum(data.get(sp), True), inum(data.get(bp), True)
         if a:
             asks.append({"price": a, "qty": inum(data.get(sq), True) or 0})
@@ -147,8 +157,9 @@ def parse_orderbook(data: dict) -> dict:
     return {
         "asks": asks,
         "bids": bids,
-        "total_ask": inum(data.get("tot_sel_req"), True),
-        "total_bid": inum(data.get("tot_buy_req"), True),
+        # 총잔량 키가 없으면 받은 호가 잔량 합으로 대신한다
+        "total_ask": inum(data.get("tot_sel_req"), True) if data.get("tot_sel_req") not in (None, "") else (sum(x["qty"] for x in asks) if asks else None),
+        "total_bid": inum(data.get("tot_buy_req"), True) if data.get("tot_buy_req") not in (None, "") else (sum(x["qty"] for x in bids) if bids else None),
         "time": f"{tm[:2]}:{tm[2:4]}:{tm[4:6]}" if len(tm) >= 6 and tm[:6].isdigit() else None,
     }
 
@@ -171,6 +182,14 @@ INVESTOR_FIELDS = {
 }
 
 
+def _rate_x100(v) -> float | None:
+    """ka10059 의 flu_rt 는 소수점 없이 100배 값으로 온다('+97' = 0.97%). 소수점이 있으면 그대로 쓴다."""
+    x = num(v)
+    if x is None or "." in str(v):
+        return x
+    return x / 100
+
+
 def parse_investors(data: dict) -> list[dict]:
     """ka10059 순매수(수량, 단주) → [{date, close, change_rate, individual, foreign, institution, ...}] 최신순."""
     out = []
@@ -178,7 +197,7 @@ def parse_investors(data: dict) -> list[dict]:
         d = _date(r.get("dt"))
         if not d:
             continue
-        row = {"date": d, "close": inum(r.get("cur_prc"), True), "change_rate": num(r.get("flu_rt")),
+        row = {"date": d, "close": inum(r.get("cur_prc"), True), "change_rate": _rate_x100(r.get("flu_rt")),
                "volume": inum(r.get("acc_trde_qty"), True)}
         for k, f in INVESTOR_FIELDS.items():
             row[k] = inum(r.get(f))
@@ -200,7 +219,8 @@ def parse_program(data: dict) -> list[dict]:
 
 
 def parse_short(data: dict) -> list[dict]:
-    """ka10014 → [{date, close, volume, short_qty, short_ratio(%), short_amt, short_avg_price}] 최신순."""
+    """ka10014 → [{date, close, volume, short_qty, short_ratio(%), short_amt(천원), short_avg_price}] 최신순.
+    실서버 확인(2026-11-12): shrts_trde_prica 113031339 = 564,013주 × 200,406원 ÷ 1000 → 천원 단위."""
     out = []
     for r in data.get("shrts_trnsn") or []:
         d = _date(r.get("dt"))
@@ -214,7 +234,7 @@ def parse_short(data: dict) -> list[dict]:
 
 
 def parse_credit(data: dict) -> list[dict]:
-    """ka10013(융자) → [{date, new, repay, balance, balance_rate(%), supply_rate(%)}] 최신순."""
+    """ka10013(융자) → [{date, new, repay, balance(주), amount(백만원), balance_rate(%), supply_rate(%)}] 최신순."""
     out = []
     for r in data.get("crd_trde_trend") or []:
         d = _date(r.get("dt"))
