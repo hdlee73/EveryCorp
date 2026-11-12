@@ -5,13 +5,19 @@ import hmac
 from urllib.parse import quote
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Header, Query
+import asyncio
+import itertools
+import json
+import logging
+
+from fastapi import APIRouter, Depends, Header, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import Response, StreamingResponse
 
 from ..config import get_settings
 from ..errors import ApiError, UpstreamError
 from ..http import get_client
 from ..parsers import dart_viewer as dv
+from ..services import market_data_service, realtime_service
 from ..services import app_meta, company_service, debt_service, disclosures_service, etf_service, market_service, news_service, price_service, reports_service, screening_export, screening_service, shareholders_service, stake_service
 from ..services.corp_index import corp_index
 
@@ -247,3 +253,84 @@ async def stock_intraday(corp_code: str) -> dict:
 async def stock_chart(corp_code: str, days: int = Query(365, ge=30, le=1100)) -> dict:
     _corp_or_404(corp_code)
     return await price_service.get_chart(corp_code, days)
+
+
+# ───────── 키움 시장 데이터(조회 전용: 차트·호가·수급·랭킹) ─────────
+
+@router.get("/corps/{corp_code}/stock/candles")
+async def stock_candles(corp_code: str, period: Literal["m1", "m5", "m15", "m30", "m60", "D", "W", "M"] = "D",
+                        count: int | None = Query(None, ge=30, le=600)) -> dict:
+    _corp_or_404(corp_code)
+    return await market_data_service.get_candles(corp_code, period, count)
+
+
+@router.get("/corps/{corp_code}/stock/orderbook")
+async def stock_orderbook(corp_code: str) -> dict:
+    _corp_or_404(corp_code)
+    return await market_data_service.get_orderbook(corp_code)
+
+
+@router.get("/corps/{corp_code}/stock/flows")
+async def stock_flows(corp_code: str, days: int = Query(20, ge=5, le=60)) -> dict:
+    _corp_or_404(corp_code)
+    return await market_data_service.get_flows(corp_code, days)
+
+
+@router.get("/market/rankings")
+async def market_rankings(kind: Literal["volume", "value", "rise", "fall"] = "volume",
+                          market: Literal["all", "kospi", "kosdaq"] = "all",
+                          limit: int = Query(50, ge=10, le=100), tags: bool = True,
+                          days: int = Query(3, ge=1, le=7)) -> dict:
+    return await market_data_service.get_rankings(kind, market, limit, tags, days)
+
+
+_ws_ids = itertools.count(1)
+_ws_log = logging.getLogger("realtime.ws")
+
+
+@public.websocket("/realtime")
+async def realtime_ws(ws: WebSocket) -> None:
+    """앱 ↔ 서버 실시간 시세. 앱이 보내는 메시지: {"action":"subscribe"|"unsubscribe","codes":["005930"]}.
+    서버가 보내는 메시지: {"type":"status"|"trade"|"orderbook"|"subscribed"|"error", ...}. 시세·호가 외 정보는 다루지 않는다."""
+    expected = get_settings().app_token
+    if expected and not hmac.compare_digest(ws.headers.get("x-app-token", ""), expected):
+        await ws.close(code=4401)
+        return
+    await ws.accept()
+    cid = next(_ws_ids)
+    send_lock = asyncio.Lock()
+
+    async def send(msg: dict) -> None:
+        async with send_lock:
+            await asyncio.wait_for(ws.send_text(json.dumps(msg, ensure_ascii=False)), timeout=5)
+
+    hub = realtime_service.hub
+    await hub.add_client(cid, send)
+    try:
+        while True:
+            raw = await ws.receive_text()
+            if len(raw) > 2000:
+                continue
+            try:
+                msg = json.loads(raw)
+                action = msg.get("action")
+                codes = [str(c)[:12] for c in (msg.get("codes") or [])][:10]
+            except (ValueError, AttributeError, TypeError):
+                await send({"type": "error", "message": "잘못된 메시지"})
+                continue
+            if action == "subscribe":
+                now = await hub.subscribe(cid, codes)
+            elif action == "unsubscribe":
+                now = await hub.unsubscribe(cid, codes)
+            elif action == "ping":
+                await send({"type": "pong"})
+                continue
+            else:
+                continue
+            await send({"type": "subscribed", "codes": now, "max": realtime_service.MAX_CODES_PER_CLIENT})
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:  # noqa: BLE001
+        _ws_log.info("realtime ws closed: %s", type(e).__name__)
+    finally:
+        await hub.remove_client(cid)

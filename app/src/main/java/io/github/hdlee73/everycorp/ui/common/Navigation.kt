@@ -8,6 +8,7 @@ enum class CompanyTab(val label: String) {
     Reports("감사보고서"),
     Disclosures("공시"),
     Stock("주가현황"),
+    Flows("수급"),
     Debt("채권 등 발행잔액"),
     News("뉴스"),
 }
@@ -25,6 +26,8 @@ sealed interface Dest {
     data object Favorites : Dest
     data object Screening : Dest
     data object Alerts : Dest
+    /** 시장 랭킹(거래량·상승률 등) + 최근 공시 태그 스크리너. */
+    data object Market : Dest
 
     /** 관심기업 2~4곳 비교표. */
     data class Compare(val corps: List<CorpItemDto>) : Dest

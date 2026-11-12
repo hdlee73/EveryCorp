@@ -4,6 +4,7 @@
       docker compose exec api python -m app.diag 00126380 005930
       docker compose exec api python -m app.diag <corp_code> <stock_code> --holder   (비상장: 감사보고서 주석 탐색)
       docker compose exec api python -m app.diag 00126380 005930 --etf              (키움 ETF TR 후보)
+      docker compose exec api python -m app.diag 00126380 005930 --market           (키움 차트·호가·수급·랭킹 응답 필드 확인)
 """
 from __future__ import annotations
 
@@ -227,6 +228,44 @@ async def diag_kiwoom_etf() -> None:
             print(f"{api_id} 실패:", type(e).__name__, e)
 
 
+async def diag_kiwoom_market(stock: str) -> None:
+    """새 시장 데이터 TR 들이 실제로 어떤 키를 주는지 확인(계좌 TR 은 허용 목록에 없어 호출되지 않음)."""
+    head(f"키움 시장 데이터 TR ({stock})")
+    from .services import kiwoom_client as kw
+
+    if not kw.kiwoom_enabled():
+        print("키움 키 없음")
+        return
+    today = date.today().strftime("%Y%m%d")
+    tries = [
+        ("/api/dostk/chart", "ka10080", {"stk_cd": stock, "tic_scope": "5", "upd_stkpc_tp": "1"}),
+        ("/api/dostk/chart", "ka10082", {"stk_cd": stock, "base_dt": today, "upd_stkpc_tp": "1"}),
+        ("/api/dostk/chart", "ka10083", {"stk_cd": stock, "base_dt": today, "upd_stkpc_tp": "1"}),
+        ("/api/dostk/mrkcond", "ka10004", {"stk_cd": stock}),
+        ("/api/dostk/stkinfo", "ka10059", {"dt": today, "stk_cd": stock, "amt_qty_tp": "2", "trde_tp": "0", "unit_tp": "1"}),
+        ("/api/dostk/mrkcond", "ka90013", {"amt_qty_tp": "1", "stk_cd": stock, "date": today}),
+        ("/api/dostk/shsa", "ka10014", {"stk_cd": stock, "tm_tp": "1", "strt_dt": (date.today() - timedelta(days=30)).strftime("%Y%m%d"), "end_dt": today}),
+        ("/api/dostk/stkinfo", "ka10013", {"stk_cd": stock, "dt": today, "qry_tp": "1"}),
+    ]
+    for path, api_id, body in tries:
+        try:
+            data, headers = await kw._post(path, api_id, body)
+            keys = {k: (v if not isinstance(v, list) else f"list[{len(v)}]") for k, v in data.items()}
+            print(f"{api_id}: return_code={data.get('return_code')} msg={str(data.get('return_msg'))[:80]} cont-yn={headers.get('cont-yn')}")
+            print("   키:", snippet(str(keys), 500))
+            for k, v in data.items():
+                if isinstance(v, list) and v:
+                    print("   첫 행:", snippet(str(v[0]), 600))
+        except Exception as e:  # noqa: BLE001
+            print(f"{api_id} 실패:", type(e).__name__, e)
+    for kind in ("volume", "rise"):
+        try:
+            rows = await kw.ranking(kind, "all")
+            print(f"랭킹 {kind}: {len(rows)}건, 첫 행 {rows[0] if rows else '-'}")
+        except Exception as e:  # noqa: BLE001
+            print(f"랭킹 {kind} 실패:", type(e).__name__, e)
+
+
 async def main() -> None:
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     corp_code = args[0] if len(args) > 0 else "00126380"
@@ -240,6 +279,8 @@ async def main() -> None:
         await diag_holder_note(corp_code)
     if "--etf" in sys.argv:
         await diag_kiwoom_etf()
+    if "--market" in sys.argv:
+        await diag_kiwoom_market(stock)
     head("끝")
 
 

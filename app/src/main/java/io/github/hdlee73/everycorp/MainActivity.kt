@@ -48,6 +48,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FilterAlt
+import androidx.compose.material.icons.filled.Leaderboard
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
@@ -101,9 +102,10 @@ class MainActivity : ComponentActivity() {
 
 /** 왼쪽 서랍 메뉴 항목과 한 줄 기능 요약. */
 private enum class MenuItem(val label: String, val summary: String, val icon: ImageVector, val dest: Dest, val palette: HeroPalette) {
-    Search("기업 검색", "기업·ETF 개황, 감사보고서, 공시, 주가, 채권, 뉴스", Icons.Filled.Search, Dest.Home, HeroPalettes.Sky),
+    Search("기업 검색", "기업·ETF 개황, 감사보고서, 공시, 주가·호가·수급, 채권, 뉴스", Icons.Filled.Search, Dest.Home, HeroPalettes.Sky),
     Favorites("관심", "관심기업 그룹 보기·비교·일괄 PDF", Icons.Filled.Star, Dest.Favorites, HeroPalettes.Rose),
     Screening("스크리닝", "조건에 맞는 회사 목록·엑셀 내보내기", Icons.Filled.FilterAlt, Dest.Screening, HeroPalettes.Indigo),
+    Market("시장 랭킹", "거래량·상승률 순위 + 최근 공시 태그", Icons.Filled.Leaderboard, Dest.Market, HeroPalettes.Ocean),
     Alerts("알림", "관심기업의 새 공시 확인", Icons.Filled.Notifications, Dest.Alerts, HeroPalettes.Coral),
     Info("앱 정보", "버전·만든이, 업데이트 확인·자동 업데이트·알림 설정", Icons.Filled.Info, Dest.Info, HeroPalettes.Slate);
 
@@ -208,6 +210,7 @@ private fun Root() {
                         Dest.Favorites -> FavoritesScreen(vm)
                         Dest.Screening -> ScreeningScreen(vm)
                         Dest.Alerts -> AlertsScreen(vm)
+                        Dest.Market -> io.github.hdlee73.everycorp.ui.market.MarketScreen(vm)
                         is Dest.Compare -> CompareScreen(vm, d)
                         is Dest.ScreeningResult -> ScreeningResultScreen(vm, d)
                         is Dest.Company -> CompanyScreen(vm, d)

@@ -134,7 +134,7 @@ fun PriceLineChart(points: List<ChartPointDto>, high: Long?, low: Long?, lineCol
 }
 
 /** 꼭짓점 5개짜리 별. [r]은 바깥 반지름. */
-private fun starPath(c: Offset, r: Float): Path = Path().apply {
+internal fun starPath(c: Offset, r: Float): Path = Path().apply {
     for (k in 0 until 10) {
         val rad = if (k % 2 == 0) r else r * 0.45f
         val a = -Math.PI / 2 + k * Math.PI / 5

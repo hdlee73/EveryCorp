@@ -430,3 +430,19 @@ DART 정기보고서의 증권 미상환 잔액(회사채·기업어음증권(CP
 ## v1.0.7 추가 사항
 
 - `GET /corps/{corp_code}/shareholders`: DART 최대주주 데이터가 없는 법인은 단독 감사보고서 주석의 주주현황 표에서 추출해 `available: true, estimated: true`로 내려준다(추출 실패 시 기존처럼 `available: false`). `overview.largest_shareholder`도 같은 방식이며 `estimated`가 true다.
+
+## v1.12.0 추가 사항 (키움 REST API, 조회 전용)
+
+키움은 시세·차트·호가·수급·순위 TR만 호출한다(`kiwoom_client.ALLOWED_API_IDS`). 계좌·잔고·주문(kt*) TR은 코드에서 차단되어 계좌 정보는 서버를 지나가지 않는다. 키움 앱키·토큰은 서버에만 있다(키움이 앱키에 등록한 고정 IP에서만 호출을 받기 때문, 오류 8010).
+
+| 엔드포인트 | 키움 TR | 내용 | 캐시 |
+|---|---|---|---|
+| `GET /corps/{corp_code}/stock/candles?period=m1\|m5\|m15\|m30\|m60\|D\|W\|M&count=` | ka10080·ka10081·ka10082·ka10083 | `candles[]` = `{t,o,h,l,c,v}` 오름차순(수정주가). 키움이 없으면 D/W/M은 공공데이터포털·네이버 일봉(W/M은 묶어서 계산), 분봉은 503 | 분 20~120초, 일 10분, 주 30분, 월 1시간 |
+| `GET /corps/{corp_code}/stock/orderbook` | ka10004 | `asks[]`·`bids[]`(1~10호가 `{price,qty}`), `total_ask`, `total_bid`, `time` | 2초 |
+| `GET /corps/{corp_code}/stock/flows?days=20` | ka10059·ka90013·ka10014·ka10013 | `investors[]`(개인·외국인·기관 등 순매수 주), `program[]`(순매수 백만원), `short[]`(공매도량·비중·평균가), `credit[]`(신용융자 신규·상환·잔고·잔고율), `summary.d5/d20` 누적, 일부 실패 시 `warnings[]` | 10분 |
+| `GET /market/rankings?kind=volume\|value\|rise\|fall&market=all\|kospi\|kosdaq&limit=50&tags=true&days=3` | ka10030·ka10027 | 순위(ETF·ETN 제외) + DART 최근 `days`일 전체 공시(list.json, 15분 캐시)에서 종목별 `tags[]`(유상증자·CB·공급계약·실적·자사주·지분변동 등)·`disclosures[]`(최신 3건) | 30초 |
+| `WS /api/v1/realtime` | WebSocket 0B(체결)·0D(호가) | 앱 → `{"action":"subscribe","codes":["005930"]}`(연결당 5종목). 서버 → `status{mode: kiwoom\|polling}`, `trade{price,change,change_rate,direction,acc_volume,strength,time}`, `orderbook{asks,bids,total_ask,total_bid,time}`. 키움 키가 없거나 연결이 계속 실패하면 3초 간격 현재가 폴링으로 `trade`만 보낸다. 헤더 `X-App-Token` 검사(틀리면 4401로 닫음) | - |
+
+호출 제한: 요청 사이 0.25초 이상 간격(전역), HTTP 429 또는 return_code 5(1700)이면 1초·2.5초 쉬고 최대 2번 재시도. 토큰 만료(return_code 3, 8005)면 재발급 후 1번 재시도. 실시간 연결은 서버에 하나만 열고(종목별 참조 수로 REG/REMOVE), 키움 PING은 그대로 돌려보내며, 끊기면 1→30초 백오프로 다시 LOGIN·REG 한다.
+
+필드명은 공개 해설·오픈소스 클라이언트 기준이라 실서버로 확인이 필요하다: `docker compose exec api python -m app.diag 00126380 005930 --market`.
