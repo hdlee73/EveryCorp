@@ -17,6 +17,9 @@ import io.github.hdlee73.everycorp.data.api.dto.OverviewDto
 import io.github.hdlee73.everycorp.data.api.dto.DisclosureDto
 import io.github.hdlee73.everycorp.data.api.dto.QuoteDto
 import io.github.hdlee73.everycorp.data.api.dto.EtfDetailDto
+import io.github.hdlee73.everycorp.data.api.dto.EtfOverlapDto
+import io.github.hdlee73.everycorp.data.api.dto.EtfPortfolioDto
+import io.github.hdlee73.everycorp.data.api.dto.EtfRelationsDto
 import io.github.hdlee73.everycorp.data.api.dto.EtfItemDto
 import io.github.hdlee73.everycorp.data.api.dto.ShareholdersDto
 import io.github.hdlee73.everycorp.data.api.dto.StakeChangesDto
@@ -74,6 +77,12 @@ class CorpRepository(private val api: EveryCorpApi, private val kind: KindClient
     suspend fun etf(code: String): Result<EtfDetailDto> = apiCall { api.etf(code) }
 
     suspend fun etfChart(code: String, days: Int = 365): Result<ChartDto> = apiCall { api.etfChart(code, days) }
+
+    suspend fun etfPortfolio(code: String): Result<EtfPortfolioDto> = apiCall { api.etfPortfolio(code) }
+
+    suspend fun etfRelations(code: String): Result<EtfRelationsDto> = apiCall { api.etfRelations(code) }
+
+    suspend fun etfOverlap(a: String, b: String): Result<EtfOverlapDto> = apiCall { api.etfOverlap(a, b) }
 
     suspend fun overview(corpCode: String): Result<OverviewDto> = apiCall { api.overview(corpCode) }
 
