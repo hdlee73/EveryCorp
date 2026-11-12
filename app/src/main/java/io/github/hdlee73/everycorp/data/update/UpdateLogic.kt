@@ -63,6 +63,13 @@ object UpdateLogic {
     fun parseSha256(text: String): String? =
         text.trim().split(Regex("\\s+")).firstOrNull()?.lowercase()?.takeIf { Regex("[0-9a-f]{64}").matches(it) }
 
+    /**
+     * 브라우저로 열 주소: APK 직접 링크, 없으면 릴리스 페이지. https 가 아니면 쓰지 않는다
+     * (서버가 돌려준 값이 이상해도 다른 스킴·평문 주소로 내려받지 않도록).
+     */
+    fun downloadUrl(info: LatestReleaseDto): String? =
+        listOfNotNull(info.apkUrl, info.releaseUrl).map { it.trim() }.firstOrNull { it.startsWith("https://", ignoreCase = true) }
+
     /** 강제 업데이트: 현재 버전이 최소 지원 버전보다 낮을 때. */
     fun isForced(current: String, minSupported: String): Boolean = isNewer(minSupported, current)
 }

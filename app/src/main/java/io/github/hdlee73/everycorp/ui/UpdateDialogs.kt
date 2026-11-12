@@ -1,11 +1,9 @@
 package io.github.hdlee73.everycorp.ui
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -20,10 +18,9 @@ fun UpdateDialogs(vm: AppViewModel) {
     val st = vm.updateStatus
     if (vm.showUpdateDialog && st.latest != null) {
         val forced = st.forced
-        val busy = vm.install is InstallState.Downloading
         AlertDialog(
-            onDismissRequest = { if (!busy) vm.dismissUpdateDialog() },
-            properties = DialogProperties(dismissOnBackPress = !forced && !busy, dismissOnClickOutside = !forced && !busy),
+            onDismissRequest = vm::dismissUpdateDialog,
+            properties = DialogProperties(dismissOnBackPress = !forced, dismissOnClickOutside = !forced),
             title = { Text(if (forced) "필수 업데이트" else "새 버전 ${st.latest.version}") },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
@@ -31,19 +28,17 @@ fun UpdateDialogs(vm: AppViewModel) {
                     Text("현재 ${BuildConfig.VERSION_NAME} → ${st.latest.version}", style = MaterialTheme.typography.labelLarge)
                     if (st.latest.notes.isNotBlank()) Text("\n" + st.latest.notes)
                     when (val i = vm.install) {
-                        is InstallState.Downloading -> {
-                            Text("\n내려받아 검증하는 중…")
-                            if (i.progress >= 0f) LinearProgressIndicator(progress = { i.progress }, modifier = Modifier.fillMaxWidth())
-                            else LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                        }
+                        InstallState.Opened -> Text(
+                            "\n브라우저에서 내려받기가 시작됩니다. 다 받으면 알림(또는 다운로드 폴더)의 APK 를 눌러 설치해 주세요. " +
+                                "같은 서명의 정식 APK 만 기존 앱 위에 설치됩니다.",
+                        )
                         is InstallState.Error -> Text("\n" + i.message, color = MaterialTheme.colorScheme.error)
-                        InstallState.NeedPermission -> Text("\n'이 출처 허용'을 켠 뒤 돌아와 다시 눌러 주세요.")
                         InstallState.None -> {}
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = vm::startInstall, enabled = !busy) { Text("업데이트") } },
-            dismissButton = if (forced) null else ({ TextButton(onClick = vm::dismissUpdateDialog, enabled = !busy) { Text("나중에") } }),
+            confirmButton = { TextButton(onClick = vm::startInstall) { Text(if (vm.install == InstallState.Opened) "다시 내려받기" else "내려받기") } },
+            dismissButton = if (forced) null else ({ TextButton(onClick = vm::dismissUpdateDialog) { Text("나중에") } }),
         )
     }
     vm.whatsNew?.let {

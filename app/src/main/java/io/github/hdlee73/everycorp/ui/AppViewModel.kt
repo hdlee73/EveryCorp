@@ -24,9 +24,9 @@ import kotlinx.coroutines.launch
 
 sealed interface InstallState {
     data object None : InstallState
-    data class Downloading(val progress: Float) : InstallState
+    /** 브라우저로 내려받기를 열었음(설치 방법 안내 표시). */
+    data object Opened : InstallState
     data class Error(val message: String) : InstallState
-    data object NeedPermission : InstallState
 }
 
 sealed interface ExportState {
@@ -239,16 +239,7 @@ class AppViewModel(private val c: AppContainer) : ViewModel() {
 
     fun startInstall() {
         val latest = updateStatus.latest ?: return
-        if (!c.installer.canInstall()) {
-            install = InstallState.NeedPermission
-            c.installer.openInstallPermissionSettings()
-            return
-        }
-        install = InstallState.Downloading(-1f)
-        viewModelScope.launch {
-            runCatching { c.installer.downloadAndVerify(latest) { p -> install = InstallState.Downloading(p) } }
-                .onSuccess { install = InstallState.None; c.installer.install(it) }
-                .onFailure { install = InstallState.Error(it.message ?: "업데이트에 실패했습니다.") }
-        }
+        install = if (c.installer.openDownload(latest)) InstallState.Opened
+        else InstallState.Error("내려받기 주소를 열 수 없습니다. 브라우저에서 GitHub 릴리스 페이지를 직접 열어 주세요.")
     }
 }
