@@ -92,7 +92,11 @@ class AppViewModel(private val c: AppContainer) : ViewModel() {
         recents = CorpListCodec.pushFront(recents, corp, 10).also { c.prefs.recents = it }
     }
 
-    fun openEtf(item: EtfItemDto) { nav = nav.openEtf(item) }
+    fun openEtf(item: EtfItemDto, tab: io.github.hdlee73.everycorp.ui.common.EtfTab = io.github.hdlee73.everycorp.ui.common.EtfTab.Basics) { nav = nav.openEtf(item, tab) }
+
+    fun openEtfOverlap(a: EtfItemDto, b: EtfItemDto) { nav = nav.openEtfOverlap(a, b) }
+
+    fun selectEtfTab(tab: io.github.hdlee73.everycorp.ui.common.EtfTab) { nav = nav.selectEtfTab(tab) }
 
     fun openInfo() { nav = nav.openInfo() }
 

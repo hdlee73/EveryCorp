@@ -18,7 +18,7 @@ from ..errors import ApiError, UpstreamError
 from ..http import get_client
 from ..parsers import dart_viewer as dv
 from ..services import market_data_service, realtime_service
-from ..services import app_meta, company_service, debt_service, disclosures_service, etf_service, market_service, news_service, price_service, reports_service, screening_export, screening_service, shareholders_service, stake_service
+from ..services import app_meta, company_service, debt_service, disclosures_service, etf_portfolio_service, etf_service, market_service, news_service, price_service, reports_service, screening_export, screening_service, shareholders_service, stake_service
 from ..services.corp_index import corp_index
 
 
@@ -83,6 +83,26 @@ async def search_corps(
 @router.get("/etfs/search")
 async def search_etfs(q: str = Query(..., min_length=1, max_length=50), limit: int = Query(20, ge=1, le=50)) -> dict:
     return await etf_service.search(q, limit)
+
+
+@router.get("/etfs/overlap")
+async def etf_overlap(a: str = Query(..., min_length=6, max_length=6), b: str = Query(..., min_length=6, max_length=6)) -> dict:
+    return await etf_portfolio_service.get_overlap(a, b)
+
+
+@router.get("/etfs/store/status")
+async def etf_store_status() -> dict:
+    return etf_portfolio_service.status()
+
+
+@router.get("/etfs/{code}/portfolio")
+async def etf_portfolio(code: str) -> dict:
+    return await etf_portfolio_service.get_portfolio(code)
+
+
+@router.get("/etfs/{code}/relations")
+async def etf_relations(code: str) -> dict:
+    return await etf_portfolio_service.get_relations(code)
 
 
 @router.get("/etfs/{code}")

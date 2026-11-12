@@ -80,6 +80,14 @@ async def get_etf(code: str) -> dict:
     info, daily = await asyncio.gather(_info(code), _daily(code))
     name = await _name_of(code, info)
     quote = await price_service.quote_by_code(code, name, "KOSPI")
+    basics = None
+    try:
+        from . import etf_portfolio_service  # 순환 import 방지
+
+        basics = await asyncio.wait_for(
+            etf_portfolio_service.get_basics(code, name, (daily[0]["nav"] if daily else None), info.get("name", "")), timeout=8)
+    except Exception as e:  # noqa: BLE001  기초자료가 없어도 시세·NAV 화면은 보여 준다
+        log.info("ETF basics %s failed: %s", code, e)
     return {
         "code": code,
         "name": name,
@@ -88,6 +96,7 @@ async def get_etf(code: str) -> dict:
         "par_value": info["par_value"],
         "quote": quote,
         "daily": daily,
+        "basics": basics,
         "source": SOURCE_NOTE,
     }
 
