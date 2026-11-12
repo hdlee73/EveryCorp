@@ -373,3 +373,51 @@ def test_ws_endpoint_requires_app_token(monkeypatch):
         with c.websocket_connect("/api/v1/realtime") as ws:
             ws.receive_text()
     get_settings.cache_clear()
+
+
+# ── 2026-11-12 실서버 diag 응답으로 확인한 값 ──
+
+def test_real_server_rows_parse():
+    from app.parsers import kiwoom_market as km
+
+    assert km.inum("--110946") == -110946
+    assert km.inum("+377107") == 377107
+    assert km.num("-") is None and km.num("+") is None
+
+    inv = km.parse_investors({"stk_invsr_orgn": [{
+        "dt": "20261112", "cur_prc": "+208000", "flu_rt": "+97", "acc_trde_qty": "13158859",
+        "ind_invsr": "0", "frgnr_invsr": "1268000", "orgn": "128000", "invtrt": "-109000"}]})
+    assert inv[0]["change_rate"] == 0.97
+    assert inv[0]["foreign"] == 1268000 and inv[0]["trust"] == -109000
+
+    prog = km.parse_program({"stk_daly_prm_trde_trnsn": [{
+        "dt": "20261112", "cur_prc": "+208000", "prm_sell_amt": "671592", "prm_buy_amt": "1048699",
+        "prm_netprps_amt": "+377107", "prm_netprps_amt_irds": "--110946", "prm_netprps_qty": "+1794062"}]})
+    assert prog[0]["net_amt"] == 377107 and prog[0]["net_qty"] == 1794062
+
+    short = km.parse_short({"shrts_trnsn": [{
+        "dt": "20261111", "close_pric": "+208000", "trde_qty": "16238236", "shrts_qty": "564013",
+        "ovr_shrts_qty": "10219139", "trde_wght": "+3.47", "shrts_trde_prica": "113031339", "shrts_avg_pric": "200406"}]})
+    assert short[0]["short_ratio"] == 3.47 and short[0]["short_avg_price"] == 200406
+
+    credit = km.parse_credit({"crd_trde_trend": [{
+        "dt": "20261111", "cur_prc": "+208000", "new": "1164398", "rpya": "1504570", "remn": "17423920",
+        "amt": "3645517", "pre": "-340172", "shr_rt": "5.85", "remn_rt": "0.29"}]})
+    assert credit[0]["balance"] == 17423920 and credit[0]["change"] == -340172 and credit[0]["balance_rate"] == 0.29
+
+    minute = km.parse_candles("ka10080", {"stk_min_pole_chart_qry": [{
+        "cur_prc": "+208000", "trde_qty": "53271", "cntr_tm": "20261112150000",
+        "open_pric": "+208000", "high_pric": "+208000", "low_pric": "+207500"}]})
+    assert minute == [{"t": "2026-11-12T15:00", "o": 208000, "h": 208000, "l": 207500, "c": 208000, "v": 53271}]
+
+
+def test_orderbook_first_level_and_total_fallback():
+    from app.parsers import kiwoom_market as km
+
+    ob = km.parse_orderbook({"bid_req_base_tm": "150110", "sel_1th_pre_bid": "+208500", "sel_1th_pre_req": "100",
+                             "sel_2th_pre_bid": "+209000", "sel_2th_pre_req": "50",
+                             "buy_fpr_bid": "+208000", "buy_fpr_req": "70"})
+    assert [a["price"] for a in ob["asks"]] == [208500, 209000]
+    assert ob["bids"][0] == {"price": 208000, "qty": 70}
+    assert ob["total_ask"] == 150 and ob["total_bid"] == 70
+    assert ob["time"] == "15:01:10"
