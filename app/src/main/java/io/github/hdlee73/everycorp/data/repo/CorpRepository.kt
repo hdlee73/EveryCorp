@@ -20,6 +20,10 @@ import io.github.hdlee73.everycorp.data.api.dto.EtfDetailDto
 import io.github.hdlee73.everycorp.data.api.dto.EtfItemDto
 import io.github.hdlee73.everycorp.data.api.dto.ShareholdersDto
 import io.github.hdlee73.everycorp.data.api.dto.StakeChangesDto
+import io.github.hdlee73.everycorp.data.api.dto.CandlesDto
+import io.github.hdlee73.everycorp.data.api.dto.FlowsDto
+import io.github.hdlee73.everycorp.data.api.dto.OrderbookDto
+import io.github.hdlee73.everycorp.data.api.dto.RankingsDto
 import io.github.hdlee73.everycorp.data.kind.KindClient
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -131,6 +135,14 @@ class CorpRepository(private val api: EveryCorpApi, private val kind: KindClient
     suspend fun intraday(corpCode: String): Result<IntradayDto> = apiCall { api.intraday(corpCode) }
 
     suspend fun chart(corpCode: String, days: Int = 365): Result<ChartDto> = apiCall { api.chart(corpCode, days) }
+
+    suspend fun candles(corpCode: String, period: String): Result<CandlesDto> = apiCall { api.candles(corpCode, period) }
+
+    suspend fun orderbook(corpCode: String): Result<OrderbookDto> = apiCall { api.orderbook(corpCode) }
+
+    suspend fun flows(corpCode: String, days: Int = 20): Result<FlowsDto> = apiCall { api.flows(corpCode, days) }
+
+    suspend fun rankings(kind: String, market: String): Result<RankingsDto> = apiCall { api.rankings(kind, market) }
 
     /**
      * 현재가 폴링. 수집하는 쪽(탭이 보이는 동안만 collect)이 취소하면 멈춘다.

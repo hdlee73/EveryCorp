@@ -45,6 +45,18 @@ import io.github.hdlee73.everycorp.ui.common.ChartMarker
 import io.github.hdlee73.everycorp.ui.common.UiState
 import io.github.hdlee73.everycorp.ui.common.toMarkers
 import io.github.hdlee73.everycorp.ui.common.toUiState
+import io.github.hdlee73.everycorp.data.api.dto.CandlesDto
+import io.github.hdlee73.everycorp.data.api.dto.FlowsDto
+import io.github.hdlee73.everycorp.data.api.dto.OrderbookDto
+import io.github.hdlee73.everycorp.data.api.dto.RealtimeMessageDto
+import io.github.hdlee73.everycorp.data.realtime.RealtimeClient
+import io.github.hdlee73.everycorp.ui.common.MarkerKind
+import io.github.hdlee73.everycorp.ui.common.Overlay
+import io.github.hdlee73.everycorp.ui.common.SubIndicator
+import io.github.hdlee73.everycorp.ui.common.toKindMarkers
+import io.github.hdlee73.everycorp.ui.common.toPeriodicMarkers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
@@ -65,6 +77,7 @@ class CompanyViewModel(
     val corp: CorpItemDto,
     private val repo: CorpRepository,
     private val pdf: PdfDownloader,
+    private val realtime: RealtimeClient? = null,
 ) : ViewModel() {
     var overview by mutableStateOf<UiState<OverviewDto>>(UiState.Idle); private set
     var reports by mutableStateOf<UiState<AuditReportsResponse>>(UiState.Idle); private set
@@ -165,7 +178,12 @@ class CompanyViewModel(
             CompanyTab.Overview -> { if (overview is UiState.Idle) loadOverview(); if (shareholders is UiState.Idle) loadShareholders() }
             CompanyTab.Reports -> if (reports is UiState.Idle) loadReports()
             CompanyTab.Disclosures -> if (disclosureState is UiState.Idle) reloadDisclosures()
-            CompanyTab.Stock -> if (chart is UiState.Idle && corp.isListed) loadChart()
+            CompanyTab.Stock -> if (corp.isListed) {
+                if (chart is UiState.Idle) loadChart()
+                if (candles is UiState.Idle) loadCandles(candlePeriod)
+                if (orderbook is UiState.Idle) loadOrderbook()
+            }
+            CompanyTab.Flows -> if (flows is UiState.Idle && corp.isListed) loadFlows()
             CompanyTab.Debt -> if (debt is UiState.Idle) loadDebt()
             CompanyTab.News -> if (news is UiState.Idle) loadNews()
         }
@@ -196,7 +214,107 @@ class CompanyViewModel(
                 if (!r.hasNext) break
             }
             markers = toMarkers(all)
+            // 캔들 차트용: DART 주요사항 + DART 정기보고서 + KIND 거래소 공시(폰에서 직접)
+            val periodic = repo.disclosures(corp.corpCode, DisclosurePeriod.Y1, DisclosureSource.Dart, category = DisclosureCategory.Periodic).getOrNull()?.items.orEmpty()
+            val kindItems = repo.kindDisclosures(corp, DisclosurePeriod.Y1).getOrNull().orEmpty()
+            candleMarkers = markers + toPeriodicMarkers(periodic) + toKindMarkers(kindItems, markers)
         }
+    }
+
+    // ───── 키움: 실시간 시세·호가, 캔들, 수급(조회 전용) ─────
+    /** kiwoom(실시간) | polling(서버가 3초마다 현재가) | null(연결 안 됨 → 앱이 5초 폴링) */
+    var realtimeMode by mutableStateOf<String?>(null); private set
+    var orderbook by mutableStateOf<UiState<OrderbookDto>>(UiState.Idle); private set
+    var candlePeriod by mutableStateOf("D"); private set
+    var candles by mutableStateOf<UiState<CandlesDto>>(UiState.Idle); private set
+    private val candleCache = mutableMapOf<String, CandlesDto>()
+    private var candleJob: Job? = null
+    var overlays by mutableStateOf(setOf(Overlay.MA)); private set
+    var subIndicator by mutableStateOf<SubIndicator?>(SubIndicator.Volume); private set
+    var markerKinds by mutableStateOf(MarkerKind.entries.toSet()); private set
+    /** 캔들 차트에 찍을 수 있는 최근 1년 공시(종류 구분). */
+    var candleMarkers by mutableStateOf<List<ChartMarker>>(emptyList()); private set
+    var flows by mutableStateOf<UiState<FlowsDto>>(UiState.Idle); private set
+
+    fun realtimeFlow(): Flow<RealtimeMessageDto> {
+        val code = corp.stockCode?.takeIf { it.length == 6 } ?: return emptyFlow()
+        return realtime?.stream(code) ?: emptyFlow()
+    }
+
+    fun onRealtime(m: RealtimeMessageDto) {
+        when (m.type) {
+            "status" -> realtimeMode = m.mode
+            "disconnected" -> realtimeMode = null
+            "trade" -> applyTrade(m)
+            "orderbook" -> if (m.asks.isNotEmpty() || m.bids.isNotEmpty()) {
+                orderbook = UiState.Success(OrderbookDto(corp.stockCode.orEmpty(), "KIWOOM", m.asks, m.bids, m.totalAsk, m.totalBid, m.time))
+            }
+        }
+    }
+
+    private fun applyTrade(m: RealtimeMessageDto) {
+        val price = m.price ?: return
+        val prev = (quote as? UiState.Success)?.data
+        val base = prev ?: QuoteDto(stockCode = corp.stockCode.orEmpty(), name = corp.corpName)
+        quote = UiState.Success(
+            base.copy(
+                price = price,
+                change = m.change ?: base.change,
+                changeRate = m.changeRate ?: base.changeRate,
+                direction = m.direction ?: base.direction,
+                volume = m.accVolume ?: base.volume,
+                open = m.open ?: base.open,
+                high = m.high ?: base.high,
+                low = m.low ?: base.low,
+                source = if (realtimeMode == "kiwoom") "KIWOOM 실시간" else base.source,
+                fetchedAt = java.time.LocalDateTime.now().withNano(0).toString(),
+            ),
+        )
+        // 일봉 차트의 오늘 캔들을 체결가로 갱신(새 캔들은 만들지 않는다).
+        val cs = (candles as? UiState.Success)?.data ?: return
+        if (cs.period != "D") return
+        val last = cs.candles.lastOrNull() ?: return
+        if (last.t != java.time.LocalDate.now().toString()) return
+        val upd = last.copy(c = price, h = maxOf(last.h, price), l = minOf(last.l, price), v = m.accVolume ?: last.v)
+        candles = UiState.Success(cs.copy(candles = cs.candles.dropLast(1) + upd))
+    }
+
+    /** 실시간 연결이 없을 때만 앱이 직접 현재가를 묻는다(서버 캐시 5초). */
+    suspend fun pollQuoteIfNeeded() {
+        if (realtimeMode != null && quote is UiState.Success) return
+        onQuote(repo.quote(corp.corpCode))
+    }
+
+    fun loadOrderbook() {
+        orderbook = UiState.Loading
+        viewModelScope.launch { orderbook = repo.orderbook(corp.corpCode).toUiState() }
+    }
+
+    fun selectPeriod(p: String) {
+        if (p == candlePeriod) return
+        candlePeriod = p
+        loadCandles(p)
+    }
+
+    /** [silent]면 로딩 표시 없이 갱신(분봉 1분 주기). */
+    fun loadCandles(p: String = candlePeriod, silent: Boolean = false) {
+        candleJob?.cancel()
+        val cached = candleCache[p]
+        if (!silent) candles = cached?.let { UiState.Success(it) } ?: UiState.Loading
+        candleJob = viewModelScope.launch {
+            repo.candles(corp.corpCode, p)
+                .onSuccess { candleCache[p] = it; if (candlePeriod == p) candles = UiState.Success(it) }
+                .onFailure { if (candlePeriod == p && (!silent || candles !is UiState.Success)) candles = UiState.Error(it.message ?: "차트를 불러오지 못했습니다.") }
+        }
+    }
+
+    fun toggleOverlay(o: Overlay) { overlays = if (o in overlays) overlays - o else overlays + o }
+    fun selectSub(s: SubIndicator?) { subIndicator = s }
+    fun toggleMarkerKind(k: MarkerKind) { markerKinds = if (k in markerKinds) markerKinds - k else markerKinds + k }
+
+    fun loadFlows() {
+        flows = UiState.Loading
+        viewModelScope.launch { flows = repo.flows(corp.corpCode).toUiState() }
     }
 
     /** 현재가 폴링 결과 반영. 실패해도 이전 값은 남겨 화면이 깜박이지 않게 한다. */

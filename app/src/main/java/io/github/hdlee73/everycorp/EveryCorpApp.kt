@@ -21,11 +21,15 @@ class AppContainer(context: Context) {
     val installer = UpdateInstaller(context, http)
     val pdf = PdfDownloader(context)
     val prefs = AppPrefs(context)
+    /** 실시간 시세·호가(서버 WebSocket 중계). */
+    val realtime = io.github.hdlee73.everycorp.data.realtime.RealtimeClient(http)
 }
 
 class EveryCorpApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        // 비정상 종료 원인을 기기 안 파일로 남긴다(앱 정보 → 오류 기록).
+        io.github.hdlee73.everycorp.data.log.CrashLog.install(this)
         container = AppContainer(this)
     }
 

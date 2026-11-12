@@ -18,6 +18,10 @@ import io.github.hdlee73.everycorp.data.api.dto.OverviewDto
 import io.github.hdlee73.everycorp.data.api.dto.QuoteDto
 import io.github.hdlee73.everycorp.data.api.dto.ShareholdersDto
 import io.github.hdlee73.everycorp.data.api.dto.StakeChangesDto
+import io.github.hdlee73.everycorp.data.api.dto.CandlesDto
+import io.github.hdlee73.everycorp.data.api.dto.FlowsDto
+import io.github.hdlee73.everycorp.data.api.dto.OrderbookDto
+import io.github.hdlee73.everycorp.data.api.dto.RankingsDto
 import okhttp3.ResponseBody
 import retrofit2.http.GET
 import retrofit2.http.Path
@@ -107,4 +111,19 @@ interface EveryCorpApi {
     @Streaming
     @GET("api/v1/screening/export")
     suspend fun screeningExport(@Query("kind") kind: String, @Query("year") year: Int, @Query("reprt_code") reprtCode: String = "11011"): ResponseBody
+
+    // ───── 키움 시장 데이터(조회 전용) ─────
+    /** period: m1 | m5 | m15 | m30 | m60 | D | W | M */
+    @GET("api/v1/corps/{corpCode}/stock/candles")
+    suspend fun candles(@Path("corpCode") corpCode: String, @Query("period") period: String, @Query("count") count: Int? = null): CandlesDto
+
+    @GET("api/v1/corps/{corpCode}/stock/orderbook")
+    suspend fun orderbook(@Path("corpCode") corpCode: String): OrderbookDto
+
+    @GET("api/v1/corps/{corpCode}/stock/flows")
+    suspend fun flows(@Path("corpCode") corpCode: String, @Query("days") days: Int = 20): FlowsDto
+
+    /** kind: volume | value | rise | fall, market: all | kospi | kosdaq */
+    @GET("api/v1/market/rankings")
+    suspend fun rankings(@Query("kind") kind: String, @Query("market") market: String, @Query("limit") limit: Int = 50, @Query("tags") tags: Boolean = true): RankingsDto
 }

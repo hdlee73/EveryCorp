@@ -59,6 +59,7 @@ fun CompanyTab.palette() = when (this) {
     CompanyTab.Reports -> HeroPalettes.Violet
     CompanyTab.Disclosures -> HeroPalettes.Indigo
     CompanyTab.Stock -> HeroPalettes.Teal
+    CompanyTab.Flows -> HeroPalettes.Green
     CompanyTab.Debt -> HeroPalettes.Amber
     CompanyTab.News -> HeroPalettes.Rose
 }
@@ -71,7 +72,7 @@ fun CompanyScreen(app: AppViewModel, dest: Dest.Company) {
         factory = viewModelFactory {
             initializer {
                 val c = EveryCorpApp.container
-                CompanyViewModel(corp, c.repository, c.pdf)
+                CompanyViewModel(corp, c.repository, c.pdf, c.realtime)
             }
         },
     )
@@ -154,6 +155,7 @@ fun CompanyScreen(app: AppViewModel, dest: Dest.Company) {
                 CompanyTab.Reports -> ReportsTab(vm)
                 CompanyTab.Disclosures -> DisclosuresTab(vm)
                 CompanyTab.Stock -> StockTab(vm)
+                CompanyTab.Flows -> FlowsTab(vm)
                 CompanyTab.Debt -> DebtTab(vm)
                 CompanyTab.News -> NewsTab(vm)
             }
