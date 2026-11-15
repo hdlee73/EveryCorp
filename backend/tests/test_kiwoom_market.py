@@ -421,3 +421,67 @@ def test_orderbook_first_level_and_total_fallback():
     assert ob["bids"][0] == {"price": 208000, "qty": 70}
     assert ob["total_ask"] == 150 and ob["total_bid"] == 70
     assert ob["time"] == "15:01:10"
+
+
+@respx.mock
+def test_rankings_surge_foreign_inst(client):
+    _token()
+    seen_ids = []
+
+    def rkinfo(request):
+        api = request.headers["api-id"]
+        seen_ids.append(api)
+        if api == "ka10023":
+            return httpx.Response(200, json={"return_code": 0, "trde_qty_sdnin": [
+                {"stk_cd": "005930", "stk_nm": "삼성전자", "cur_prc": "+70000", "pred_pre": "+2000", "flu_rt": "+2.94", "trde_qty": "15000000", "sdnin_rt": "+320.5"},
+            ]})
+        if api == "ka10035":
+            return httpx.Response(200, json={"return_code": 0, "for_cont_nettrde_upper": [
+                {"stk_cd": "000660", "stk_nm": "SK하이닉스", "cur_prc": "200000", "pred_pre": "+5000", "flu_rt": "2.56", "trde_qty": "500000", "netprps_qty": "+120000", "cont_days": "7"},
+            ]})
+        return httpx.Response(200, json={"return_code": 0, "frgnr_orgn_trde_upper": [
+            {"stk_cd": "005380", "stk_nm": "현대차", "cur_prc": "250000", "pred_pre": "-1000", "flu_rt": "-0.40", "trde_qty": "300000", "tot_netprps_qty": "+45000"},
+        ]})
+
+    respx.post(f"{KW}/api/dostk/rkinfo").mock(side_effect=rkinfo)
+    r1 = client.get("/api/v1/market/rankings?kind=surge&tags=false").json()
+    r2 = client.get("/api/v1/market/rankings?kind=foreign&tags=false").json()
+    r3 = client.get("/api/v1/market/rankings?kind=inst&tags=false").json()
+    assert seen_ids == ["ka10023", "ka10035", "ka90009"]
+    assert r1["kind_label"] == "거래량 급증" and r1["items"][0]["surge_rate"] == 320.5
+    assert r2["kind_label"] == "외국인 연속 순매수" and r2["items"][0]["cont_days"] == 7 and r2["items"][0]["net_qty"] == 120000
+    assert r3["kind_label"] == "외국인·기관 매수" and r3["items"][0]["net_qty"] == 45000
+
+
+@respx.mock
+def test_market_indices(client):
+    _token()
+
+    def sect(request):
+        assert request.headers["api-id"] == "ka20001"
+        body = json.loads(request.content)
+        if body["inds_cd"] == "001":
+            return httpx.Response(200, json={"return_code": 0, "cur_prc": "+2650.45", "pred_pre": "+15.20", "flu_rt": "+0.58", "trde_qty": "420000", "trde_prica": "9500000", "rising": "512", "fall": "340", "stdns": "88"})
+        return httpx.Response(200, json={"return_code": 0, "cur_prc": "850.10", "pred_pre": "-4.30", "flu_rt": "-0.50", "trde_qty": "710000", "trde_prica": "6200000", "rising": "600", "fall": "920", "stdns": "110"})
+
+    respx.post(f"{KW}/api/dostk/sect").mock(side_effect=sect)
+    res = client.get("/api/v1/market/indices")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["source"] == "KIWOOM" and len(data["indices"]) == 2
+    kospi, kosdaq = data["indices"]
+    assert kospi["code"] == "001" and kospi["name"] == "코스피" and kospi["price"] == 2650.45 and kospi["direction"] == "UP"
+    assert kosdaq["code"] == "101" and kosdaq["name"] == "코스닥" and kosdaq["direction"] == "DOWN"
+
+
+def test_ttl_cache_evicts_locks():
+    import asyncio
+    from app.cache import TTLCache
+
+    c = TTLCache(maxsize=4)
+    async def run():
+        for i in range(6):
+            await c.get_or_load(f"k{i}", 60, lambda v=i: asyncio.sleep(0, result=v))
+    asyncio.run(run())
+    assert len(c._locks) < 6
+

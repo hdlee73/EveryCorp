@@ -24,12 +24,13 @@ import java.util.concurrent.TimeUnit
 /** 앱을 열지 않아도 새 버전이 나오면 12시간 안에 알림을 보낸다. 같은 버전은 한 번만 알린다. */
 class UpdateWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
-        runCatching {
+        val status = runCatching {
             val client = NetworkModule.okHttp()
-            val status = UpdateRepository(NetworkModule.api(NetworkModule.retrofit(client = client)), client).check()
-            val latest = status.latest
-            if (status.state == CheckState.AVAILABLE && latest != null) notifyOnce(applicationContext, latest.version)
-        }
+            UpdateRepository(NetworkModule.api(NetworkModule.retrofit(client = client)), client).check()
+        }.getOrNull() ?: return if (runAttemptCount < 3) Result.retry() else Result.success()
+        if (status.state == CheckState.FAILED && runAttemptCount < 3) return Result.retry()
+        val latest = status.latest
+        if (status.state == CheckState.AVAILABLE && latest != null) notifyOnce(applicationContext, latest.version)
         return Result.success()
     }
 

@@ -71,6 +71,15 @@ def parse_kind_corp_list(content: bytes) -> dict[str, str]:
     return out
 
 
+def _write_json(payload: dict) -> None:
+    path = _path()
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    tmp = f"{path}.tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False)
+    os.replace(tmp, path)
+
+
 async def refresh_from_kind() -> int:
     r = await get_client().get(KIND_LIST_URL, params={"method": "download", "searchType": "13"}, timeout=30)
     if r.status_code != 200:
@@ -81,8 +90,7 @@ async def refresh_from_kind() -> int:
     global _market, _loaded_at
     _market, _loaded_at = data, time.time()
     try:
-        with open(_path(), "w", encoding="utf-8") as f:
-            json.dump({"saved_at": _loaded_at, "market": data}, f, ensure_ascii=False)
+        _write_json({"saved_at": _loaded_at, "market": data})
     except OSError:
         log.warning("market map save failed")
     return len(data)
@@ -90,8 +98,7 @@ async def refresh_from_kind() -> int:
 
 def _save() -> None:
     try:
-        with open(_path(), "w", encoding="utf-8") as f:
-            json.dump({"saved_at": _loaded_at, "market": _market, "not_listed": sorted(_not_listed)}, f, ensure_ascii=False)
+        _write_json({"saved_at": _loaded_at, "market": _market, "not_listed": sorted(_not_listed)})
     except OSError:
         log.warning("market map save failed")
 

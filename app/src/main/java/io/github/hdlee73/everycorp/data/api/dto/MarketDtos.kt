@@ -128,6 +128,9 @@ data class RankingItemDto(
     val volume: Long? = null,
     /** 백만원(거래량·거래대금 순위일 때) */
     @SerialName("trade_value") val tradeValue: Long? = null,
+    @SerialName("net_qty") val netQty: Long? = null,
+    @SerialName("cont_days") val contDays: Int? = null,
+    @SerialName("surge_rate") val surgeRate: Double? = null,
     val tags: List<String> = emptyList(),
     val disclosures: List<DisclosureDto> = emptyList(),
     @SerialName("disclosure_count") val disclosureCount: Int = 0,
@@ -143,6 +146,28 @@ data class RankingsDto(
     val source: String = "",
     @SerialName("tag_days") val tagDays: Int = 0,
     val items: List<RankingItemDto> = emptyList(),
+    val warnings: List<String> = emptyList(),
+)
+
+@Serializable
+data class MarketIndexDto(
+    val code: String = "",
+    val name: String = "",
+    val price: Double? = null,
+    val change: Double? = null,
+    @SerialName("change_rate") val changeRate: Double? = null,
+    val direction: String = "FLAT",
+    val volume: Long? = null,
+    @SerialName("trade_value") val tradeValue: Long? = null,
+    val rising: Int? = null,
+    val falling: Int? = null,
+    val steady: Int? = null,
+)
+
+@Serializable
+data class MarketIndicesDto(
+    val source: String = "",
+    val indices: List<MarketIndexDto> = emptyList(),
     val warnings: List<String> = emptyList(),
 )
 

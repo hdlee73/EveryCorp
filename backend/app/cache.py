@@ -35,10 +35,15 @@ class TTLCache:
             # 가장 먼저 만료되는 항목부터 정리
             for k, _ in sorted(self._data.items(), key=lambda kv: kv[1][0])[: self._maxsize // 10 or 1]:
                 self._data.pop(k, None)
+                lock = self._locks.get(k)
+                if lock is not None and not lock.locked():
+                    self._locks.pop(k, None)
         self._data[key] = (time.monotonic() + ttl, value)
 
     def clear(self) -> None:
         self._data.clear()
+        for k in [k for k, lk in self._locks.items() if not lk.locked()]:
+            self._locks.pop(k, None)
 
     async def get_or_load(self, key: Any, ttl: float, loader: Callable[[], Awaitable[T]]) -> T:
         value = self.get(key)

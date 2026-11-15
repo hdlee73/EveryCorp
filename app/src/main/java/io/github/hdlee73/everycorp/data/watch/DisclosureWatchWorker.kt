@@ -46,8 +46,10 @@ class DisclosureWatchWorker(context: Context, params: WorkerParameters) : Corout
         val api = NetworkModule.api(NetworkModule.retrofit(client = NetworkModule.okHttp()))
         val store = applicationContext.getSharedPreferences("disclosure_watch", Context.MODE_PRIVATE)
         var notified = 0
+        var succeeded = 0
         for (corp in favorites) {
             val items = runCatching { api.disclosures(corp.corpCode, years = 1, source = "dart", size = 20).items }.getOrNull() ?: continue
+            succeeded++
             val key = "seen_${corp.corpCode}"
             val seen = store.getStringSet(key, null)?.toSet()
             val fresh = DisclosureDiff.newItems(seen, items)
@@ -57,7 +59,7 @@ class DisclosureWatchWorker(context: Context, params: WorkerParameters) : Corout
                 notified++
             }
         }
-        return Result.success()
+        return if (succeeded == 0 && runAttemptCount < 3) Result.retry() else Result.success()
     }
 
     private fun notify(context: Context, id: Int, corpName: String, fresh: List<DisclosureDto>) {

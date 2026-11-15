@@ -50,27 +50,37 @@ private const val MAX_CORPS = 20
 fun AlertsScreen(vm: AppViewModel) {
     val context = LocalContext.current
     var tab by remember { mutableStateOf(0) } // 0 공시, 1 지분 변동
+    var retryTick by remember { androidx.compose.runtime.mutableStateOf(0) }
     val favorites = vm.favorites.take(MAX_CORPS)
-    val state by produceState<UiState<List<AlertItem>>>(UiState.Loading, favorites) {
+    val state by produceState<UiState<List<AlertItem>>>(UiState.Loading, favorites, retryTick) {
+        if (favorites.isEmpty()) { value = UiState.Success(emptyList()); return@produceState }
         value = UiState.Loading
-        val all = coroutineScope {
-            favorites.map { corp -> async { vm.repository.recentDisclosures(corp.corpCode).getOrDefault(emptyList()).map { AlertItem(corp, it) } } }.awaitAll()
-        }.flatten()
-        value = UiState.Success(all.sortedWith(compareByDescending<AlertItem> { it.disclosure.date }.thenByDescending { it.disclosure.time ?: "" }).take(60))
+        val results = coroutineScope {
+            favorites.map { corp -> async { corp to vm.repository.recentDisclosures(corp.corpCode) } }.awaitAll()
+        }
+        value = if (results.all { it.second.isFailure }) {
+            UiState.Error(results.first().second.exceptionOrNull()?.message ?: "공시를 불러오지 못했습니다.")
+        } else {
+            val all = results.flatMap { (corp, r) -> r.getOrDefault(emptyList()).map { AlertItem(corp, it) } }
+            UiState.Success(all.sortedWith(compareByDescending<AlertItem> { it.disclosure.date }.thenByDescending { it.disclosure.time ?: "" }).take(60))
+        }
     }
-    val stakes by produceState<UiState<List<StakeItem>>>(UiState.Idle, favorites, tab) {
-        if (tab != 1) return@produceState
+    val stakes by produceState<UiState<List<StakeItem>>>(UiState.Idle, favorites, tab, retryTick) {
+        if (tab != 1 || favorites.isEmpty()) return@produceState
         value = UiState.Loading
-        val all = coroutineScope {
-            favorites.map { corp ->
-                async {
-                    val r = vm.repository.stakeChanges(corp.corpCode).getOrNull()
-                    r?.major.orEmpty().map { StakeItem(corp, "대량보유", it.date, it.rceptNo, StakeText.major(it), it.sharesChange) } +
-                        r?.insiders.orEmpty().map { StakeItem(corp, "임원·주요주주", it.date, it.rceptNo, StakeText.insider(it), it.sharesChange) }
-                }
-            }.awaitAll()
-        }.flatten()
-        value = UiState.Success(all.sortedByDescending { it.date }.take(80))
+        val results = coroutineScope {
+            favorites.map { corp -> async { corp to vm.repository.stakeChanges(corp.corpCode) } }.awaitAll()
+        }
+        value = if (results.all { it.second.isFailure }) {
+            UiState.Error(results.first().second.exceptionOrNull()?.message ?: "지분 변동을 불러오지 못했습니다.")
+        } else {
+            val all = results.flatMap { (corp, res) ->
+                val r = res.getOrNull()
+                r?.major.orEmpty().map { StakeItem(corp, "대량보유", it.date, it.rceptNo, StakeText.major(it), it.sharesChange) } +
+                    r?.insiders.orEmpty().map { StakeItem(corp, "임원·주요주주", it.date, it.rceptNo, StakeText.insider(it), it.sharesChange) }
+            }
+            UiState.Success(all.sortedByDescending { it.date }.take(80))
+        }
     }
     Column(Modifier.fillMaxSize()) {
         TabHeader("알림", "관심기업의 최근 공시와 지분 변동")
@@ -79,12 +89,12 @@ fun AlertsScreen(vm: AppViewModel) {
             PillChip("지분 변동", onClick = { tab = 1 }, selected = tab == 1)
         }
         if (tab == 1) {
-            StakeList(favorites.isEmpty(), stakes, context)
+            StakeList(favorites.isEmpty(), stakes, context, onRetry = { retryTick++ })
             return@Column
         }
         if (favorites.isEmpty()) {
             EmptyBox("관심기업이 없습니다. 기업 화면에서 ★를 누르면 새 공시가 여기에 모입니다.", Modifier.padding(horizontal = 16.dp, vertical = 16.dp))
-        } else UiStateContent(state, onRetry = null, modifier = Modifier.padding(horizontal = 16.dp)) { list ->
+        } else UiStateContent(state, onRetry = { retryTick++ }, modifier = Modifier.padding(horizontal = 16.dp)) { list ->
             if (list.isEmpty()) EmptyBox("최근 공시가 없습니다.")
             else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp)) {
                 items(list, key = { it.corp.corpCode + it.disclosure.id }) { a ->
@@ -99,12 +109,12 @@ fun AlertsScreen(vm: AppViewModel) {
 }
 
 @Composable
-private fun StakeList(noFavorites: Boolean, state: UiState<List<StakeItem>>, context: android.content.Context) {
+private fun StakeList(noFavorites: Boolean, state: UiState<List<StakeItem>>, context: android.content.Context, onRetry: () -> Unit) {
     if (noFavorites) {
         EmptyBox("관심기업이 없습니다. 기업 화면에서 ★를 누르면 대량보유(5%)와 임원·주요주주 지분 변동이 여기에 모입니다.", Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
         return
     }
-    UiStateContent(state, onRetry = null, modifier = Modifier.padding(horizontal = 16.dp)) { list ->
+    UiStateContent(state, onRetry = onRetry, modifier = Modifier.padding(horizontal = 16.dp)) { list ->
         if (list.isEmpty()) EmptyBox("최근 지분 변동 공시가 없습니다.")
         else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)) {
             itemsIndexed(list, key = { i, s -> "$i${s.corp.corpCode}${s.rceptNo}" }) { _, s ->

@@ -135,7 +135,10 @@ interface EveryCorpApi {
     @GET("api/v1/corps/{corpCode}/stock/flows")
     suspend fun flows(@Path("corpCode") corpCode: String, @Query("days") days: Int = 20): FlowsDto
 
-    /** kind: volume | value | rise | fall, market: all | kospi | kosdaq */
+    /** kind: volume | value | rise | fall | surge | foreign | inst, market: all | kospi | kosdaq */
     @GET("api/v1/market/rankings")
     suspend fun rankings(@Query("kind") kind: String, @Query("market") market: String, @Query("limit") limit: Int = 50, @Query("tags") tags: Boolean = true): RankingsDto
+
+    @GET("api/v1/market/indices")
+    suspend fun marketIndices(): io.github.hdlee73.everycorp.data.api.dto.MarketIndicesDto
 }

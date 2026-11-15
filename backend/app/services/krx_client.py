@@ -13,7 +13,9 @@ KRX Open API는 '기준일 하루의 전 종목' 표를 돌려주는 방식이�
 """
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import datetime, timedelta, timezone
+
+KST = timezone(timedelta(hours=9))
 
 from ..cache import cached
 from ..config import get_settings
@@ -61,7 +63,7 @@ async def previous_close(stock_code: str, market: str) -> dict | None:
     """가장 최근 영업일(최대 7일 전까지)의 종가 정보."""
     if market not in PATHS:
         return None
-    d = date.today()
+    d = datetime.now(KST).date()
     for _ in range(7):
         d -= timedelta(days=1)
         if d.weekday() >= 5:

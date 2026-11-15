@@ -53,7 +53,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Locale
 
-enum class RankKind(val param: String, val label: String) { Volume("volume", "거래량"), Value("value", "거래대금"), Rise("rise", "상승률"), Fall("fall", "하락률") }
+enum class RankKind(val param: String, val label: String) {
+    Volume("volume", "거래량"),
+    Value("value", "거래대금"),
+    Rise("rise", "상승률"),
+    Fall("fall", "하락률"),
+    Surge("surge", "거래량급증"),
+    Foreign("foreign", "외인연속"),
+    Inst("inst", "외인·기관"),
+}
 enum class RankMarket(val param: String, val label: String) { All("all", "전체"), Kospi("kospi", "코스피"), Kosdaq("kosdaq", "코스닥") }
 
 /** 랭킹 스크리너 상태. 30초 주기 조용한 갱신(서버도 30초 캐시). */
@@ -63,7 +71,9 @@ class MarketViewModel(private val repo: CorpRepository) : ViewModel() {
     var onlyTagged by mutableStateOf(false); private set
     var tagFilter by mutableStateOf<String?>(null); private set
     var state by mutableStateOf<UiState<RankingsDto>>(UiState.Idle); private set
+    var indices by mutableStateOf<List<io.github.hdlee73.everycorp.data.api.dto.MarketIndexDto>>(emptyList()); private set
     private var job: Job? = null
+    private var idxJob: Job? = null
 
     fun select(k: RankKind) { if (k != kind) { kind = k; load() } }
     fun select(m: RankMarket) { if (m != market) { market = m; load() } }
@@ -78,6 +88,14 @@ class MarketViewModel(private val repo: CorpRepository) : ViewModel() {
             repo.rankings(k.param, m.param)
                 .onSuccess { state = UiState.Success(it) }
                 .onFailure { if (!silent || state !is UiState.Success) state = UiState.Error(it.message ?: "순위를 불러오지 못했습니다.") }
+        }
+        loadIndices()
+    }
+
+    fun loadIndices() {
+        idxJob?.cancel()
+        idxJob = viewModelScope.launch {
+            repo.marketIndices().onSuccess { if (it.indices.isNotEmpty()) indices = it.indices }
         }
     }
 
@@ -98,14 +116,18 @@ fun MarketScreen(app: AppViewModel) {
     }
     val context = androidx.compose.ui.platform.LocalContext.current
     Column(Modifier.fillMaxSize()) {
-        TabHeader("시장 랭킹", "거래량·상승률 순위에 최근 3일 DART 공시를 태그로 붙여 봅니다")
+        TabHeader("시장 랭킹", "거래량·수급·급증 순위에 최근 3일 DART 공시를 태그로 붙여 봅니다")
+        if (vm.indices.isNotEmpty()) {
+            IndexBar(vm.indices)
+        }
         Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 RankKind.entries.forEach { k -> PillChip(k.label, onClick = { vm.select(k) }, selected = vm.kind == k) }
             }
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 RankMarket.entries.forEach { m -> PillChip(m.label, onClick = { vm.select(m) }, selected = vm.market == m) }
                 PillChip("공시 있는 종목만", onClick = vm::toggleTagged, selected = vm.onlyTagged)
+                PillChip("↻ 새로고침", onClick = { vm.load(silent = false) })
             }
         }
         UiStateContent(vm.state, onRetry = { vm.load() }, modifier = Modifier.padding(16.dp)) { data ->
@@ -126,8 +148,46 @@ fun MarketScreen(app: AppViewModel) {
                     }
                     item {
                         Text(
-                            "출처 키움증권 REST API(순위, 30초 갱신, ETF·ETN 제외) · DART 최근 3일 공시. 투자 판단의 책임은 이용자에게 있습니다.",
+                            "출처 키움증권 REST API(지수·순위, 30초 갱신, ETF·ETN 제외) · DART 최근 3일 공시. 투자 판단의 책임은 이용자에게 있습니다.",
                             Modifier.padding(16.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun IndexBar(indices: List<io.github.hdlee73.everycorp.data.api.dto.MarketIndexDto>) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        indices.forEach { idx ->
+            val color = directionColor(idx.direction)
+            Surface(
+                Modifier.weight(1f),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+            ) {
+                Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text(idx.name, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                        val chg = idx.changeRate?.let { String.format(Locale.US, "%+.2f%%", it) } ?: ""
+                        if (chg.isNotBlank()) Text(chg, style = MaterialTheme.typography.labelSmall, color = color, fontWeight = FontWeight.SemiBold)
+                    }
+                    Text(
+                        idx.price?.let { String.format(Locale.US, "%,.2f", it) } ?: "-",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = color,
+                    )
+                    if (idx.rising != null || idx.falling != null) {
+                        Text(
+                            "상승 ${idx.rising ?: 0} · 하락 ${idx.falling ?: 0}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
@@ -146,6 +206,18 @@ private fun RankRow(r: RankingItemDto, kind: String, onOpen: () -> Unit, onDiscl
                 Text(r.name.ifBlank { r.corpName }, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val sub = when (kind) {
                     "value" -> "거래대금 " + (r.tradeValue?.let { Fmt.number(it / 100) + "억" } ?: "-")
+                    "surge" -> listOfNotNull(
+                        r.surgeRate?.let { String.format(Locale.US, "급증 %+.1f%%", it) },
+                        "거래량 " + Fmt.number(r.volume),
+                    ).joinToString(" · ")
+                    "foreign" -> listOfNotNull(
+                        r.contDays?.let { "${it}일 연속" },
+                        r.netQty?.let { "순매수 " + (if (it > 0) "+" else "") + Fmt.number(it) },
+                    ).ifEmpty { listOf("거래량 " + Fmt.number(r.volume)) }.joinToString(" · ")
+                    "inst" -> listOfNotNull(
+                        r.netQty?.let { "순매수 " + (if (it > 0) "+" else "") + Fmt.number(it) },
+                        "거래량 " + Fmt.number(r.volume),
+                    ).joinToString(" · ")
                     else -> "거래량 " + Fmt.number(r.volume)
                 }
                 Text("${r.stockCode} · $sub", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

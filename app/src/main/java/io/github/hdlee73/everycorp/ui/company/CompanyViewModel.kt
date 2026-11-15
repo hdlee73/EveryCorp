@@ -270,13 +270,27 @@ class CompanyViewModel(
                 fetchedAt = java.time.LocalDateTime.now().withNano(0).toString(),
             ),
         )
-        // 일봉 차트의 오늘 캔들을 체결가로 갱신(새 캔들은 만들지 않는다).
+        // 차트의 마지막 캔들을 체결가로 갱신(새 캔들은 만들지 않는다).
         val cs = (candles as? UiState.Success)?.data ?: return
-        if (cs.period != "D") return
         val last = cs.candles.lastOrNull() ?: return
-        if (last.t != java.time.LocalDate.now().toString()) return
-        val upd = last.copy(c = price, h = maxOf(last.h, price), l = minOf(last.l, price), v = m.accVolume ?: last.v)
-        candles = UiState.Success(cs.copy(candles = cs.candles.dropLast(1) + upd))
+        val today = java.time.LocalDate.now()
+        val todayStr = today.toString()
+        val matches = when (cs.period) {
+            "D" -> last.t == todayStr
+            "M" -> last.t.take(7) == todayStr.take(7)
+            "W" -> runCatching { java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.parse(last.t.take(10)), today) in 0..6 }.getOrDefault(false)
+            else -> last.t.startsWith(todayStr)
+        }
+        if (!matches) return
+        val upd = last.copy(
+            c = price,
+            h = maxOf(last.h, price),
+            l = minOf(last.l, price),
+            v = if (cs.period == "D") (m.accVolume ?: last.v) else last.v,
+        )
+        val updated = cs.copy(candles = cs.candles.dropLast(1) + upd)
+        candles = UiState.Success(updated)
+        candleCache[cs.period] = updated
     }
 
     /** 실시간 연결이 없을 때만 앱이 직접 현재가를 묻는다(서버 캐시 5초). */

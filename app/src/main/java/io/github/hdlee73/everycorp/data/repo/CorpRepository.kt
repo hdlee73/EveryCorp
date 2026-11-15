@@ -153,6 +153,8 @@ class CorpRepository(private val api: EveryCorpApi, private val kind: KindClient
 
     suspend fun rankings(kind: String, market: String): Result<RankingsDto> = apiCall { api.rankings(kind, market) }
 
+    suspend fun marketIndices(): Result<io.github.hdlee73.everycorp.data.api.dto.MarketIndicesDto> = apiCall { api.marketIndices() }
+
     /**
      * 현재가 폴링. 수집하는 쪽(탭이 보이는 동안만 collect)이 취소하면 멈춘다.
      * 서버 캐시가 5초이므로 그보다 짧게 부르지 않는다.
