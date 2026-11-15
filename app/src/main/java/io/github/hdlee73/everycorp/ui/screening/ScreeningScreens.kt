@@ -165,7 +165,7 @@ fun ScreeningResultScreen(vm: AppViewModel, d: Dest.ScreeningResult) {
     var year by remember(d) { mutableStateOf(d.year) }
     var reprt by remember(d) { mutableStateOf(d.reprt) }
     var started by remember(d, year, reprt) { mutableStateOf(false) }
-    var retryTick by remember(d, year, reprt) { androidx.compose.runtime.mutableIntStateOf(0) }
+    var retryTick by remember(d, year, reprt) { androidx.compose.runtime.mutableStateOf(0) }
     val state by produceState<UiState<ResultTable>>(UiState.Loading, d, year, reprt, started, retryTick) {
         value = UiState.Loading
         while (true) {

@@ -212,10 +212,10 @@ private fun RankRow(r: RankingItemDto, kind: String, onOpen: () -> Unit, onDiscl
                     ).joinToString(" · ")
                     "foreign" -> listOfNotNull(
                         r.contDays?.let { "${it}일 연속" },
-                        r.netQty?.let { "순매수 " + Fmt.signed(it) },
+                        r.netQty?.let { "순매수 " + (if (it > 0) "+" else "") + Fmt.number(it) },
                     ).ifEmpty { listOf("거래량 " + Fmt.number(r.volume)) }.joinToString(" · ")
                     "inst" -> listOfNotNull(
-                        r.netQty?.let { "순매수 " + Fmt.signed(it) },
+                        r.netQty?.let { "순매수 " + (if (it > 0) "+" else "") + Fmt.number(it) },
                         "거래량 " + Fmt.number(r.volume),
                     ).joinToString(" · ")
                     else -> "거래량 " + Fmt.number(r.volume)

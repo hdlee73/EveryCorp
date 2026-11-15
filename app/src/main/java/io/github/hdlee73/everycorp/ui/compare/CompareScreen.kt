@@ -39,7 +39,7 @@ import kotlinx.coroutines.coroutineScope
 /** 관심기업 2~4곳의 최근 사업연도 핵심 지표를 나란히 보여 준다(기업 개요의 5개년 추이 값 사용). */
 @Composable
 fun CompareScreen(vm: AppViewModel, d: Dest.Compare) {
-    var retryTick by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    var retryTick by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0) }
     val state by produceState<UiState<List<CompareColumn>>>(UiState.Loading, d, retryTick) {
         value = UiState.Loading
         val results = coroutineScope {

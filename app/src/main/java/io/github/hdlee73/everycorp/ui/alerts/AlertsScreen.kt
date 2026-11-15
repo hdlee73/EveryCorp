@@ -50,7 +50,7 @@ private const val MAX_CORPS = 20
 fun AlertsScreen(vm: AppViewModel) {
     val context = LocalContext.current
     var tab by remember { mutableStateOf(0) } // 0 공시, 1 지분 변동
-    var retryTick by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    var retryTick by remember { androidx.compose.runtime.mutableStateOf(0) }
     val favorites = vm.favorites.take(MAX_CORPS)
     val state by produceState<UiState<List<AlertItem>>>(UiState.Loading, favorites, retryTick) {
         if (favorites.isEmpty()) { value = UiState.Success(emptyList()); return@produceState }
