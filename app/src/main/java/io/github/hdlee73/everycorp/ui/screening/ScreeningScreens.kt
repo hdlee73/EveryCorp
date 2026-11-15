@@ -165,7 +165,8 @@ fun ScreeningResultScreen(vm: AppViewModel, d: Dest.ScreeningResult) {
     var year by remember(d) { mutableStateOf(d.year) }
     var reprt by remember(d) { mutableStateOf(d.reprt) }
     var started by remember(d, year, reprt) { mutableStateOf(false) }
-    val state by produceState<UiState<ResultTable>>(UiState.Loading, d, year, reprt, started) {
+    var retryTick by remember(d, year, reprt) { androidx.compose.runtime.mutableIntStateOf(0) }
+    val state by produceState<UiState<ResultTable>>(UiState.Loading, d, year, reprt, started, retryTick) {
         value = UiState.Loading
         while (true) {
             val r = when (d.kind) {
@@ -188,7 +189,7 @@ fun ScreeningResultScreen(vm: AppViewModel, d: Dest.ScreeningResult) {
     }
     Column(Modifier.fillMaxSize()) {
         GradientTopBar(title = title, onBack = { vm.back() })
-        UiStateContent(state, onRetry = null) { t -> ResultBody(vm, t, d, year, reprt, onYear = { year = it }, onReprt = { reprt = it }, onStart = { started = true }) }
+        UiStateContent(state, onRetry = { retryTick++ }) { t -> ResultBody(vm, t, d, year, reprt, onYear = { year = it }, onReprt = { reprt = it }, onStart = { started = true }) }
     }
 }
 

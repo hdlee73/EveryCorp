@@ -296,8 +296,13 @@ async def stock_flows(corp_code: str, days: int = Query(20, ge=5, le=60)) -> dic
     return await market_data_service.get_flows(corp_code, days)
 
 
+@router.get("/market/indices")
+async def market_indices() -> dict:
+    return await market_data_service.get_market_indices()
+
+
 @router.get("/market/rankings")
-async def market_rankings(kind: Literal["volume", "value", "rise", "fall"] = "volume",
+async def market_rankings(kind: Literal["volume", "value", "rise", "fall", "surge", "foreign", "inst"] = "volume",
                           market: Literal["all", "kospi", "kosdaq"] = "all",
                           limit: int = Query(50, ge=10, le=100), tags: bool = True,
                           days: int = Query(3, ge=1, le=7)) -> dict:

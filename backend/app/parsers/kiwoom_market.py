@@ -249,29 +249,86 @@ def parse_credit(data: dict) -> list[dict]:
 
 # ───────────────────────── 랭킹 ─────────────────────────
 
+def _first_item_list(data: dict, *keys: str) -> list:
+    for k in keys:
+        v = data.get(k)
+        if isinstance(v, list):
+            return v
+    for k, v in data.items():
+        if k.endswith("_upper") and isinstance(v, list):
+            return v
+    for v in data.values():
+        if isinstance(v, list) and v and isinstance(v[0], dict) and ("stk_cd" in v[0] or "stk_nm" in v[0]):
+            return v
+    return []
+
+
 def parse_ranking(data: dict) -> list[dict]:
-    rows = data.get("tdy_trde_qty_upper")
-    if rows is None:
-        rows = data.get("pred_pre_flu_rt_upper")
-    if rows is None:
-        rows = next((v for k, v in data.items() if k.endswith("_upper") and isinstance(v, list)), [])
+    rows = _first_item_list(
+        data,
+        "tdy_trde_qty_upper",
+        "pred_pre_flu_rt_upper",
+        "trde_qty_sdnin",
+        "for_cont_nettrde_upper",
+        "frgnr_cont_nettrde_upper",
+        "frgnr_orgn_trde_upper",
+    )
     out = []
     for r in rows or []:
+        if not isinstance(r, dict):
+            continue
         code = re.sub(r"[^0-9A-Z]", "", str(r.get("stk_cd", "")).split("_")[0].upper())
         if len(code) != 6:
             continue
         change = inum(r.get("pred_pre"))
-        out.append({
+        rate = num(r.get("flu_rt"))
+        vol = inum(r.get("trde_qty") if r.get("trde_qty") not in (None, "") else r.get("now_trde_qty"), True)
+        net_qty = inum(
+            r.get("netprps_qty")
+            or r.get("tot_netprps_qty")
+            or r.get("frgnr_netprps_qty")
+            or r.get("orgn_netprps_qty")
+            or r.get("dmst_stex_netprps_qty")
+        )
+        cont_days = inum(r.get("cont_days") or r.get("nettrde_days") or r.get("cont_nettrde_days"), True)
+        surge_rate = num(r.get("sdnin_rt") or r.get("trde_qty_sdnin_rt"))
+        row = {
             "stock_code": code,
             "name": str(r.get("stk_nm", "")).strip(),
             "price": inum(r.get("cur_prc"), True),
             "change": change,
-            "change_rate": num(r.get("flu_rt")),
-            "direction": _direction(change if change is not None else num(r.get("flu_rt"))),
-            "volume": inum(r.get("trde_qty") if r.get("trde_qty") not in (None, "") else r.get("now_trde_qty"), True),
-            "trade_value": inum(r.get("trde_amt"), True),  # 백만원(ka10030)
-        })
+            "change_rate": rate,
+            "direction": _direction(change if change is not None else rate),
+            "volume": vol,
+            "trade_value": inum(r.get("trde_amt") or r.get("trde_prica"), True),
+        }
+        if net_qty is not None:
+            row["net_qty"] = net_qty
+        if cont_days is not None:
+            row["cont_days"] = cont_days
+        if surge_rate is not None:
+            row["surge_rate"] = surge_rate
+        out.append(row)
     return out
+
+
+def parse_sector_index(data: dict, code: str, name: str) -> dict:
+    """ka20001 업종현재가요청 → 지수 요약."""
+    change = num(data.get("pred_pre"))
+    rate = num(data.get("flu_rt"))
+    return {
+        "code": code,
+        "name": name,
+        "price": num(data.get("cur_prc"), True),
+        "change": change,
+        "change_rate": rate,
+        "direction": _direction(change if change is not None else rate),
+        "volume": inum(data.get("trde_qty"), True),
+        "trade_value": inum(data.get("trde_prica"), True),
+        "rising": inum(data.get("rising"), True),
+        "falling": inum(data.get("fall"), True),
+        "steady": inum(data.get("stdns"), True),
+    }
 
 
 # ───────────────────────── 실시간(WebSocket) ─────────────────────────

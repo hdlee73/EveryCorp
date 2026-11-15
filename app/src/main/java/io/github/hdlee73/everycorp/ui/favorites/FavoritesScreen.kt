@@ -51,6 +51,7 @@ import io.github.hdlee73.everycorp.ui.theme.AppColors
 fun FavoritesScreen(vm: AppViewModel) {
     var selected by remember { mutableStateOf<String?>(null) } // null = 전체
     var adding by remember { mutableStateOf(false) }
+    var editingGroup by remember { mutableStateOf<String?>(null) }
     var comparing by remember { mutableStateOf(false) }
     var picked by remember { mutableStateOf(listOf<CorpItemDto>()) }
     val shown = vm.favorites.filter { selected == null || vm.groupOf[it.corpCode] == selected }
@@ -63,6 +64,9 @@ fun FavoritesScreen(vm: AppViewModel) {
             PillChip("전체 ${vm.favorites.size}", onClick = { selected = null }, selected = selected == null)
             vm.groupNames.forEach { g ->
                 PillChip("$g ${vm.favorites.count { vm.groupOf[it.corpCode] == g }}", onClick = { selected = g }, selected = selected == g)
+            }
+            if (selected != null) {
+                PillChip("그룹 편집", onClick = { editingGroup = selected })
             }
             PillChip("＋ 그룹", onClick = { adding = true })
             PillChip(if (comparing) "선택 취소" else "비교·PDF", onClick = { comparing = !comparing; picked = emptyList() }, selected = comparing)
@@ -92,6 +96,22 @@ fun FavoritesScreen(vm: AppViewModel) {
         }
     }
     if (adding) AddGroupDialog(onDismiss = { adding = false }, onAdd = { vm.addGroup(it); adding = false })
+    editingGroup?.let { target ->
+        EditGroupDialog(
+            current = target,
+            onDismiss = { editingGroup = null },
+            onRename = { newName ->
+                vm.renameGroup(target, newName)
+                if (selected == target) selected = newName.trim()
+                editingGroup = null
+            },
+            onDelete = {
+                vm.deleteGroup(target)
+                if (selected == target) selected = null
+                editingGroup = null
+            },
+        )
+    }
 }
 
 @Composable
@@ -128,6 +148,23 @@ private fun AddGroupDialog(onDismiss: () -> Unit, onAdd: (String) -> Unit) {
         title = { Text("새 그룹") },
         text = { OutlinedTextField(name, { name = it.take(12) }, singleLine = true, placeholder = { Text("예: 반도체, 내 포트폴리오") }) },
         confirmButton = { TextButton(onClick = { onAdd(name) }, enabled = name.isNotBlank()) { Text("추가") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } },
+    )
+}
+
+@Composable
+private fun EditGroupDialog(current: String, onDismiss: () -> Unit, onRename: (String) -> Unit, onDelete: () -> Unit) {
+    var name by remember { mutableStateOf(current) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("그룹 편집") },
+        text = { OutlinedTextField(name, { name = it.take(12) }, singleLine = true, label = { Text("그룹 이름") }) },
+        confirmButton = {
+            Row {
+                TextButton(onClick = onDelete) { Text("삭제", color = MaterialTheme.colorScheme.error) }
+                TextButton(onClick = { onRename(name) }, enabled = name.isNotBlank() && name.trim() != current) { Text("이름 변경") }
+            }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } },
     )
 }

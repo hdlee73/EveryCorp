@@ -81,16 +81,24 @@ def _parse_expiry(expires_dt: str | None) -> float:
 kiwoom_token = KiwoomToken()
 _SEM = asyncio.Semaphore(2)  # 키움은 api-id 별 초당 호출 제한이 있어 동시 요청을 줄인다
 
-# 조회 전용 허용 목록(시세·차트·수급·랭킹·ETF). 여기에 없는 TR(계좌·주문 등)은 호출하지 않는다.
+def _today_kst() -> date:
+    return datetime.now(KST).date()
+
+
+# 조회 전용 허용 목록(시세·차트·수급·랭킹·업종·ETF). 여기에 없는 TR(계좌·주문 등)은 호출하지 않는다.
 ALLOWED_API_IDS = frozenset({
     "ka10001",  # 주식기본정보(현재가)
     "ka10004",  # 주식호가
     "ka10013",  # 신용매매동향
     "ka10014",  # 공매도추이
+    "ka10023",  # 거래량급증요청
     "ka10027",  # 전일대비등락률상위
     "ka10030",  # 당일거래량상위
+    "ka10035",  # 외인연속순매매상위
     "ka10059",  # 종목별투자자기관별
     "ka10080", "ka10081", "ka10082", "ka10083",  # 분·일·주·월봉
+    "ka20001",  # 업종현재가요청
+    "ka90009",  # 외국인기관매매상위
     "ka90013",  # 종목일별프로그램매매추이
     "ka40001", "ka40002", "ka40003", "ka40004", "ka40006",  # ETF 시세
 })
@@ -305,12 +313,26 @@ MARKET_TP = {"all": "000", "kospi": "001", "kosdaq": "101"}
 
 
 async def ranking(kind: str, market: str = "all") -> list[dict]:
-    """kind: volume(거래량) | value(거래대금) | rise(상승률) | fall(하락률). 관리종목·ETF/ETN 은 제외한다."""
+    """kind: volume | value | rise | fall | surge(거래량급증) | foreign(외인연속순매수) | inst(외인·기관순매수)."""
     mrkt = MARKET_TP.get(market, "000")
     if kind in ("volume", "value"):
         api_id, body = "ka10030", {
             "mrkt_tp": mrkt, "sort_tp": "1" if kind == "volume" else "3", "mang_stk_incls": "16", "crd_tp": "0",
             "trde_qty_tp": "0", "pric_tp": "0", "trde_prica_tp": "0", "mrkt_open_tp": "0", "stex_tp": "3",
+        }
+    elif kind == "surge":
+        api_id, body = "ka10023", {
+            "mrkt_tp": mrkt, "sort_tp": "2", "tm_tp": "1", "trde_qty_tp": "5", "tm": "5",
+            "stk_cnd": "16", "pric_tp": "0", "stex_tp": "3",
+        }
+    elif kind == "foreign":
+        api_id, body = "ka10035", {
+            "mrkt_tp": mrkt, "trde_tp": "2", "base_dt_tp": "1", "stex_tp": "3",
+        }
+    elif kind == "inst":
+        api_id, body = "ka90009", {
+            "mrkt_tp": mrkt, "amt_qty_tp": "1", "qry_dt_tp": "1",
+            "date": _today_kst().strftime("%Y%m%d"), "stex_tp": "3",
         }
     else:
         api_id, body = "ka10027", {
@@ -320,3 +342,11 @@ async def ranking(kind: str, market: str = "all") -> list[dict]:
     data, _ = await _post("/api/dostk/rkinfo", api_id, body)
     _check(data, "순위 조회")
     return km.parse_ranking(data)
+
+
+async def sector_index(code: str, name: str) -> dict:
+    """ka20001 업종현재가요청. code: '001'(코스피) | '101'(코스닥)."""
+    mrkt_tp = "0" if code == "001" else "1"
+    data, _ = await _post("/api/dostk/sect", "ka20001", {"mrkt_tp": mrkt_tp, "inds_cd": code})
+    _check(data, f"{name} 지수 조회")
+    return km.parse_sector_index(data, code, name)

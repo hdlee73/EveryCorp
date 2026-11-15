@@ -217,6 +217,22 @@ class AppViewModel(private val c: AppContainer) : ViewModel() {
         c.prefs.groupOf = groupOf
     }
 
+    fun renameGroup(oldName: String, newName: String) {
+        val n = newName.trim()
+        if (n.isEmpty() || n == oldName || n in groupNames) return
+        groupNames = groupNames.map { if (it == oldName) n else it }
+        groupOf = groupOf.mapValues { (_, v) -> if (v == oldName) n else v }
+        c.prefs.groupNames = groupNames
+        c.prefs.groupOf = groupOf
+    }
+
+    fun deleteGroup(name: String) {
+        groupNames = groupNames.filterNot { it == name }
+        groupOf = groupOf.filterValues { it != name }
+        c.prefs.groupNames = groupNames
+        c.prefs.groupOf = groupOf
+    }
+
     // ───── 업데이트 ─────
     fun checkUpdate(manual: Boolean) {
         viewModelScope.launch {

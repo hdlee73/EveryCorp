@@ -170,13 +170,21 @@ async def recent_disclosures_by_stock(days: int = 3) -> dict[str, list[dict]]:
     return await cache.get_or_load(("recent_disclosures", days), 900, load)
 
 
-RANK_KINDS = {"volume": "거래량", "value": "거래대금", "rise": "상승률", "fall": "하락률"}
+RANK_KINDS = {
+    "volume": "거래량",
+    "value": "거래대금",
+    "rise": "상승률",
+    "fall": "하락률",
+    "surge": "거래량 급증",
+    "foreign": "외국인 연속 순매수",
+    "inst": "외국인·기관 매수",
+}
 
 
 async def get_rankings(kind: str = "volume", market: str = "all", limit: int = 50, with_tags: bool = True,
                        days: int = 3) -> dict:
     if kind not in RANK_KINDS:
-        raise ApiError(400, "INVALID_KIND", "kind 는 volume·value·rise·fall 중 하나입니다.")
+        raise ApiError(400, "INVALID_KIND", "kind 는 volume·value·rise·fall·surge·foreign·inst 중 하나입니다.")
     if market not in kiwoom_client.MARKET_TP:
         raise ApiError(400, "INVALID_MARKET", "market 은 all·kospi·kosdaq 중 하나입니다.")
     _require_kiwoom()
@@ -202,3 +210,23 @@ async def get_rankings(kind: str = "volume", market: str = "all", limit: int = 5
                       "tags": tags, "disclosures": ds[:3], "disclosure_count": len(ds)})
     return {"kind": kind, "kind_label": RANK_KINDS[kind], "market": market, "source": "KIWOOM",
             "tag_days": days if with_tags else 0, "items": items, "warnings": warnings}
+
+
+async def get_market_indices() -> dict:
+    """코스피(001)·코스닥(101) 현재 지수(30초 캐시)."""
+    _require_kiwoom()
+
+    async def load() -> dict:
+        specs = (("001", "코스피"), ("101", "코스닥"))
+        results = await asyncio.gather(*(kiwoom_client.sector_index(c, n) for c, n in specs), return_exceptions=True)
+        indices, warnings = [], []
+        for (c, n), res in zip(specs, results):
+            if isinstance(res, BaseException):
+                warnings.append(f"{n}: {getattr(res, 'message', None) or res}")
+            else:
+                indices.append(res)
+        if not indices and warnings:
+            raise ApiError(502, "UPSTREAM_ERROR", "지수 정보를 불러오지 못했습니다. " + " / ".join(warnings))
+        return {"source": "KIWOOM", "indices": indices, "warnings": warnings}
+
+    return await cache.get_or_load(("market_indices",), 30, load)

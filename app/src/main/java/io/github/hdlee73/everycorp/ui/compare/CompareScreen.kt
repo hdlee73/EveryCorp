@@ -39,13 +39,17 @@ import kotlinx.coroutines.coroutineScope
 /** 관심기업 2~4곳의 최근 사업연도 핵심 지표를 나란히 보여 준다(기업 개요의 5개년 추이 값 사용). */
 @Composable
 fun CompareScreen(vm: AppViewModel, d: Dest.Compare) {
-    val state by produceState<UiState<List<CompareColumn>>>(UiState.Loading, d) {
+    var retryTick by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    val state by produceState<UiState<List<CompareColumn>>>(UiState.Loading, d, retryTick) {
         value = UiState.Loading
-        value = UiState.Success(
-            coroutineScope {
-                d.corps.map { c -> async { CompareLogic.column(c.corpName, vm.repository.overview(c.corpCode).getOrNull()) } }.awaitAll()
-            },
-        )
+        val results = coroutineScope {
+            d.corps.map { c -> async { c to vm.repository.overview(c.corpCode) } }.awaitAll()
+        }
+        value = if (results.isNotEmpty() && results.all { it.second.isFailure }) {
+            UiState.Error(results.first().second.exceptionOrNull()?.message ?: "기업 정보를 불러오지 못했습니다.")
+        } else {
+            UiState.Success(results.map { (c, r) -> CompareLogic.column(c.corpName, r.getOrNull()) })
+        }
     }
     Column(Modifier.fillMaxSize()) {
         val context = LocalContext.current
@@ -56,7 +60,7 @@ fun CompareScreen(vm: AppViewModel, d: Dest.Compare) {
                 Icon(Icons.Filled.PictureAsPdf, contentDescription = "비교 리포트 PDF")
             }
         })
-        UiStateContent(state, onRetry = null, modifier = Modifier.padding(16.dp)) { cols ->
+        UiStateContent(state, onRetry = { retryTick++ }, modifier = Modifier.padding(16.dp)) { cols ->
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 SectionCard {
                     Row(Modifier.fillMaxWidth()) {
