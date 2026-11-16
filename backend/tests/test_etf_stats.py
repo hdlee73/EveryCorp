@@ -161,3 +161,77 @@ async def test_etf_stats_not_ready(tmpdb):
     with pytest.raises(ss.ApiError) as e:
         await ss.get_etf_stats("069500")
     assert e.value.status == 503
+
+
+# ───────── 네이버 대체 원천·설정 변경 재시도 ─────────
+
+NAVER = {"resultCode": "success", "result": {"etfItemList": [
+    {"itemcode": "069500", "itemname": "KODEX 200", "nowVal": 50000, "nav": 50100.5, "marketSum": 100000},
+    {"itemcode": "bad", "itemname": "x", "nowVal": 1, "marketSum": 1},
+    {"itemcode": "102110", "itemname": "TIGER 200", "nowVal": 0, "marketSum": 10},
+]}}
+
+
+def test_parse_naver_etf_list_estimates():
+    items = st.parse_naver_etf_list(NAVER)
+    assert list(items) == ["069500"]
+    it = items["069500"]
+    assert it["market_cap"] == 10_000_000_000_000
+    assert it["listed_shares"] == 200_000_000
+    assert it["net_assets"] == round(10_000_000_000_000 * 50100.5 / 50000)
+    assert st.parse_naver_etf_list({}) == {}
+
+
+async def test_naver_today_and_krx_replaces_it(tmpdb, monkeypatch):
+    class FakeNow:
+        @staticmethod
+        def now(tz=None):
+            return datetime(2026, 11, 16, 17, 0, tzinfo=tz)
+    monkeypatch.setattr(ss, "datetime", FakeNow)
+
+    async def naver():
+        return st.parse_naver_etf_list(NAVER)
+    monkeypatch.setattr(ss, "fetch_naver_today", naver)
+    assert await ss.collect_today_naver() is True
+    assert tmpdb.known() == {"2026-11-16": "naver"}
+    assert await ss.collect_today_naver() is False  # 이미 있음
+    cov = await ss.coverage()
+    assert cov["estimated_days"] == 1 and "네이버" in cov["note"]
+    # 다음 날 같은 시세(휴장일)면 저장하지 않는다
+    monkeypatch.setattr(ss, "_today", lambda: date(2026, 11, 17))
+    assert await ss.collect_today_naver() is False
+    # KRX 가 그날 자료를 주면 네이버 추정치를 바꾼다, 비어 있어도 휴장일로 덮지 않는다
+    async def krx_empty(d):
+        return {}, "TEST"
+    monkeypatch.setattr(ss, "fetch_day", krx_empty)
+    monkeypatch.setattr(ss, "_today", lambda: date(2026, 11, 21))
+    await ss.collect_recent()
+    assert tmpdb.known()["2026-11-16"] == "naver"
+
+    async def krx(d):
+        return _items(na=7), "KRX Open API"
+    monkeypatch.setattr(ss, "fetch_day", krx)
+    await ss.collect_recent()
+    assert tmpdb.known()["2026-11-16"] == "ok"
+
+
+async def test_failed_backfill_retries_when_config_changes(tmpdb, monkeypatch):
+    monkeypatch.setattr(ss, "BACKFILL_DAYS", 60)
+
+    async def fail(d):
+        raise UpstreamError("KRX", "HTTP 400")
+    monkeypatch.setattr(ss, "fetch_day", fail)
+    monkeypatch.setattr(ss, "has_login", lambda: False)
+    await ss.backfill()
+    assert (await ss.coverage())["backfill"] == "failed"
+    called = []
+
+    async def ok(d):
+        called.append(d)
+        return _items(), "T"
+    monkeypatch.setattr(ss, "fetch_day", ok)
+    await ss.backfill()
+    assert called == []  # 설정이 그대로면 하루 기다린다
+    monkeypatch.setattr(ss, "has_login", lambda: True)  # KRX_ID/PW 를 넣고 재시작
+    await ss.backfill()
+    assert called and (await ss.coverage())["backfill"] == "done"

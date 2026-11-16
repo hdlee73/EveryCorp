@@ -12,6 +12,7 @@ from .config import APP_NAME
 from .errors import ApiError, api_error_handler
 from .http import close_client
 from .routers.api import public, router
+from .services.krx_web import krx_web
 from .services import corp_index, etf_portfolio_service, etf_stats_service, market_service
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -29,6 +30,7 @@ async def lifespan(_: FastAPI):
     etf_stats_task.cancel()
     task.cancel()
     market_task.cancel()
+    await krx_web.close()
     await close_client()
 
 

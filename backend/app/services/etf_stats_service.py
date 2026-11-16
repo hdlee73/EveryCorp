@@ -23,7 +23,9 @@ from ..parsers import etf_pdf as xp
 from ..parsers import etf_stats as st
 from . import etf_portfolio_service as ps
 from . import etf_service
+from ..http import get_client
 from .krx_client import krx_enabled
+from .krx_web import has_login, krx_web
 
 log = logging.getLogger(__name__)
 
@@ -36,6 +38,9 @@ HOLIDAY_AFTER = 3          # 이 일수보다 지난 날에 자료가 비어 있
 MAX_ERRORS = 5             # 백필 중 연속 실패가 이만큼이면 멈춤
 MAX_EMPTY_RUN = 15         # 평일이 연속 이만큼 비면(휴장일은 길어야 열흘 남짓) 원천이 과거일자를 안 주는 것으로 판단
 RETRY_FAILED_AFTER = 24 * 3600
+NAVER_LIST_URL = "https://finance.naver.com/api/sise/etfItemList.nhn"
+SOURCE_NAVER = "네이버 증권(추정)"
+NAVER_AFTER_HOUR = 16      # 장 마감(15:30) 뒤 시세가 굳은 다음에 당일 자료를 받는다
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS snap(
@@ -104,8 +109,18 @@ class StatsDb:
             c.executemany("DELETE FROM days WHERE date=? AND status='holiday'", [(d,) for d in dates])
 
     def known(self) -> dict[str, str]:
+        """{날짜: 'ok'|'holiday'|'naver'}. 'naver' 는 네이버 추정치로 채운 날(KRX 자료로 바꿀 수 있음)."""
         with self._use() as c:
-            return dict(c.execute("SELECT date, status FROM days"))
+            return {d: ("naver" if st_ == "ok" and src == SOURCE_NAVER else st_) for d, st_, src in c.execute("SELECT date, status, source FROM days")}
+
+    def count_source(self, source: str) -> int:
+        with self._use() as c:
+            return c.execute("SELECT COUNT(*) FROM days WHERE status='ok' AND source=?", (source,)).fetchone()[0]
+
+    def totals_on(self, d: str) -> tuple[int, int]:
+        with self._use() as c:
+            r = c.execute("SELECT COUNT(*), COALESCE(SUM(market_cap),0) FROM snap WHERE date=?", (d,)).fetchone()
+        return (r[0] or 0, r[1] or 0)
 
     def get_meta(self, key: str, default: str = "") -> str:
         with self._use() as c:
@@ -194,6 +209,27 @@ async def fetch_day(d: date) -> tuple[dict[str, dict], str]:
     raise UpstreamError("KRX", "; ".join(errors) or "응답 없음")
 
 
+async def fetch_naver_today() -> dict[str, dict]:
+    """네이버 증권 ETF 전종목 시세(당일). KRX 를 쓸 수 없을 때 '오늘부터 누적'용. 과거 일자는 주지 않는다."""
+    r = await get_client().get(NAVER_LIST_URL, headers={"Referer": "https://finance.naver.com/sise/etf.naver"})
+    if r.status_code != 200:
+        raise UpstreamError("네이버", f"ETF 목록 HTTP {r.status_code}")
+    try:
+        data = r.json()
+    except ValueError:
+        import json
+        data = json.loads(r.content.decode("euc-kr", errors="replace"))
+    items = st.parse_naver_etf_list(data)
+    if not items:
+        raise UpstreamError("네이버", "ETF 목록이 비어 있습니다.")
+    return items
+
+
+def _config_key() -> str:
+    """원천 설정(키·로그인)이 바뀌면 실패한 백필을 기다리지 않고 다시 시도하기 위한 값."""
+    return f"{int(krx_enabled())}{int(has_login())}"
+
+
 def _weekdays(start: date, end: date) -> list[date]:
     out, d = [], start
     while d <= end:
@@ -218,7 +254,8 @@ async def collect_recent() -> int:
     known = await _db(db.known)
     saved = 0
     for d in reversed(_weekdays(today - timedelta(days=RECENT_DAYS), end)):
-        if _iso(d) in known:
+        k = known.get(_iso(d))
+        if k in ("ok", "holiday"):
             continue
         try:
             items, src = await fetch_day(d)
@@ -228,10 +265,30 @@ async def collect_recent() -> int:
         if items:
             await _db(db.write_day, _iso(d), items, src)
             saved += 1
-        elif (today - d).days > HOLIDAY_AFTER:
+        elif (today - d).days > HOLIDAY_AFTER and k != "naver":
             await _db(db.mark, _iso(d), "holiday")
         await asyncio.sleep(FETCH_DELAY)
     return saved
+
+
+async def collect_today_naver() -> bool:
+    """오늘(평일 16시 이후) 자료가 없으면 네이버 시세로 채운다. KRX 자료가 나중에 들어오면 그것으로 바뀐다.
+    휴장일에는 네이버가 직전 거래일 시세를 그대로 주므로, 직전 저장일과 종목 수·시가총액 합이 같으면 건너뛴다."""
+    now = datetime.now(KST)
+    today = _today()
+    if today.weekday() >= 5 or now.hour < NAVER_AFTER_HOUR:
+        return False
+    if _iso(today) in await _db(db.known):
+        return False
+    items = await fetch_naver_today()
+    prev = await _db(db.ok_day_on_or_before, _iso(today - timedelta(days=1)))
+    if prev:
+        cnt, cap = await _db(db.totals_on, prev)
+        if cnt == len(items) and cap == sum(it["market_cap"] for it in items.values()):
+            log.info("ETF stats naver: same as %s, holiday?", prev)
+            return False
+    await _db(db.write_day, _iso(today), items, SOURCE_NAVER)
+    return True
 
 
 async def backfill() -> None:
@@ -239,11 +296,12 @@ async def backfill() -> None:
     state = await _db(db.get_meta, "backfill_state", "pending")
     if state == "failed":
         failed_at = float(await _db(db.get_meta, "backfill_failed_at", "0") or 0)
-        if time.time() - failed_at < RETRY_FAILED_AFTER:
+        same_cfg = await _db(db.get_meta, "backfill_failed_cfg", "") == _config_key()
+        if same_cfg and time.time() - failed_at < RETRY_FAILED_AFTER:
             return
     today = _today()
     known = await _db(db.known)
-    todo = [d for d in reversed(_weekdays(today - timedelta(days=BACKFILL_DAYS), today - timedelta(days=HOLIDAY_AFTER + 1))) if _iso(d) not in known]
+    todo = [d for d in reversed(_weekdays(today - timedelta(days=BACKFILL_DAYS), today - timedelta(days=HOLIDAY_AFTER + 1))) if known.get(_iso(d)) not in ("ok", "holiday")]
     if not todo:
         if state != "done":
             await _db(db.set_meta, backfill_state="done", backfill_message="")
@@ -260,7 +318,7 @@ async def backfill() -> None:
                 errors += 1
                 log.info("ETF stats backfill %s: %s", d, e)
                 if errors >= MAX_ERRORS:
-                    await _db(db.set_meta, backfill_state="failed", backfill_failed_at=str(time.time()),
+                    await _db(db.set_meta, backfill_state="failed", backfill_failed_at=str(time.time()), backfill_failed_cfg=_config_key(),
                               backfill_message=f"KRX 가 과거 일자 요청에 응답하지 않았습니다({e}).")
                     return
                 await asyncio.sleep(FETCH_DELAY * 3)
@@ -271,12 +329,13 @@ async def backfill() -> None:
                 await _db(db.write_day, _iso(d), items, src)
             else:
                 empty_run += 1
-                empties.append(_iso(d))
-                await _db(db.mark, _iso(d), "holiday")
+                if known.get(_iso(d)) != "naver":  # 네이버로 채운 날은 휴장일로 덮지 않는다
+                    empties.append(_iso(d))
+                    await _db(db.mark, _iso(d), "holiday")
                 if empty_run >= MAX_EMPTY_RUN:
                     # 휴장일로 잘못 기록한 날들을 되돌려 다음에 다시 시도하게 한다
-                    await _db(db.unmark, empties[-empty_run:])
-                    await _db(db.set_meta, backfill_state="failed", backfill_failed_at=str(time.time()),
+                    await _db(db.unmark, empties[-empty_run:] if empties else [])
+                    await _db(db.set_meta, backfill_state="failed", backfill_failed_at=str(time.time()), backfill_failed_cfg=_config_key(),
                               backfill_message="KRX 가 과거 일자 자료를 비워서 보냈습니다(과거 조회 미지원으로 판단).")
                     return
             _state["progress"] = (i, len(todo))
@@ -292,6 +351,10 @@ async def refresh_loop() -> None:
     while True:
         try:
             await collect_recent()
+            try:
+                await collect_today_naver()
+            except Exception as e:  # noqa: BLE001
+                log.info("ETF stats naver today: %s", e)
             await backfill()
         except Exception:  # noqa: BLE001
             log.exception("ETF stats collect failed")
@@ -305,14 +368,20 @@ async def coverage() -> dict:
     state = await _db(db.get_meta, "backfill_state", "pending")
     msg = await _db(db.get_meta, "backfill_message", "")
     done, total = _state["progress"]
-    if not n:
-        note = "아직 저장된 자료가 없습니다. 서버가 KRX 에서 자료를 받는 중이거나(서버 시작 몇 분 뒤 시작) KRX 접속이 막혀 있습니다." + (f" ({msg})" if msg else "")
-    elif state == "failed":
-        note = f"KRX 에서 과거 일자 자료를 받지 못해 {first}부터 매일 쌓고 있습니다. 추이는 날이 갈수록 길어집니다. ({msg})"
-    elif state == "running":
-        note = f"과거 1년치를 KRX 에서 받는 중입니다({done}/{total}일). 다 받기 전에는 추이가 짧거나 중간이 비어 보일 수 있습니다."
+    naver_days = await _db(db.count_source, SOURCE_NAVER)
+    if n and naver_days:
+        note = (f"KRX 자료를 받지 못한 {naver_days}일은 네이버 증권 시세로 채웠습니다"
+                "(순자산총액 ≈ 시가총액 × NAV ÷ 현재가, 상장좌수 ≈ 시가총액 ÷ 현재가로 추정, 시가총액은 억원 단위). ")
     else:
-        note = f"{first} ~ {last}, {n}영업일 자료입니다. 매일 전 영업일 자료를 더합니다."
+        note = ""
+    if not n:
+        note += "아직 저장된 자료가 없습니다. 서버가 KRX 에서 자료를 받는 중이거나(서버 시작 몇 분 뒤 시작) KRX 접속이 막혀 있습니다." + (f" ({msg})" if msg else "")
+    elif state == "failed":
+        note += f"KRX 에서 과거 일자 자료를 받지 못해 {first}부터 매일 쌓고 있습니다. 추이는 날이 갈수록 길어집니다. ({msg})"
+    elif state == "running":
+        note += f"과거 1년치를 KRX 에서 받는 중입니다({done}/{total}일). 다 받기 전에는 추이가 짧거나 중간이 비어 보일 수 있습니다."
+    else:
+        note += f"{first} ~ {last}, {n}영업일 자료입니다. 매일 전 영업일 자료를 더합니다."
     return {
         "first_date": first,
         "last_date": last,
@@ -322,6 +391,8 @@ async def coverage() -> dict:
         "progress": {"done": done, "total": total},
         "since_first_collect": state == "failed",
         "collecting": _state["collecting"],
+        "estimated_days": naver_days,
+        "krx_login": krx_web.status(),
         "note": note,
     }
 

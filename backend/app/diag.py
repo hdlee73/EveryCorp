@@ -367,6 +367,14 @@ async def diag_etf_stats() -> None:
             print(f"{d} ({back}일 전): {len(items)}종목 · 원천 {src} · 순자산 합계 {tot / 1e12:,.1f}조 · 예시 {sample}")
         except Exception as e:  # noqa: BLE001
             print(f"{d} ({back}일 전) 실패:", type(e).__name__, e)
+    from .services.krx_web import krx_web
+    print("KRX 정보데이터시스템 로그인:", krx_web.status())
+    try:
+        items = await ss.fetch_naver_today()
+        sample = next(iter(items.values()), {})
+        print(f"네이버 ETF 전종목(당일, 대체 원천): {len(items)}종목 · 예시 {sample}")
+    except Exception as e:  # noqa: BLE001
+        print("네이버 ETF 전종목 실패:", type(e).__name__, e)
     head("ETF 통계 저장 현황")
     print(await ss.coverage())
 

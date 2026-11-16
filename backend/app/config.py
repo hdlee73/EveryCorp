@@ -27,6 +27,9 @@ class Settings(BaseSettings):
 
     krx_auth_key: str = ""          # KRX Open API 인증키 (KRX_AUTH_KEY) — 전일(T-1) 종가 기반
     krx_base_url: str = "https://data-dbg.krx.co.kr/svc/apis"
+    # KRX 정보데이터시스템(data.krx.co.kr) 회원 로그인. 정보데이터시스템 자료(ETF 구성종목·일별 시세·과거 일자)에 필요하다.
+    krx_id: str = ""                # KRX_ID
+    krx_pw: str = ""                # KRX_PW
 
     # --- 앱 ↔ 서버 인증 ---
     # 앱이 X-App-Token 헤더로 보낸다. 비어 있으면(로컬 개발) 검사하지 않는다.
