@@ -12,7 +12,7 @@ from .config import APP_NAME
 from .errors import ApiError, api_error_handler
 from .http import close_client
 from .routers.api import public, router
-from .services import corp_index, etf_portfolio_service, market_service
+from .services import corp_index, etf_portfolio_service, etf_stats_service, market_service
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -23,8 +23,10 @@ async def lifespan(_: FastAPI):
     task = asyncio.create_task(corp_index.refresh_loop())
     market_task = asyncio.create_task(market_service.refresh_loop())
     etf_task = asyncio.create_task(etf_portfolio_service.refresh_loop())
+    etf_stats_task = asyncio.create_task(etf_stats_service.refresh_loop())
     yield
     etf_task.cancel()
+    etf_stats_task.cancel()
     task.cancel()
     market_task.cancel()
     await close_client()

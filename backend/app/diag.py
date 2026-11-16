@@ -6,6 +6,7 @@
       docker compose exec api python -m app.diag 00126380 005930 --etf              (키움 ETF TR 후보)
       docker compose exec api python -m app.diag 00126380 005930 --market           (키움 차트·호가·수급·랭킹 응답 필드 확인)
       docker compose exec api python -m app.diag --etf-pdf [ETF코드]                  (ETF 순자산·운용사·구성종목 원천과 매칭 결과만)
+      docker compose exec api python -m app.diag --etf-stats                          (ETF 통계: 과거 일자 조회 가능 여부·저장 현황)
 """
 from __future__ import annotations
 
@@ -349,8 +350,33 @@ async def diag_etf_pdf(code: str) -> None:
         print("관련성 실패:", type(e).__name__, e)
 
 
+async def diag_etf_stats() -> None:
+    """ETF 통계 원천이 과거 일자를 주는지(어제·한 달 전·1년 전) 확인하고 저장 현황을 보여 준다."""
+    from .services import etf_stats_service as ss
+
+    head("ETF 통계 원천: 과거 일자 조회")
+    today = ss._today()
+    for back in (1, 7, 30, 180, 365):
+        d = today - timedelta(days=back)
+        while d.weekday() >= 5:
+            d -= timedelta(days=1)
+        try:
+            items, src = await ss.fetch_day(d)
+            sample = next(iter(items.values()), {})
+            tot = sum((it.get("net_assets") or 0) for it in items.values())
+            print(f"{d} ({back}일 전): {len(items)}종목 · 원천 {src} · 순자산 합계 {tot / 1e12:,.1f}조 · 예시 {sample}")
+        except Exception as e:  # noqa: BLE001
+            print(f"{d} ({back}일 전) 실패:", type(e).__name__, e)
+    head("ETF 통계 저장 현황")
+    print(await ss.coverage())
+
+
 async def main() -> None:
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    if "--etf-stats" in sys.argv:
+        await diag_etf_stats()
+        head("끝")
+        return
     if "--etf-pdf" in sys.argv:
         await diag_etf_pdf(args[0] if args else ETF_CODE)
         head("끝")

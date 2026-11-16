@@ -18,6 +18,14 @@ enum class EtfTab(val label: String) {
     Basics("기초자료"),
     Portfolio("구성종목(PDF)"),
     Relations("ETF 관련성"),
+    Stats("순자산 추이"),
+}
+
+/** ETF 통계 화면 탭. */
+enum class EtfStatsTab(val label: String) {
+    Total("전체 추이"),
+    Managers("운용사별"),
+    Ranking("ETF 순위"),
 }
 
 /** 스크리닝 종류. */
@@ -48,6 +56,11 @@ sealed interface Dest {
     /** ETF 상세. [tabs]는 방문한 탭 기록(맨 뒤가 현재 탭). 뒤로가기는 직전 탭으로 돌아간다. */
     data class Etf(val item: EtfItemDto, val tabs: List<EtfTab> = listOf(EtfTab.Basics)) : Dest {
         val current: EtfTab get() = tabs.last()
+    }
+
+    /** ETF 통계(운용사별·일자별 ETF 수, 순자산, 시가총액, 순위). [tabs]는 방문한 탭 기록(맨 뒤가 현재 탭). */
+    data class EtfStats(val tabs: List<EtfStatsTab> = listOf(EtfStatsTab.Total)) : Dest {
+        val current: EtfStatsTab get() = tabs.last()
     }
 
     /** 두 ETF 구성종목 중복도. */
@@ -88,6 +101,15 @@ data class NavState(val stack: List<Dest> = listOf(Dest.Home)) {
 
     fun openEtfOverlap(a: EtfItemDto, b: EtfItemDto): NavState = copy(stack = stack + Dest.EtfOverlap(a, b))
 
+    fun openEtfStats(tab: EtfStatsTab = EtfStatsTab.Total): NavState =
+        copy(stack = stack + Dest.EtfStats(if (tab == EtfStatsTab.Total) listOf(EtfStatsTab.Total) else listOf(EtfStatsTab.Total, tab)))
+
+    fun selectEtfStatsTab(tab: EtfStatsTab): NavState {
+        val t = top as? Dest.EtfStats ?: return this
+        if (t.current == tab) return this
+        return copy(stack = stack.dropLast(1) + t.copy(tabs = t.tabs.filterNot { it == tab } + tab))
+    }
+
     fun selectEtfTab(tab: EtfTab): NavState {
         val t = top as? Dest.Etf ?: return this
         if (t.current == tab) return this
@@ -109,6 +131,7 @@ data class NavState(val stack: List<Dest> = listOf(Dest.Home)) {
         val t = top
         if (t is Dest.Company && t.tabs.size > 1) return copy(stack = stack.dropLast(1) + t.copy(tabs = t.tabs.dropLast(1)))
         if (t is Dest.Etf && t.tabs.size > 1) return copy(stack = stack.dropLast(1) + t.copy(tabs = t.tabs.dropLast(1)))
+        if (t is Dest.EtfStats && t.tabs.size > 1) return copy(stack = stack.dropLast(1) + t.copy(tabs = t.tabs.dropLast(1)))
         if (stack.size > 1) return copy(stack = stack.dropLast(1))
         return null
     }
