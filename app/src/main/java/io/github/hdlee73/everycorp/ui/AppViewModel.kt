@@ -96,6 +96,10 @@ class AppViewModel(private val c: AppContainer) : ViewModel() {
 
     fun openEtfOverlap(a: EtfItemDto, b: EtfItemDto) { nav = nav.openEtfOverlap(a, b) }
 
+    fun openEtfStats(tab: io.github.hdlee73.everycorp.ui.common.EtfStatsTab = io.github.hdlee73.everycorp.ui.common.EtfStatsTab.Total) { nav = nav.openEtfStats(tab) }
+
+    fun selectEtfStatsTab(tab: io.github.hdlee73.everycorp.ui.common.EtfStatsTab) { nav = nav.selectEtfStatsTab(tab) }
+
     fun selectEtfTab(tab: io.github.hdlee73.everycorp.ui.common.EtfTab) { nav = nav.selectEtfTab(tab) }
 
     fun openInfo() { nav = nav.openInfo() }

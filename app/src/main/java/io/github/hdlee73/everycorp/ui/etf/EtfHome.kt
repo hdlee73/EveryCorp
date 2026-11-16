@@ -100,6 +100,7 @@ fun EtfHomeScreen(app: AppViewModel) {
         SearchPill(vm.query, vm::onQuery, placeholder = "ETF 이름·코드·기초지수", modifier = Modifier.padding(horizontal = 16.dp))
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             PillChip(if (vm.compareMode) "비교 고르기 끝내기" else "두 ETF 비교", onClick = vm::toggleCompare, selected = vm.compareMode)
+            if (!vm.compareMode) PillChip("ETF 통계", onClick = { app.openEtfStats() })
             if (vm.compareMode) {
                 Text(
                     vm.first?.let { "① ${it.name} → 두 번째 ETF 를 고르세요" } ?: "첫 번째 ETF 를 고르세요",
@@ -109,7 +110,7 @@ fun EtfHomeScreen(app: AppViewModel) {
         }
         when (val st = vm.results) {
             UiState.Idle -> Text(
-                "ETF 를 검색해 고르면 기초자료 · 구성종목(PDF) · ETF 관련성 탭을 볼 수 있습니다.\n'두 ETF 비교'를 켜고 두 개를 차례로 고르면 구성종목 중복도를 계산합니다.",
+                "ETF 를 검색해 고르면 기초자료 · 구성종목(PDF) · ETF 관련성 · 순자산 추이 탭을 볼 수 있습니다.\n'ETF 통계'에서 운용사별·일자별 ETF 수와 순자산·시가총액 추이, 순위를 봅니다.\n'두 ETF 비교'를 켜고 두 개를 차례로 고르면 구성종목 중복도를 계산합니다.",
                 Modifier.padding(16.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             else -> UiStateContent(st, onRetry = { vm.onQuery(vm.query) }) { list ->

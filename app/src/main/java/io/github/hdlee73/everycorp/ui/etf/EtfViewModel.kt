@@ -10,6 +10,7 @@ import io.github.hdlee73.everycorp.data.api.dto.EtfDetailDto
 import io.github.hdlee73.everycorp.data.api.dto.EtfHoldingDto
 import io.github.hdlee73.everycorp.data.api.dto.EtfPortfolioDto
 import io.github.hdlee73.everycorp.data.api.dto.EtfRelationsDto
+import io.github.hdlee73.everycorp.data.api.dto.EtfStatsDto
 import io.github.hdlee73.everycorp.data.repo.CorpRepository
 import io.github.hdlee73.everycorp.ui.common.UiState
 import io.github.hdlee73.everycorp.ui.common.toUiState
@@ -33,6 +34,10 @@ class EtfViewModel(val code: String, private val repo: CorpRepository) : ViewMod
     var portfolio by mutableStateOf<UiState<EtfPortfolioDto>>(UiState.Idle); private set
     var relations by mutableStateOf<UiState<EtfRelationsDto>>(UiState.Idle); private set
     var filter by mutableStateOf(HoldingFilter.All); private set
+    var stats by mutableStateOf<UiState<EtfStatsDto>>(UiState.Idle); private set
+    var statsPeriod by mutableStateOf(StatPeriod.Y1); private set
+    var statsMetric by mutableStateOf(EtfSeriesMetric.NetAssets); private set
+    private var statsJob: Job? = null
     private var portfolioJob: Job? = null
     private var relationsJob: Job? = null
 
@@ -61,6 +66,18 @@ class EtfViewModel(val code: String, private val repo: CorpRepository) : ViewMod
     }
 
     fun select(f: HoldingFilter) { filter = f }
+
+    /** '순자산 추이' 탭: 서버가 매일 저장한 KRX 일별 자료. */
+    fun loadStats(force: Boolean = false) {
+        if (!force && (stats is UiState.Success || statsJob?.isActive == true)) return
+        statsJob?.cancel()
+        stats = UiState.Loading
+        val days = statsPeriod.days
+        statsJob = viewModelScope.launch { stats = repo.etfStats(code, days).toUiState() }
+    }
+
+    fun selectStatsPeriod(p: StatPeriod) { if (p != statsPeriod) { statsPeriod = p; loadStats(force = true) } }
+    fun selectStatsMetric(m: EtfSeriesMetric) { statsMetric = m }
 
     /** 화면이 보이는 동안 주기적으로 부르는 조용한 갱신(실패해도 이전 값을 유지). */
     suspend fun refreshQuiet() {

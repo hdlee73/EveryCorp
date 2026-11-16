@@ -51,6 +51,7 @@ import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.Leaderboard
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
@@ -108,11 +109,12 @@ private enum class MenuItem(val label: String, val summary: String, val icon: Im
     Screening("스크리닝", "조건에 맞는 회사 목록·엑셀 내보내기", Icons.Filled.FilterAlt, Dest.Screening, HeroPalettes.Indigo),
     Market("시장 랭킹", "거래량·상승률 순위 + 최근 공시 태그", Icons.Filled.Leaderboard, Dest.Market, HeroPalettes.Ocean),
     Etf("ETF", "순자산·괴리율, 구성종목(PDF), 자사 ETF·순환투자·중복도", Icons.Filled.PieChart, Dest.EtfHome, HeroPalettes.Teal),
+    EtfStats("ETF 통계", "운용사별·일자별 ETF 수, 순자산·시가총액 추이와 순위", Icons.Filled.BarChart, Dest.EtfStats(), HeroPalettes.Teal),
     Alerts("알림", "관심기업의 새 공시 확인", Icons.Filled.Notifications, Dest.Alerts, HeroPalettes.Coral),
     Info("앱 정보", "버전·만든이, 업데이트 확인·자동 업데이트·알림 설정", Icons.Filled.Info, Dest.Info, HeroPalettes.Slate);
 
     companion object {
-        fun of(d: Dest): MenuItem? = entries.firstOrNull { it.dest == d }
+        fun of(d: Dest): MenuItem? = if (d is Dest.EtfStats) EtfStats else entries.firstOrNull { it.dest == d }
     }
 }
 
@@ -219,6 +221,7 @@ private fun Root() {
                         is Dest.Etf -> EtfScreen(vm, d)
                         Dest.EtfHome -> io.github.hdlee73.everycorp.ui.etf.EtfHomeScreen(vm)
                         is Dest.EtfOverlap -> io.github.hdlee73.everycorp.ui.etf.EtfOverlapScreen(vm, d)
+                        is Dest.EtfStats -> io.github.hdlee73.everycorp.ui.etf.EtfStatsScreen(vm, d)
                     }
                 }
             }

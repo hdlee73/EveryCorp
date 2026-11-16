@@ -11,6 +11,9 @@ import io.github.hdlee73.everycorp.data.api.dto.CorpSearchResponse
 import io.github.hdlee73.everycorp.data.api.dto.DebtSecuritiesDto
 import io.github.hdlee73.everycorp.data.api.dto.DisclosuresResponse
 import io.github.hdlee73.everycorp.data.api.dto.EtfDetailDto
+import io.github.hdlee73.everycorp.data.api.dto.EtfRankingDto
+import io.github.hdlee73.everycorp.data.api.dto.EtfStatsDto
+import io.github.hdlee73.everycorp.data.api.dto.EtfStatsOverviewDto
 import io.github.hdlee73.everycorp.data.api.dto.EtfOverlapDto
 import io.github.hdlee73.everycorp.data.api.dto.EtfPortfolioDto
 import io.github.hdlee73.everycorp.data.api.dto.EtfRelationsDto
@@ -88,6 +91,20 @@ interface EveryCorpApi {
 
     @GET("api/v1/etfs/search")
     suspend fun searchEtfs(@Query("q") query: String, @Query("limit") limit: Int = 10): EtfSearchResponse
+
+    @GET("api/v1/etfs/stats/overview")
+    suspend fun etfStatsOverview(@Query("days") days: Int, @Query("top") top: Int = 7): EtfStatsOverviewDto
+
+    @GET("api/v1/etfs/stats/ranking")
+    suspend fun etfStatsRanking(
+        @Query("sort") sort: String,
+        @Query("period") period: Int,
+        @Query("manager") manager: String = "",
+        @Query("limit") limit: Int = 300,
+    ): EtfRankingDto
+
+    @GET("api/v1/etfs/{code}/stats")
+    suspend fun etfStats(@Path("code") code: String, @Query("days") days: Int = 365): EtfStatsDto
 
     @GET("api/v1/etfs/{code}")
     suspend fun etf(@Path("code") code: String): EtfDetailDto

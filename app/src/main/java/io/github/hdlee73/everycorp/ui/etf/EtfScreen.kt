@@ -69,6 +69,7 @@ fun EtfScreen(app: AppViewModel, dest: Dest.Etf) {
         when (tab) {
             EtfTab.Portfolio -> vm.loadPortfolio()
             EtfTab.Relations -> vm.loadRelations()
+            EtfTab.Stats -> vm.loadStats()
             EtfTab.Basics -> Unit
         }
     }
@@ -98,6 +99,7 @@ fun EtfScreen(app: AppViewModel, dest: Dest.Etf) {
                     EtfTab.Basics -> BasicsTab(vm)
                     EtfTab.Portfolio -> PortfolioTab(app, vm)
                     EtfTab.Relations -> RelationsTab(app, vm, item)
+                    EtfTab.Stats -> EtfStatsTabContent(app, vm)
                 }
             }
         }

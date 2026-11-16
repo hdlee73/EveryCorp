@@ -18,7 +18,7 @@ from ..errors import ApiError, UpstreamError
 from ..http import get_client
 from ..parsers import dart_viewer as dv
 from ..services import market_data_service, realtime_service
-from ..services import app_meta, company_service, debt_service, disclosures_service, etf_portfolio_service, etf_service, market_service, news_service, price_service, reports_service, screening_export, screening_service, shareholders_service, stake_service
+from ..services import app_meta, company_service, debt_service, disclosures_service, etf_portfolio_service, etf_service, etf_stats_service, market_service, news_service, price_service, reports_service, screening_export, screening_service, shareholders_service, stake_service
 from ..services.corp_index import corp_index
 
 
@@ -90,6 +90,26 @@ async def etf_overlap(a: str = Query(..., min_length=6, max_length=6), b: str = 
     return await etf_portfolio_service.get_overlap(a, b)
 
 
+@router.get("/etfs/stats/overview")
+async def etf_stats_overview(days: int = Query(365, ge=7, le=730), top: int = Query(8, ge=3, le=15)) -> dict:
+    return await etf_stats_service.get_overview(days, top)
+
+
+@router.get("/etfs/stats/ranking")
+async def etf_stats_ranking(
+    sort: str = Query("net_assets", max_length=30),
+    period: int = Query(30, ge=1, le=730),
+    limit: int = Query(100, ge=1, le=1500),
+    manager: str = Query("", max_length=50),
+) -> dict:
+    return await etf_stats_service.get_ranking(sort, period, limit, manager)
+
+
+@router.get("/etfs/stats/coverage")
+async def etf_stats_coverage() -> dict:
+    return await etf_stats_service.coverage()
+
+
 @router.get("/etfs/store/status")
 async def etf_store_status() -> dict:
     return etf_portfolio_service.status()
@@ -98,6 +118,11 @@ async def etf_store_status() -> dict:
 @router.get("/etfs/{code}/portfolio")
 async def etf_portfolio(code: str) -> dict:
     return await etf_portfolio_service.get_portfolio(code)
+
+
+@router.get("/etfs/{code}/stats")
+async def etf_stats(code: str, days: int = Query(365, ge=7, le=730)) -> dict:
+    return await etf_stats_service.get_etf_stats(code, days)
 
 
 @router.get("/etfs/{code}/relations")
