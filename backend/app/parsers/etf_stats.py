@@ -155,3 +155,38 @@ def change(values: list, back: int) -> dict | None:
         return None
     cur, prev = vals[-1], vals[max(0, len(vals) - 1 - back)]
     return {"from": prev, "to": cur, "diff": cur - prev, "pct": round((cur - prev) / prev * 100, 2) if prev else None}
+
+
+def parse_naver_etf_list(data: dict) -> dict[str, dict]:
+    """네이버 증권 ETF 전종목 시세(finance.naver.com/api/sise/etfItemList.nhn) → {코드: 일별 자료}.
+
+    네이버는 순자산총액·상장좌수를 주지 않아 시가총액(marketSum, 억원)으로 추정한다:
+      상장좌수 ≈ 시가총액 / 현재가, 순자산총액 ≈ 시가총액 × NAV / 현재가.
+    """
+    res = data.get("result") if isinstance(data, dict) else None
+    rows = (res or {}).get("etfItemList") if isinstance(res, dict) else None
+    out: dict[str, dict] = {}
+    for r in rows or []:
+        if not isinstance(r, dict):
+            continue
+        code = str(r.get("itemcode") or "").strip()
+        if len(code) != 6:
+            continue
+        try:
+            price = float(r.get("nowVal") or 0)
+            nav = float(r.get("nav") or 0)
+            msum = float(r.get("marketSum") or 0) * 1e8
+        except (TypeError, ValueError):
+            continue
+        if price <= 0 or msum <= 0:
+            continue
+        out[code] = {
+            "code": code,
+            "name": str(r.get("itemname") or "").strip(),
+            "close": int(round(price)),
+            "nav": nav or None,
+            "market_cap": int(round(msum)),
+            "listed_shares": int(round(msum / price)),
+            "net_assets": int(round(msum * (nav / price if nav > 0 else 1.0))),
+        }
+    return out

@@ -23,13 +23,12 @@ from ..parsers import etf_pdf as xp
 from . import etf_service
 from .corp_index import corp_index
 from .krx_client import krx_enabled
+from .krx_web import krx_web
 from .kiwoom_client import kiwoom_enabled
 
 log = logging.getLogger(__name__)
 
 KST = timezone(timedelta(hours=9))
-KRX_DATA_URL = "https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd"
-KRX_REFERER = "https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC0201030101"
 NAVER_ETF_URL = "https://m.stock.naver.com/api/stock/{code}/etfAnalysis"
 STORE_PATH = "data/etf_pdf.json"
 CRAWL_DELAY = 0.5        # 초. KRX 에 부담을 주지 않도록 한 건씩 천천히
@@ -57,21 +56,8 @@ def _recent_business_days(n: int = 7) -> list[str]:
 # ───────────────────────── 원천 호출 ─────────────────────────
 
 async def _krx_data(form: dict) -> dict:
-    """KRX 정보데이터시스템 JSON. 로그인 요구·차단 시 HTML/텍스트가 와서 UpstreamError."""
-    r = await get_client().post(
-        KRX_DATA_URL,
-        data={"locale": "ko_KR", "csvxls_isNo": "false", **form},
-        headers={"Referer": KRX_REFERER, "X-Requested-With": "XMLHttpRequest"},
-    )
-    if r.status_code != 200:
-        raise UpstreamError("KRX", f"정보데이터시스템 HTTP {r.status_code}")
-    try:
-        data = r.json()
-    except ValueError as e:
-        raise UpstreamError("KRX", "정보데이터시스템이 JSON 대신 다른 응답(로그인 요구 등)을 보냈습니다.") from e
-    if not isinstance(data, dict):
-        raise UpstreamError("KRX", "정보데이터시스템 응답 형식이 다릅니다.")
-    return data
+    """KRX 정보데이터시스템 JSON(로그인 세션 포함, krx_web). 로그인 요구·차단 시 UpstreamError."""
+    return await krx_web.post_json(form)
 
 
 @cached(ttl=12 * 3600)
@@ -101,6 +87,8 @@ async def krx_basic() -> dict[str, dict]:
 async def _krx_openapi_daily(bas_dd: str) -> dict[str, dict]:
     s = get_settings()
     r = await get_client().get(f"{s.krx_base_url}/etp/etf_bydd_trd", params={"basDd": bas_dd}, headers={"AUTH_KEY": s.krx_auth_key})
+    if r.status_code == 401:
+        raise UpstreamError("KRX", "Open API HTTP 401(인증키에 'ETF 일별매매정보' 서비스 이용신청·승인이 필요합니다)")
     if r.status_code != 200:
         raise UpstreamError("KRX", f"Open API HTTP {r.status_code}")
     return xp.parse_krx_daily_all(r.json())
